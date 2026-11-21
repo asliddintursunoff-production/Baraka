@@ -33,6 +33,12 @@ def approve_plan(
         plan.approved_by_id = user_id
         plan.approved_at = timezone.now()
         plan.save(update_fields=["status", "approved_by", "approved_at"])
+        if plan.kind == ActionPlan.Kind.RECORD_DEBT and plan.payload.get("debt_id"):
+            from apps.finance.models import Debt
+
+            Debt.objects.filter(pk=plan.payload["debt_id"], status=Debt.Status.PENDING).update(
+                status=Debt.Status.OPEN
+            )
         if plan.kind == ActionPlan.Kind.PURCHASE_PLAN and plan.payload.get("date"):
             # "Execution" in the MVP = an in-app reminder on that morning. No money moves.
             d = datetime.fromisoformat(plan.payload["date"]).date()

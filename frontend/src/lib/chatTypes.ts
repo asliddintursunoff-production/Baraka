@@ -20,6 +20,38 @@ export interface Candidate {
   warning: string;
 }
 
+/** An assumption behind an advisor answer (docs/API_ADVISOR.md); editable ones re-run `tool`. */
+export interface Assumption {
+  text: string;
+  editable: boolean;
+  key?: string;
+  value?: string;
+  tool?: string;
+  args?: Record<string, unknown>;
+}
+
+export interface AdvisorPlanStep {
+  when: string;
+  action: string;
+  amount?: string | null;
+}
+
+export interface Advisor {
+  plan: AdvisorPlanStep[];
+  assumptions: Assumption[];
+  risks: string[];
+  question: string | null;
+}
+
+/** Envelope of POST /api/tools/<name> (only the fields the chat card uses). */
+export interface ToolRunResult {
+  ok?: boolean;
+  ui_blocks?: UiBlock[];
+  assumptions?: Assumption[];
+  error?: string;
+  detail?: string;
+}
+
 export interface Answer {
   verdict: AnswerVerdict;
   headline: string;
@@ -32,6 +64,8 @@ export interface Answer {
   explain: string[];
   speech: string;
   model: string;
+  mode?: "quick" | "advisor";
+  advisor?: Advisor | null;
 }
 
 export interface ChatMessage {

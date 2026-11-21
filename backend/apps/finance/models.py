@@ -99,3 +99,23 @@ class CashAccount(TenantScopedModel):
 
     class Meta:
         indexes = [models.Index(fields=["business", "-as_of_date"], name="cash_business_asof")]
+
+
+class Debt(TenantScopedModel):
+    """A debt the person told us about (chat) or a debts sheet. `pending` until confirmed."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Tasdiq kutilmoqda"
+        OPEN = "open", "Ochiq"
+        PAID = "paid", "To'langan"
+
+    counterparty = models.CharField(max_length=120)
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+    due_date = models.DateField(null=True, blank=True)
+    terms_text = models.CharField(max_length=300, blank=True)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
+    source = models.CharField(max_length=8, default="chat")  # chat | sheet
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.counterparty}: {self.amount}"

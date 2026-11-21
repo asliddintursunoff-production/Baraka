@@ -11,6 +11,7 @@ class ActionPlan(TenantScopedModel):
         REMINDER = "reminder", "Eslatma"
         SPENDING_LIMIT = "spending_limit", "Xarajat chegarasi"
         PURCHASE_PLAN = "purchase_plan", "Xarid rejasi"
+        RECORD_DEBT = "record_debt", "Qarzni yozish"
 
     class Status(models.TextChoices):
         PROPOSED = "proposed", "Taklif"
