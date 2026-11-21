@@ -58,6 +58,11 @@ const BLOCK_TYPES: ReadonlySet<string> = new Set<UiBlock["type"]>([
   "forecast_chart",
   "day_breakdown",
   "approval",
+  "plan_timeline",
+  "payback_chart",
+  "scenario_table",
+  "debt_list",
+  "metric_grid",
 ]);
 const CONNECT_FAILED = "Jonli suhbatni ochib bo'lmadi. Yozib so'rang.";
 const FINISH_TIMEOUT_MS = 4000;

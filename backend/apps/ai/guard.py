@@ -89,3 +89,76 @@ def violations(answer_texts: Iterable[str], allowed_texts: Iterable[str]) -> lis
             if abs(s) not in ok_small:
                 bad.append(f"number {s}")
     return bad
+
+
+# --- date <-> payment pairing (extended fact guard) ---------------------------------------
+PAYMENT_WORDS: dict[str, tuple[str, ...]] = {
+    "payroll": ("oylik", "ish haqi", "maosh"),
+    "loan": ("kredit",),
+    "tax": ("soliq",),
+    "rent": ("ijara",),
+    "kommunal": ("kommunal", "svet", "elektr"),
+}
+
+
+def payment_keys(category: str, counterparty: str, title: str) -> set[str]:
+    keys = set(PAYMENT_WORDS.get(category, ()))
+    for name in (counterparty, title):
+        n = _clean(name).lower().strip()
+        if n and category not in PAYMENT_WORDS:  # suppliers etc.: their own name
+            keys.add(n.split(" · ")[-1].split("(")[0].strip())
+    return {k for k in keys if len(k) >= 4}
+
+
+def pairing_violations(
+    texts: Iterable[str], pairs: Iterable[tuple[tuple[int, int], set[str]]]
+) -> list[str]:
+    """'soliq 10-dekabr' while the facts say soliq is on 15-dekabr -> violation.
+
+    For every payment word in a sentence, the nearest date in that sentence must be one
+    of that payment's real dates."""
+    by_key: dict[str, set[tuple[int, int]]] = {}
+    for d, keys in pairs:
+        for k in keys:
+            by_key.setdefault(k, set()).add(d)
+    bad: list[str] = []
+    for text in texts:
+        for sentence in re.split(r"[.!?;\n]", _clean(text).lower()):
+            dates = [
+                (m.start(), (int(m.group(1)), _month_index(m.group(2))))
+                for m in _DATE.finditer(sentence)
+            ]
+            if not dates:
+                continue
+            for key, real in by_key.items():
+                for m in re.finditer(re.escape(key), sentence):
+                    nearest = min(dates, key=lambda d: abs(d[0] - m.start()))[1]
+                    if nearest not in real:
+                        bad.append(f"{key}≠{nearest[0]}.{nearest[1]}")
+    return bad
+
+
+# --- banned generic steps (advisor) ----------------------------------------------------------
+GENERIC = re.compile(
+    r"(tekshir|kuzatib bor|kuzating|chora ko'r|e'tibor ber|nazorat qil|o'ylab ko'r|harakat qil|monitoring)",
+    re.IGNORECASE,
+)
+_WHEN = re.compile(
+    r"(bugun|ertaga|hafta|oy oxiri|oyda|kunda|dushanba|seshanba|chorshanba|payshanba|juma|shanba|yakshanba|du[–-]pa|sh[–-]ya)",
+    re.IGNORECASE,
+)
+
+
+def concrete_step(step: str, names: Iterable[str] = ()) -> bool:
+    """A step needs a date, an amount or a concrete object; generic verbs alone fail."""
+    t = _clean(step)
+    low = t.lower()
+    dates, amounts, smalls = extract(t)
+    has_when = bool(dates) or bool(_WHEN.search(t))
+    has_amount = bool(amounts) or bool(smalls) or "%" in t
+    has_object = any(n and n.lower() in low for n in names)
+    if len(low.split()) < 3:
+        return False
+    if GENERIC.search(t) and not (has_when or has_amount):
+        return False
+    return has_when or has_amount or has_object

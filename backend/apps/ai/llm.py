@@ -78,8 +78,10 @@ class LlmResult:
     attempts: list[dict[str, Any]]
 
 
-def _with_thinking(config: types.GenerateContentConfig, model: str) -> types.GenerateContentConfig:
-    level = cfg.CHAT_THINKING_BY_MODEL.get(model)
+def _with_thinking(
+    config: types.GenerateContentConfig, model: str, thinking: dict[str, str | None] | None = None
+) -> types.GenerateContentConfig:
+    level = (thinking or cfg.CHAT_THINKING_BY_MODEL).get(model)
     c = config.model_copy()
     c.thinking_config = (
         types.ThinkingConfig(thinking_level=types.ThinkingLevel(level)) if level else None
@@ -94,6 +96,7 @@ async def generate(
     chain: tuple[str, ...] | None = None,
     deadline_s: float = cfg.CHAT_ATTEMPT_DEADLINE_S,
     kind: str = "chat",
+    thinking: dict[str, str | None] | None = None,
 ) -> LlmResult:
     from asgiref.sync import sync_to_async
 
@@ -112,7 +115,7 @@ async def generate(
         try:
             resp = await asyncio.wait_for(
                 client.aio.models.generate_content(
-                    model=model, contents=contents, config=_with_thinking(config, model)
+                    model=model, contents=contents, config=_with_thinking(config, model, thinking)
                 ),
                 timeout=deadline_s,
             )

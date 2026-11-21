@@ -16,6 +16,8 @@ class Business(models.Model):
         SHOP = "shop", "Do'kon"
         RESTAURANT = "restaurant", "Restoran"
         PHARMACY = "pharmacy", "Dorixona"
+        CONFECTIONERY = "confectionery", "Qandolatchilik"
+        BAKERY = "bakery", "Novvoyxona"
         OTHER = "other", "Boshqa"
 
     name = models.CharField(max_length=120)
@@ -33,6 +35,11 @@ class Business(models.Model):
     salary_day = models.PositiveSmallIntegerField(null=True, blank=True)  # 1..31 (onboarding)
     # reconciliation / plausibility / freshness of the connected data (apps.ingestion.quality)
     data_quality = models.JSONField(default=dict, blank=True)
+    # optional advisor facts (asked once, or confirmed from a data-based default)
+    avg_check = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    orders_per_day = models.PositiveIntegerField(null=True, blank=True)
+    seats = models.PositiveIntegerField(null=True, blank=True)
+    cooking_energy = models.CharField(max_length=8, blank=True)  # gas | electric | mixed
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

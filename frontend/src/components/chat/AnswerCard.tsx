@@ -1,10 +1,12 @@
 import { Check, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
+import { useState } from "react";
 
 import { RichText } from "@/components/RichText";
-import { ChatSteps, UiBlockRenderer, type UiBlock } from "@/components/UiBlockRenderer";
+import { ChatSteps, PlanTimeline, UiBlockRenderer, type UiBlock } from "@/components/UiBlockRenderer";
 import type { Answer, AnswerVerdict } from "@/lib/chatTypes";
 import { cn } from "@/lib/utils";
 
+import { AssumptionChips, type Recomputed } from "./AssumptionChips";
 import { ListenButton } from "./ListenButton";
 import type { AnswerActions } from "./useAnswerActions";
 
@@ -19,10 +21,8 @@ const VERDICT: Record<AnswerVerdict, { bg: string; color: string; Icon: typeof C
 const ALTERNATIVE = "Boshqa yo'l bormi?";
 
 /** Verdict, reason and steps come from `Answer` itself; approval only when there is no `plan`. */
-export function cardBlocks(answer: Answer): UiBlock[] {
-  return (answer.blocks ?? []).filter(
-    (b) => b.type !== "verdict" && b.type !== "steps" && !(answer.plan && b.type === "approval"),
-  );
+export function cardBlocks(answer: Answer, blocks: UiBlock[] = answer.blocks ?? []): UiBlock[] {
+  return blocks.filter((b) => b.type !== "verdict" && b.type !== "steps" && !(answer.plan && b.type === "approval"));
 }
 
 function approvedIds(actions: AnswerActions): Set<string> {
@@ -34,7 +34,13 @@ function approvedIds(actions: AnswerActions): Set<string> {
 }
 
 export function hasCardContent(answer: Answer): boolean {
-  return (answer.steps ?? []).length > 0 || cardBlocks(answer).length > 0 || answer.plan != null;
+  const adv = answer.advisor;
+  return (
+    (answer.steps ?? []).length > 0 ||
+    cardBlocks(answer).length > 0 ||
+    answer.plan != null ||
+    (adv != null && ((adv.plan ?? []).length > 0 || (adv.assumptions ?? []).length > 0 || (adv.risks ?? []).length > 0))
+  );
 }
 
 interface Props {
@@ -49,9 +55,16 @@ interface Props {
 
 export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
   const v = VERDICT[answer.verdict] ?? VERDICT.info;
-  const steps = answer.steps ?? [];
+  const advisor = answer.advisor ?? null;
+  /** Result of re-running a tool from an edited assumption (replaces blocks + assumptions). */
+  const [recomputed, setRecomputed] = useState<Recomputed | null>(null);
+  const timeline = advisor ? (advisor.plan ?? []) : [];
+  const steps = advisor ? [] : (answer.steps ?? []);
+  const risks = advisor?.risks ?? [];
+  const question = advisor?.question ?? null;
+  const assumptions = recomputed ? recomputed.assumptions : (advisor?.assumptions ?? []);
   const explain = answer.explain ?? [];
-  const blocks = cardBlocks(answer);
+  const blocks = cardBlocks(answer, recomputed ? recomputed.blocks : undefined);
   const plan = answer.plan;
   const planState = plan
     ? (actions.plans[plan.id] ?? (plan.status === "approved" ? { status: "done" as const, summary: plan.summary } : undefined))
@@ -59,7 +72,8 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
   const approved = planState?.status === "done";
   const approving = planState?.status === "pending";
   const followUps = (answer.chips ?? []).length > 0 ? answer.chips : plan ? [ALTERNATIVE] : [];
-  const hasActions = steps.length > 0 || plan != null || followUps.length > 0;
+  const hasActions =
+    steps.length > 0 || timeline.length > 0 || risks.length > 0 || question != null || plan != null || followUps.length > 0;
   const planNote = approved ? (planState?.summary ?? plan?.summary ?? "") : "";
 
   return (
@@ -79,7 +93,7 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
       </div>
 
       {blocks.length > 0 && (
-        <div className={cn("mx-[22px]", !hasActions && "mb-[22px]")}>
+        <div className={cn("mx-[22px]", !hasActions && assumptions.length === 0 && "mb-[22px]")}>
           <UiBlockRenderer
             blocks={blocks}
             handlers={{
@@ -91,6 +105,12 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
         </div>
       )}
 
+      {assumptions.length > 0 && (
+        <div className={cn("mx-[22px] pt-4", !hasActions && "mb-[22px]")}>
+          <AssumptionChips items={assumptions} onRecomputed={setRecomputed} />
+        </div>
+      )}
+
       {hasActions && (
         <div className="flex flex-col gap-3 px-[22px] py-5">
           {steps.length > 0 && (
@@ -98,6 +118,32 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
               <span className="text-15 font-bold">Nima qilasiz:</span>
               <ChatSteps items={steps.map((text) => ({ text }))} />
             </>
+          )}
+          {timeline.length > 0 && (
+            <>
+              <span className="text-15 font-bold">Nima qilasiz:</span>
+              <PlanTimeline steps={timeline} />
+            </>
+          )}
+          {risks.length > 0 && (
+            <div className="flex flex-col gap-1 rounded-inner bg-warning-bg p-[14px]">
+              <span className="inline-flex items-center gap-[6px] text-14 font-bold text-warning">
+                <TriangleAlert size={16} strokeWidth={2.4} aria-hidden="true" />
+                Xavf
+              </span>
+              <ul className="m-0 list-disc pl-5 text-14 leading-[1.6] text-text-2">
+                {risks.map((r, i) => (
+                  <li key={i}>
+                    <RichText text={r} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {question && (
+            <p className="m-0 text-16 font-semibold text-ink">
+              <RichText text={question} />
+            </p>
           )}
           {(plan || followUps.length > 0) && (
             <div className="flex flex-wrap gap-[10px] pt-[6px]">

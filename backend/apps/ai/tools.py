@@ -786,7 +786,11 @@ def evaluate_purchase_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
             {
                 "id": "cmp",
                 "type": "compare_bars",
-                "title": f"{uz.format_date(key)}, {day_kind} — kassada qancha pul qoladi?",
+                "title": (
+                    "Bugun, xariddan keyin — kassada qancha pul qoladi?"
+                    if key == base.today
+                    else f"{uz.format_date(key)}, {day_kind} — kassada qancha pul qoladi?"
+                ),
                 "rows": rows,
             }
         )
@@ -1226,3 +1230,9 @@ def run_tool(ctx: ToolContext, name: str, raw_args: Any) -> dict[str, Any]:
     if name in SHORT_HISTORY_BLOCKED and ctx.short_history:
         return insufficient()
     return tool.handler(ctx, args)
+
+
+# advisor tools (apps/ai/advisor_tools.py) join the same registry, args validation and API
+from .advisor_tools import ADVISOR_TOOLS  # noqa: E402
+
+TOOLS.update({t.name: t for t in ADVISOR_TOOLS})

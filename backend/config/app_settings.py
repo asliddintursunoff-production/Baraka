@@ -129,3 +129,14 @@ PRICING: dict[str, dict[str, int | None]] = {
 }
 # --- "No data, no answer" ------------------------------------------------------------------
 MIN_HISTORY_DAYS = 14  # under this: short_history (no forecasts or purchase decisions)
+
+# --- Advisor mode (plans, goals, debts, loans, investments) ------------------------------
+ADVISOR_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+ADVISOR_THINKING_BY_MODEL: dict[str, str | None] = {
+    "gemini-3.8-flash": "MEDIUM",
+    "gemini-3.6-flash": "LOW",
+    "gemini-3.5-flash-lite": None,
+}
+ADVISOR_MAX_ROUNDS = 6
+ADVISOR_ATTEMPT_DEADLINE_S = 20.0
+ADVISOR_PLAN_MAX = 6

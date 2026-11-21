@@ -32,11 +32,14 @@ from apps.knowledge.models import BusinessRule
 from apps.telemetry.models import LatencyEvent
 from apps.tenancy.context import tenant_context
 from apps.tenancy.models import Business
+from config import app_settings as cfg
 
 from . import uz_format as uz
-from .guard import violations
+from .guard import concrete_step, pairing_violations, payment_keys, violations
 from .llm import AllModelsFailed, generate
 from .models import Conversation, Message
+from .playbooks import playbook_text
+from .router import advisor_hint, classify
 from .tools import TOOLS, ToolArgError, ToolContext, for_model, run_tool
 from .uz_parse import looks_like_purchase, parse_amounts
 
@@ -79,6 +82,56 @@ Qoidalar:
 7. Reja yoki eslatmani faqat taklif qil; tasdiqlashni foydalanuvchi tugma bilan qiladi. remember_fact faqat taklif yaratadi: foydalanuvchi tasdiqlamaguncha qoida prognozga qo'shilmaydi.
 Kontekst:
 {context}"""
+ADVISOR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {
+            "type": "string",
+            "description": "to'g'ridan-to'g'ri javob: sana va/yoki summa bilan",
+        },
+        "reason": {"type": "string", "description": "bitta jumla"},
+        "plan": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "when": {"type": "string"},
+                    "action": {"type": "string"},
+                    "amount": {"type": "string"},
+                },
+                "required": ["when", "action"],
+            },
+        },
+        "numbers_block_ids": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}, "key": {"type": "string"}},
+            },
+        },
+        "risks": {"type": "array", "items": {"type": "string"}, "maxItems": 2},
+        "question": {"type": "string"},
+        "chips": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+    },
+    "required": ["headline", "plan"],
+}
+ADVISOR_SYSTEM = """Sen {app} — "{biz}" biznesining shaxsiy moliyaviy maslahatchisisan (AI CFO). Bugun: {today}.
+Vazifang: qaror qabul qilishga yordam berish va aniq, sanali reja berish.
+Qoidalar:
+1. Faqat o'zbek tilida (lotin) yoz.
+2. Har bir raqam, summa va sana FAQAT tool natijasidan. O'zing hisoblama, raqam o'ylab topma. Summalarni tool'dagi ko'rinishda yoz ("8,8 mln").
+3. Avval kerakli tool'ni chaqir: xaridni qachon qilish -> when_can_afford; pul yig'ish -> savings_goal; foydalanuvchi qarzini aytsa -> record_debt (u qarzni yozadi va to'lash variantlarini solishtiradi); qarzni to'lash -> debt_payoff; kredit -> loan_affordability (foiz noma'lum bo'lsa so'ra); uskuna yoki investitsiya -> investment_payback; savdoni oshirish -> revenue_growth_target; narx -> price_change; "biznesim qanday" -> business_snapshot; "agar..." -> simulate_change. Kerak bo'lsa bir nechta tool chaqir.
+4. Tool "needs" qaytarsa: o'sha savolni "question" ga yoz va headline'da "Buni aniq hisoblash uchun ... kerak" de. Raqamni taxmin qilma.
+5. Yakuniy javob JSON: headline (to'g'ridan-to'g'ri javob, sana va/yoki summa bilan), reason (bitta jumla), plan (yo'l xarita yoki reja so'ralsa 3–6 qadam, aks holda ko'pi bilan 3; har birida when = sana yoki davr, action = aniq harakat, amount = tool'dagi summa), numbers_block_ids (ko'rsatiladigan blok id'lari), risks (ko'pi bilan 2), question (ixtiyoriy, bitta), chips (ko'pi bilan 3 ta keyingi savol).
+6. Taqiqlangan: sana, summa yoki aniq ob'ektsiz umumiy qadamlar ("Kassani tekshiring", "Kuzatib boring", "Chora ko'ring").
+7. Strategiya taklif qilsang, uni shu biznes ma'lumotiga bog'la (masalan: "Dushanba savdosi shanbadan 35% past -> tushlik seti") va ta'sir raqamini faqat tool orqali ber, "taxmin" deb belgila.
+8. Qarz yoki reja faqat taklif: tasdiqlashni foydalanuvchi tugma bilan qiladi.
+Maslahatlar bazasi (umumiy yondashuvlar, raqamsiz):
+{playbooks}
+Kontekst:
+{context}"""
 
 
 T = TypeVar("T")
@@ -110,6 +163,7 @@ class Turn:
     voice: dict[str, Any] | None = None
     t0: float = field(default_factory=time.perf_counter)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    mode: str = "quick"  # quick | advisor (apps.ai.router)
     results: dict[str, dict[str, Any]] = field(default_factory=dict)  # name -> last result
     blocks_sent_ms: float | None = None
 
@@ -191,7 +245,35 @@ def finalize(turn: Turn, answer: dict[str, Any], model: str) -> dict[str, Any]:
         "speech": (primary or {}).get("say")
         or " ".join([answer.get("headline", ""), answer.get("reason", "")]).replace("**", ""),
         "model": model,
+        "mode": turn.mode,
+        "advisor": None,
     }
+    if turn.mode == "advisor":
+        plan = [
+            p
+            for p in (answer.get("plan") or tmpl.get("plan") or [])
+            if isinstance(p, dict) and p.get("action")
+        ]
+        plan = plan[: cfg.ADVISOR_PLAN_MAX]
+        tool_assumptions = list((primary or {}).get("assumptions") or [])
+        needs = (primary or {}).get("needs") or []
+        out["advisor"] = {
+            "plan": [
+                {
+                    "when": str(p.get("when", "")),
+                    "action": str(p["action"]),
+                    "amount": str(p.get("amount") or ""),
+                }
+                for p in plan
+            ],
+            "assumptions": tool_assumptions,
+            "risks": [str(r) for r in (answer.get("risks") or [])][:2],
+            "question": answer.get("question") or (needs[0]["text"] if needs else None),
+        }
+        out["steps"] = [f"{p.get('when', '')}: {p['action']}" for p in plan][:3]
+        ids = answer.get("numbers_block_ids")
+        if ids:
+            out["blocks"] = [b for b in blocks if b.get("id") in ids] or blocks
     return out
 
 
@@ -274,7 +356,26 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
             final = finalize(turn, template_answer(result), "template")
         else:
             speculative: dict[str, dict[str, Any]] = {}
-            if looks_like_purchase(turn.text):
+            turn.mode = classify(turn.text)
+            hint = advisor_hint(turn.text) if turn.mode == "advisor" else None
+            if hint:
+                try:
+                    result = await run_tool_async(
+                        turn, ctx, hint[0], dict(hint[1]), source="speculative"
+                    )
+                    speculative[_args_key(hint[0], dict(hint[1]))] = result
+                    turn.blocks_sent_ms = turn.ms()
+                    yield sse(
+                        "blocks",
+                        {
+                            "blocks": result.get("ui_blocks", []),
+                            "replace": True,
+                            "speculative": True,
+                        },
+                    )
+                except ToolArgError:
+                    pass
+            elif looks_like_purchase(turn.text):
                 amounts = parse_amounts(turn.text)
                 spec_args: dict[str, Any] = {"amount": int(amounts[0])}
                 try:
@@ -364,12 +465,17 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
 async def llm_loop(
     turn: Turn, ctx: ToolContext, lines: list[str], speculative: dict[str, dict[str, Any]]
 ) -> AsyncIterator[bytes | tuple[dict[str, Any], str]]:
-    system = SYSTEM.format(
-        app=settings.APP_NAME,
-        biz=turn.business.name,
-        today=uz.format_date_long(ctx.base.today),
-        context="\n".join(lines),
-    )
+    advisor = turn.mode == "advisor"
+    fmt = {
+        "app": settings.APP_NAME,
+        "biz": turn.business.name,
+        "today": uz.format_date_long(ctx.base.today),
+        "context": "\n".join(lines),
+    }
+    if advisor:
+        fmt["playbooks"] = await db(turn.business, lambda: playbook_text(turn.business, turn.text))
+    system = (ADVISOR_SYSTEM if advisor else SYSTEM).format(**fmt)
+    guard_ctx = await db(turn.business, lambda: guard_context(ctx))
     history = await db(
         turn.business,
         lambda: list(
@@ -396,13 +502,23 @@ async def llm_loop(
         system_instruction=system,
         tools=[types.Tool(function_declarations=decls)],
         response_mime_type="application/json",
-        response_json_schema=ANSWER_SCHEMA,
-        max_output_tokens=800,
+        response_json_schema=ADVISOR_SCHEMA if advisor else ANSWER_SCHEMA,
+        max_output_tokens=1500 if advisor else 800,
     )
     model = "template"
-    for _round in range(3):
+    gen_kw: dict[str, Any] = (
+        {
+            "chain": cfg.ADVISOR_MODEL_CHAIN,
+            "deadline_s": cfg.ADVISOR_ATTEMPT_DEADLINE_S,
+            "thinking": cfg.ADVISOR_THINKING_BY_MODEL,
+            "kind": "advisor",
+        }
+        if advisor
+        else {}
+    )
+    for _round in range(cfg.ADVISOR_MAX_ROUNDS if advisor else 3):
         try:
-            res = await generate(contents, config)
+            res = await generate(contents, config, **gen_kw)
         except genai_errors.ClientError as exc:
             if config.response_json_schema is not None:  # model can't mix tools + schema
                 log.info("retrying without schema: %s", str(exc)[:120])
@@ -421,7 +537,7 @@ async def llm_loop(
             answer = _extract_json(res.response.text or "")
             if answer is None:
                 return
-            checked = await check_answer(turn, answer, lines)
+            checked = await check_answer(turn, answer, lines, guard_ctx)
             if checked is None:  # one retry with the violations pointed out
                 contents.append(
                     types.Content(
@@ -434,15 +550,17 @@ async def llm_loop(
                         role="user",
                         parts=[
                             types.Part(
-                                text="Javobdagi ba'zi raqamlar tool natijasida yo'q. Faqat tool natijasidagi raqamlar bilan qayta yoz."
+                                text="Javobdagi ba'zi raqam, sana yoki to'lov-sana juftligi tool natijasiga mos emas, yoki qadam aniq emas (sana, summa yoki aniq ob'ekt yo'q). Faqat tool natijasidagi raqam va sanalar bilan, aniq qadamlar bilan qayta yoz."
                             )
                         ],
                     )
                 )
                 try:
-                    res2 = await generate(contents, config)
+                    res2 = await generate(contents, config, **gen_kw)
                     answer2 = _extract_json(res2.response.text or "")
-                    checked = await check_answer(turn, answer2, lines) if answer2 else None
+                    checked = (
+                        await check_answer(turn, answer2, lines, guard_ctx) if answer2 else None
+                    )
                     model = res2.model
                 except (AllModelsFailed, genai_errors.APIError):
                     checked = None
@@ -483,18 +601,61 @@ async def llm_loop(
     return
 
 
+def guard_context(ctx: ToolContext) -> dict[str, Any]:
+    """Real payment dates (for date<->payment pairing) and concrete object names."""
+    base = ctx.base
+    pairs = [
+        ((o.date.day, o.date.month), payment_keys(o.category, o.counterparty, o.title))
+        for o in base.obligations
+    ]
+    names = {o.counterparty for o in base.obligations if o.counterparty} | {
+        o.title for o in base.obligations
+    }
+    names |= set(uz.WEEKDAYS) | {
+        "tushlik",
+        "yetkazib",
+        "menyu",
+        "narx",
+        "chek",
+        "porsiya",
+        "ta'minotchi",
+        "kredit",
+        "qarz",
+        "ijara",
+        "oylik",
+        "soliq",
+        "jamg'ar",
+        "set",
+        "aksiya",
+        "uskuna",
+        "plita",
+        "savdo",
+        "xarid",
+    }
+    return {"pairs": pairs, "names": names}
+
+
 async def check_answer(
-    turn: Turn, answer: dict[str, Any], lines: list[str]
+    turn: Turn, answer: dict[str, Any], lines: list[str], guard_ctx: dict[str, Any] | None = None
 ) -> dict[str, Any] | None:
+    plan = [p for p in (answer.get("plan") or []) if isinstance(p, dict)]
+    plan_texts = [" ".join(str(p.get(k, "")) for k in ("when", "action", "amount")) for p in plan]
     texts = [
         str(answer.get("headline", "")),
         str(answer.get("reason", "")),
         *[str(s) for s in answer.get("steps", [])],
+        *plan_texts,
+        *[str(r) for r in answer.get("risks", []) or []],
+        str(answer.get("question", "") or ""),
     ]
     allowed = [turn.text, *lines]
     for r in turn.results.values():
         allowed += _texts_of(r)
     bad = violations(texts, allowed)
+    if guard_ctx:
+        bad += pairing_violations(texts, guard_ctx["pairs"])
+        if turn.mode == "advisor":
+            bad += [f"generic: {t}" for t in plan_texts if not concrete_step(t, guard_ctx["names"])]
     if bad:
         log.info("number guard rejected: %s", bad[:5])
         return None
