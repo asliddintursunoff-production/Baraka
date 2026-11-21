@@ -390,6 +390,7 @@ def payroll(sheets: list[SheetData], today: date) -> dict[str, Any]:
         _col(header, "qo'lga"),
     )
     i_ok = _col(header, "oklad")
+    i_off = _col(header, "rasmiy")
     out: dict[str, dict[str, list[str]]] = defaultdict(dict)
     for r in rows:
         d, name = _date(_cell(r, i_m), today), _txt(r, i_x)
@@ -403,6 +404,7 @@ def payroll(sheets: list[SheetData], today: date) -> dict[str, Any]:
             _s(_num(_cell(r, i_tot)) or acc_),
             _s(_num(_cell(r, i_net))),
             _s(_num(_cell(r, i_ok))),  # [5] monthly base salary (oklad)
+            _txt(r, i_off),  # [6] official ("Ha" / "Yo'q")
         ]
     return dict(out)
 

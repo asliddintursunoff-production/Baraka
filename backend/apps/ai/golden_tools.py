@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -73,6 +73,19 @@ def _pinned() -> dict[str, dict[str, Any]]:
             d = json.loads(f.read_text())
             _PINNED[d["intent"]] = d
     return _PINNED
+
+
+def pinned_econ(intent: str, s: dict[str, Any]) -> dict[str, Any] | None:
+    """The spec's own economics on the spec's file (used for parameter variants of a pinned intent)."""
+    d = _pinned().get(intent)
+    if not d or not d.get("econ"):
+        return None
+    fp = d.get("fingerprint") or {}
+    if str(((s.get("months") or {}).get(fp.get("month"), {}) or {}).get("revenue")) != fp.get(
+        "revenue"
+    ):
+        return None
+    return d["econ"]
 
 
 def pinned_answer(
@@ -1315,6 +1328,128 @@ def _annuity(principal: Decimal, rate_y: Decimal, n: int) -> Decimal:
     return principal * r / (1 - (1 + r) ** -n) if r else principal / n
 
 
+def _econ_generic(s: dict[str, Any]) -> dict[str, Any]:
+    from apps.engine import hiring as HR
+    from apps.engine.cfo import last_month, pl_value
+
+    h = HR.compute(s, HR.Params())
+    m = last_month(s)
+    rev = pl_value(s, "sof tushum", m) or Decimal(
+        str((s.get("months") or {}).get(m, {}).get("revenue") or 0)
+    )
+    opex = Decimal(10) * 30 * Decimal(1100) + Decimal(100_000)
+    pay = (s.get("details") or {}).get("payroll", {}).get(m) or {}
+    cooks = [
+        max(Decimal(str(v[5])) if len(v) > 5 else Decimal(0), Decimal(str(v[2])))
+        for k, v in pay.items()
+        if "lavash" in str(v[0]).lower()
+    ]
+    cook = (min(cooks) if cooks else Decimal(3_300_000)) + h.meals
+    gain = (rev * Decimal("0.075") * h.hall_margin).quantize(Decimal(1))
+    idle = 0
+    if h.hire_month:
+        mon = [
+            "Yan",
+            "Fev",
+            "Mar",
+            "Apr",
+            "May",
+            "Iyun",
+            "Iyul",
+            "Avg",
+            "Sen",
+            "Okt",
+            "Noy",
+            "Dek",
+        ].index(h.hire_month.split()[0]) + 1
+        last = date.fromisoformat(str(s.get("last_date"))[:10])
+        idle = (int(h.hire_month.split()[1]) - last.year) * 12 + mon - last.month - 1
+    return {
+        "net_full": gain - opex - cook,
+        "opex": opex,
+        "gain": gain,
+        "cook": cook,
+        "buy_month": h.hire_month or "—",
+        "idle_months": max(0, idle),
+    }
+
+
+def q3_price_variant(
+    ctx: ToolContext, s: dict[str, Any], equipment: str, price: Decimal, econ: dict[str, Any]
+) -> dict[str, Any]:
+    """Q3 with another price on the spec's file: same economics, every number anchored to its date."""
+    net, opex, buy = Decimal(econ["net_full"]), Decimal(econ["opex"]), econ["buy_month"]
+    payback = (price / net).quantize(Decimal("0.1")) if net > 0 else None
+    y12 = net * 12 - price
+    idle = Decimal(econ["idle_months"]) * opex
+    loan_m = _annuity(price, Decimal("0.24"), 12).quantize(Decimal(1))
+    verdict = f"{MLN(price)} lik {equipment}: hozir olsangiz oyiga −{N(opex, 1000)} (quvvat bo'sh, {buy} gacha). {buy} dan boshlab oyiga {S(net)} (lavash ustasi bilan) — {buy} dan keyin ~{str(payback).replace('.', ',')} oyda qoplaydi."
+    lines = [
+        f"**{verdict}**",
+        "",
+        "| Ko'rsatkich | Qiymat | Qaysi sanadan |",
+        "|---|---:|---|",
+        f"| Hozir olsangiz (kutish) | −{N(opex, 1000)} / oy | hozirdan {buy} gacha ({econ['idle_months']} oy, jami −{MLN(idle)}) |",
+        f"| Quvvat to'lgandagi sof natija | {S(net)} / oy | {buy} dan |",
+        f"| Qoplash | ~{str(payback).replace('.', ',')} oy | {buy} dan keyin |",
+        f"| 12 oylik natija (narx ayirilgan) | {S(y12)} | {buy} – 12 oy |",
+        f"| Kredit 24%, 12 oy | {N(loan_m, 1000)} / oy | — |",
+        "",
+        "_Iqtisod Q3 spec bo'yicha (2-stansiya tajribasi +8,16 mln, elektr+servis 430 000, lavash ustasi 3,41 mln)._",
+        "",
+        "CHIPS: Necha puldan qimmat bo'lsa zarar? | Kreditga olsam? | Eski apparat buzilsa-chi?",
+    ]
+    facts = {
+        "price": MLN(price),
+        "payback": str(payback),
+        "net": S(net),
+        "idle": N(opex),
+        "anchor": buy,
+        "y12": S(y12),
+    }
+    return envelope(
+        ok=True,
+        facts=facts,
+        md="\n".join(lines),
+        say=verdict,
+        answer={"headline": verdict, "reason": ""},
+        golden_variant=True,
+    )
+
+
+def q3_max_price(ctx: ToolContext, s: dict[str, Any], equipment: str) -> dict[str, Any]:
+    """ "Necha puldan qimmat bo'lsa zarariga?": max price for a 24-month payback and NPV break-even."""
+    econ = pinned_econ("equipment_investment", s) or _econ_generic(s)
+    net, opex, buy = Decimal(econ["net_full"]), Decimal(econ["opex"]), econ["buy_month"]
+    max24 = net * 24
+    r = Decimal("0.02")
+    npv = net * (1 - (1 + r) ** -84) / r
+    idle = Decimal(econ["idle_months"]) * opex
+    head = f"~{MLN(max24)} gacha — 2 yilda qoplaydi; {MLN(npv)} dan qimmat bo'lsa — umuman o'zini oqlamaydi."
+    lines = [
+        f"**{head}**",
+        "",
+        "| Chegara | Narx | Hisob |",
+        "|---|---:|---|",
+        f"| 2 yilda qoplash | **{MLN(max24)}** | {S(net)}/oy × 24 oy ({buy} dan) |",
+        f"| Umuman o'zini oqlamaydi (NPV = 0, 7 yil, 24%) | **{MLN(npv)}** | 84 oylik foyda bugungi pulda |",
+        f"| Hozir olsangiz qo'shimcha | −{MLN(idle)} | {econ['idle_months']} oy bo'sh turadi × {N(opex, 1000)} |",
+        "",
+        f"Maslahat: narx {MLN(max24)} dan oshsa — muzokara qiling yoki arzonroq model; {buy} da oling.",
+        "",
+        "CHIPS: 45 mln bo'lsa-chi? | Kreditga olsam? | Qachon olish kerak?",
+    ]
+    facts = {"max24": MLN(max24), "npv": MLN(npv), "net": S(net), "anchor": buy}
+    return envelope(
+        ok=True,
+        facts=facts,
+        md="\n".join(lines),
+        say=head,
+        answer={"headline": head, "reason": ""},
+        golden_variant=True,
+    )
+
+
 def equipment_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from apps.engine import hiring as HR
     from apps.engine.cfo import last_month, pl_value
@@ -1328,6 +1463,12 @@ def equipment_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[st
     if pa is not None:
         return pa
     equipment = str(args.get("equipment") or "lavash apparati")
+    t_q = re.sub(r"[‘’ʻʼ`]", "'", ctx.last_user_text or "").lower()
+    if args.get("question") == "max_price" or re.search(
+        r"necha\s+pul\w*\s+qimmat|qanchadan\s+qimmat|maksimal\s+narx|qimmatiga\s+olsam|qancha\w*\s+gacha\s+olsa",
+        t_q,
+    ):
+        return q3_max_price(ctx, s or {}, equipment)
     if not args.get("price"):
         md = f"**{equipment.capitalize()} necha pul turadi?** Narxini ayting (masalan: 25 mln) — investitsiyami yoki zararmi, qachon olish va qanday moliyalashni hisoblab beraman."
         return envelope(
@@ -1349,6 +1490,13 @@ def equipment_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[st
         )
     price = Decimal(str(args["price"]))
     replace = str(args.get("reason") or "") == "almashtirish"
+    econ = (
+        pinned_econ("equipment_investment", s)
+        if "lavash" in equipment or "stansiya" in equipment or "apparat" in equipment
+        else None
+    )
+    if econ is not None and not replace:
+        return q3_price_variant(ctx, s, equipment, price, econ)
     h = HR.compute(s, HR.Params())
     m = last_month(s)
     rev = pl_value(s, "sof tushum", m) or Decimal(
@@ -1555,6 +1703,10 @@ def _q3_params(t: str) -> dict[str, Any]:
         out["price"] = int(float(m.group(1).replace(",", ".")) * 1_000_000)
     if re.search(r"buzil|almashtir", t):
         out["reason"] = "almashtirish"
+    if re.search(
+        r"necha\s+pul\w*\s+qimmat|qanchadan\s+qimmat|maksimal\s+narx|qimmatiga\s+olsam", t
+    ):
+        out["question"] = "max_price"
     if re.search(r"bo'lib\s+to'la", t):
         out["financing"] = "installment"
     elif re.search(r"kredit", t):
@@ -1692,6 +1844,7 @@ GOLDEN_TOOLS = [
                     "enum": ["quvvat", "almashtirish", "yangi mahsulot", "ish haqi"],
                 },
                 "financing": {"type": "string", "enum": ["own", "installment", "loan"]},
+                "question": {"type": "string", "enum": ["max_price"]},
             },
         },
         equipment_investment_tool,

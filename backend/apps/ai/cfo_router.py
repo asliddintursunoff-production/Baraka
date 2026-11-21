@@ -112,6 +112,11 @@ def route(text: str, prev_intent: str | None = None) -> list[tuple[str, dict[str
     g = golden_match(t, prev_intent)
     if g is not None:  # a golden report owns this question: one deterministic tool, full report
         return [(g[0].tool, g[1])]
+    from .policy_tools import policy_route
+
+    pr = policy_route(t)
+    if pr:  # salaries: look up / compute, never "jadvalda yo'q"
+        return pr
     out: list[tuple[str, dict[str, Any]]] = []
     for name in find_names(t, list(details.get("purchases") or {}))[:2]:
         out.append(("product_costs", {"product": name}))

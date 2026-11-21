@@ -760,7 +760,7 @@ def _sheet(sheets: list[SheetData], *prefixes: str) -> SheetData | None:
 
 
 # Bump when the summary gains fields: every source is re-read once on its next sync.
-SUMMARY_VERSION = 3
+SUMMARY_VERSION = 4
 
 
 def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str, Any]:

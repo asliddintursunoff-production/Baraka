@@ -427,5 +427,13 @@
    "match": "filial",
    "answer": "Bu boshqa savol — 2-filial (Q10) shabloni bo'yicha alohida hisoblab beraman. \"2-filial ochsam arziydimi?\" deb so'rang."
   }
- ]
+ ],
+ "econ": {
+  "net_full": 4320000,
+  "opex": 430000,
+  "gain": 8160000,
+  "cook": 3412000,
+  "buy_month": "May 2027",
+  "idle_months": 5
+ }
 }

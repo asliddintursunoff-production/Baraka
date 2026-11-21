@@ -59,7 +59,7 @@ def details_of(ctx: ToolContext) -> dict[str, Any]:
 
 
 def missing(what: str) -> dict[str, Any]:
-    text = f"Bu ma'lumot ({what}) jadvalingizda yo'q."
+    text = f"{what.capitalize()} bo'yicha aniq qator topilmadi — eng yaqin ma'lumotdan hisoblab beraman yoki nomini aniqroq ayting."
     return envelope(
         ok=True,
         md=text,
