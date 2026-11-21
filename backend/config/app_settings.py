@@ -48,7 +48,7 @@ LIVE_PREFIX_PADDING_MS = 300  # speech must last >= 300 ms before it counts
 LIVE_TRANSCRIPTION_LANGUAGE_HINTS = ["uz"]
 LIVE_INPUT_RATE = 16_000
 LIVE_OUTPUT_RATE = 24_000
-LIVE_CONTEXT_MAX_TOKENS = 1_500
+LIVE_CONTEXT_MAX_TOKENS = 12_000  # full business digest goes into Live too (2026-11-22)
 
 # --- Business defaults --------------------------------------------------------------
 DEFAULT_TIMEZONE = "Asia/Tashkent"
@@ -159,3 +159,8 @@ AI_PRICES_PER_M_TOKENS.update(
         "gemini-3.1-pro-preview": (Decimal("2.00"), Decimal("12.00")),
     }
 )
+
+# --- Full-context chat (owner request 2026-11-22): one strong model call with the digest -----
+CHAT_FULL_CHAIN = ("gemini-3.8-flash", "gemini-3.5-flash-lite")  # argon timed out at 12 s on every test (2026-11-22)
+CHAT_FULL_DEADLINE_S = 25.0
+CHAT_FULL_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "LOW"}

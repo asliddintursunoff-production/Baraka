@@ -31,7 +31,7 @@ from apps.knowledge.models import BusinessRule, MemoryItem
 from apps.telemetry import timing
 from apps.tenancy.api import BusinessAPIView
 from apps.tenancy.context import tenant_context
-from apps.tenancy.gate import NO_DATA_BODY, data_status, review_body
+from apps.tenancy.gate import NO_DATA_BODY, data_status
 from config import app_settings as cfg
 
 from . import budget
@@ -181,8 +181,7 @@ async def chat_messages(request: HttpRequest) -> HttpResponseBase:
     st = await sync_to_async(data_status)(business)
     if st == "no_data":
         return JsonResponse(NO_DATA_BODY, status=409)  # no data, no answer
-    if st == "needs_review":  # does not reconcile with the file's own totals: no advice
-        return JsonResponse(await sync_to_async(review_body)(business), status=409)
+    # full-context mode: data-quality issues are a badge, never a refusal in chat
     try:
         body = json.loads(request.body or b"{}")
     except ValueError:

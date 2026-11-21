@@ -265,4 +265,56 @@ WEB_TOOLS = [
         web_price_lookup,
     )
 ]
+
+
+def web_lookup(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """General web question (bank rates, market prices, rules, benchmarks) with sources.
+    Only the question text goes out; never business data."""
+    from .budget import generate_sync
+
+    q = str(args["query"])[:300]
+    try:
+        r = generate_sync(
+            "web_lookup",
+            model=MODEL,
+            contents=f"O'zbekiston/Toshkent konteksti. Qisqa va aniq javob ber (raqamlar, sana, manba nomi bilan), o'zbek tilida: {q}",
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())], temperature=0.2
+            ),
+            business_id=ctx.business.pk,
+        )
+        text = (getattr(r, "text", None) or "").strip()[:3000]
+        sources: list[dict[str, str]] = []
+        gm = r.candidates[0].grounding_metadata if r.candidates else None
+        for ch in ((gm.grounding_chunks or []) if gm else [])[:5]:
+            if ch.web:
+                sources.append({"title": ch.web.title or "", "url": ch.web.uri or ""})
+    except Exception as exc:
+        log.warning("web_lookup failed: %s", type(exc).__name__)
+        text, sources = "", []
+    if not text:
+        md = "Internetdan topa olmadim — taxminiy javob berishim mumkin."
+        return envelope(ok=True, facts={"found": False}, md=md, say=md)
+    md = text + (
+        "\n\nManbalar: " + "; ".join(f"[{s['title'] or s['url']}]({s['url']})" for s in sources)
+        if sources
+        else ""
+    )
+    return envelope(
+        ok=True, facts={"found": True, "web_text": text}, md=md, say=text[:200], sources=sources
+    )
+
+
+WEB_TOOLS.append(
+    Tool(
+        "web_lookup",
+        "Internetdan qidirish (Google): bank kredit foizlari, bozor narxlari, soliq qoidalari, raqobatchilar, benchmarklar. Manbalar bilan qaytaradi. Biznes ma'lumotini yuborma, faqat savol.",
+        {
+            "type": "object",
+            "properties": {"query": {"type": "string", "maxLength": 300}},
+            "required": ["query"],
+        },
+        web_lookup,
+    )
+)
 TOOLS.update({t.name: t for t in WEB_TOOLS})

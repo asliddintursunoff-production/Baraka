@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_CEILING, Decimal
 from typing import Any
 
@@ -47,8 +47,13 @@ def plan_fact(s: dict[str, Any], kind: str, prefix: str, month: str) -> Decimal:
 
 
 def last_month(s: dict[str, Any]) -> str:
-    """The last month with data (ISO)."""
-    return str(s["last_date"])[:8] + "01"
+    """The last COMPLETE month with data (ISO): a month whose data stops before its last
+    days (e.g. 21-Nov) is partial, so analysis uses the previous month."""
+    last = date.fromisoformat(str(s["last_date"])[:10])
+    if last.day >= calendar.monthrange(last.year, last.month)[1] - 1:
+        return last.replace(day=1).isoformat()
+    prev = last.replace(day=1) - timedelta(days=1)
+    return prev.replace(day=1).isoformat()
 
 
 def days_in(month: str, s: dict[str, Any] | None = None) -> int:

@@ -369,6 +369,17 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+FULL_CONTEXT_RULES = """Sen — egasining shaxsiy CFO'si va biznes maslahatchisisan (ChatGPT kabi erkin, lekin biznesni to'liq bilasan). Faqat o'zbek tilida (lotin) javob ber.
+- Pul, biznes, bank, kredit, bo'lib to'lash, soliq, narx/bozor, raqobatchilar, ta'minotchilar, xodimlar, o'sish, xavf, investitsiya — HAR QANDAY savolga javob ber.
+- "Biznesimni qanday qulatishim mumkin?" kabi savolga ochiq javob ber: SHU biznes qanday yo'llar bilan qulashi mumkin (digest raqamlari bilan) va har birining oldini olish — xavf xaritasi jadvali.
+- Biznes raqamlari faqat pastdagi BIZNES DIGEST va tool natijalaridan. Bozor, bank foizlari, benchmarklar — web_lookup (manbasi bilan); imkon bo'lmasa asosli taxmin ber va "taxmin" deb belgila.
+- Hech qachon faqat "ma'lumot yo'q" dema: nima yetishmayotganini ayt, baribir eng yaxshi javobni ber va bitta yetishmayotgan ma'lumotni so'ra.
+- Qat'iy bo'l: avval verdikt (qalin), keyin raqamlar, keyin reja. Har qanday solishtirish, reja, jadval, variantlar — markdown jadval bilan.
+- Faqat aniq aloqasiz mavzularni (tarix, mashhurlar, uy vazifasi) bitta gap bilan rad et va biznes tomonini taklif qil.
+- Hissiy xabar ("xafa bo'ldim"): bitta iliq, hamdard gap, keyin yordamni davom ettir (holat, bitta ijobiy fakt, bitta aniq qadam).
+- Prognoz "TAXMINIY" bo'lsa, buni bir gap bilan ayt, lekin javob berishdan bosh tortma."""
+
+
 def recent_dialogue(business: Any, exclude: int | None = None, n: int = 12) -> str:
     """Last messages across chat + voice conversations (Live and new chats keep the context)."""
     qs = Message.objects.filter(business=business)
@@ -601,6 +612,17 @@ async def llm_loop(
 
     fmt["md_rules"] += "\n- " + market_facts_text()[:1500].replace("{", "(").replace("}", ")")
     system = (ADVISOR_SYSTEM if advisor else SYSTEM).format(**fmt)
+    from .digest import digest_for
+
+    digest = await db(turn.business, lambda: digest_for(turn.business))
+    system = (
+        FULL_CONTEXT_RULES
+        + "\n\n"
+        + system
+        + "\n\n# BIZNES DIGEST (hamma raqamlar shu yerdan va tool'lardan)\n"
+        + digest
+    )
+    lines = [*lines, *digest.splitlines()]
     guard_ctx = await db(turn.business, lambda: guard_context(ctx))
     history = await db(
         turn.business,
@@ -655,16 +677,12 @@ async def llm_loop(
         max_output_tokens=4000,
     )
     model = "template"
-    gen_kw: dict[str, Any] = (
-        {
-            "chain": cfg.ADVISOR_MODEL_CHAIN,
-            "deadline_s": cfg.ADVISOR_ATTEMPT_DEADLINE_S,
-            "thinking": cfg.ADVISOR_THINKING_BY_MODEL,
-            "kind": "advisor",
-        }
-        if advisor
-        else {}
-    )
+    gen_kw: dict[str, Any] = {
+        "chain": cfg.CHAT_FULL_CHAIN,
+        "deadline_s": cfg.CHAT_FULL_DEADLINE_S,
+        "thinking": cfg.CHAT_FULL_THINKING,
+        "kind": "advisor" if advisor else "chat",
+    }
     for _round in range(cfg.ADVISOR_MAX_ROUNDS if advisor else 3):
         try:
             res = await generate(contents, config, **gen_kw)
@@ -716,10 +734,15 @@ async def llm_loop(
                         await check_answer(turn, answer2, lines, guard_ctx) if answer2 else None
                     )
                     model = res2.model
+                    if checked is None and answer2 and not turn.results:
+                        log.info("guard still unhappy, no tool data: answering anyway")
+                        checked = answer2
                 except (AllModelsFailed, genai_errors.APIError):
                     checked = None
+            if checked is None and not turn.results:
+                checked = answer  # nothing to fall back on: never refuse
             if checked is None:
-                return  # template answer is used by the caller
+                return  # invented numbers: the tool-built template answer is used instead
             yield (finalize(turn, checked, model), model)
             return
         contents.append(cand.content)  # type: ignore[union-attr, arg-type]

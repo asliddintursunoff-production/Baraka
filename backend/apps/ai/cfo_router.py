@@ -96,7 +96,7 @@ _BUY = re.compile(
 )
 _AMOUNT = re.compile(r"\d[\d\s.,]*\s*(mln|million|ming|so'm|som|\$|usd)|\d{5,}")
 _STOP = {"yana", "bitta", "yangi", "ikkinchi", "pul", "kredit", "qarz", "sotib", "uchun", "som"}
-_NOT_ITEM = ("ishchi", "xodim", "ofitsiant", "oshpaz", "kassir", "odam")
+_NOT_ITEM = ("ishchi", "xodim", "ofitsiant", "oshpaz", "kassir", "odam", "bank", "kredit", "qarz")
 
 
 def route(text: str) -> list[tuple[str, dict[str, Any]]]:

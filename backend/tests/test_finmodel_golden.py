@@ -198,12 +198,13 @@ def test_unreconciled_data_blocks_forecasts_and_advice(namuna, client):
     client.force_login(u)
     r = client.get("/api/dashboard")
     assert r.status_code == 409 and r.json()["code"] == "needs_review" and r.json()["recon"]
+    # chat is never gated (owner decision 2026-11-22): data issues are a badge, not a refusal
     r = client.post(
         "/api/chat/messages",
         data=json.dumps({"text": "Hozir qancha pulim bor?"}),
         content_type="application/json",
     )
-    assert r.status_code == 409 and "mos kelmayapti" in r.json()["message"]
+    assert r.status_code == 200
 
 
 def test_backtest_sep_and_oct_within_5_percent(namuna):

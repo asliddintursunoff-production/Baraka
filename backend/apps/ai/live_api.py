@@ -82,6 +82,9 @@ def live_context(business: Business) -> list[str]:
 
     lines.append(market_facts_text()[:1500])
 
+    from .digest import digest_for
+
+    lines.append("BIZNES DIGEST (raqamlar faqat shu yerdan):\n" + digest_for(business)[:24000])
     dlg = recent_dialogue(business, n=16)
     if dlg:
         lines.append(
