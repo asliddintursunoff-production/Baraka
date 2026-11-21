@@ -18,6 +18,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, TypeVar
 
 from asgiref.sync import sync_to_async
@@ -189,12 +190,23 @@ def context_lines(ctx: ToolContext) -> list[str]:
     from .tools import freshness_note
 
     fresh = freshness_note(ctx.business)
+    q = ctx.business.data_quality or {}
+    gap = (
+        [
+            "Ma'lumot kiritilmagan davr: "
+            f"{uz.format_date(date.fromisoformat(q['missing_from']))} – "
+            f"{uz.format_date(date.fromisoformat(q['missing_to']))}."
+        ]
+        if fresh and q.get("missing_from") and q.get("missing_to")
+        else []
+    )
     lines = [
+        *gap,
         f"Hozirgi kassa: {uz.format_mln(cash)}"
         + (
             f" ({fresh}). Kassa haqida gapirganda shu holat sanasini albatta ayt." if fresh else "."
         ),
-        f"Eng qiyin kun (90 kun): {uz.format_date(base.min_date)}, {uz.format_mln(base.min_balance)} qoladi.",
+        f"Eng qiyin kun (keyingi 60 kun): {uz.format_date(base.min_date)} {base.min_date.year}, {uz.format_mln(base.min_balance)} qoladi.",
         f"Xavfsiz chegara: {uz.format_mln(base.safe_min)}.",
         "Yaqin majburiy to'lovlar: "
         + "; ".join(
@@ -322,8 +334,17 @@ async def run_tool_async(
             "source": source,
         }
     )
-    turn.results[name] = result
+    store_result(turn, name, args, result)
     return result
+
+
+def store_result(turn: Turn, name: str, args: dict[str, Any], result: dict[str, Any]) -> None:
+    """One entry per distinct call: two products in one question keep both results."""
+    if any(r is result for r in turn.results.values()):
+        return
+    key = name if name not in turn.results else _args_key(name, args)
+    turn.results.pop(key, None)  # re-insert at the end: the newest result stays primary
+    turn.results[key] = result
 
 
 def _args_key(name: str, args: dict[str, Any]) -> str:
@@ -661,7 +682,7 @@ async def llm_loop(
             try:
                 if key in speculative:
                     result = speculative[key]
-                    turn.results[name] = result
+                    store_result(turn, name, args, result)
                     turn.tool_calls.append(
                         {"name": name, "args": args, "ms": 0, "source": "speculative_hit"}
                     )
@@ -731,7 +752,7 @@ async def check_answer(
         *plan_texts,
         *[str(r) for r in answer.get("risks", []) or []],
         str(answer.get("question", "") or ""),
-        str(answer.get("markdown", "") or ""),
+        re.sub(r"(?m)^\s*(\d+[.)]|#+)\s", " ", str(answer.get("markdown", "") or "")),
     ]
     allowed = [turn.text, *lines]
     for r in turn.results.values():

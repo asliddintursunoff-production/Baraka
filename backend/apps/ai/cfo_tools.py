@@ -16,7 +16,7 @@ from apps.finance.models import CashAccount
 from apps.integrations.models import DataSource
 
 from . import uz_format as uz
-from .tools import TOOLS, Tool, ToolContext, envelope
+from .tools import TOOLS, Tool, ToolContext, envelope, speech_of
 
 M = uz.format_mln
 WD = ("Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya")
@@ -55,6 +55,7 @@ def _done(
 ) -> dict[str, Any]:
     return envelope(
         ok=True,
+        speech=speech_of(facts),
         facts=facts,
         md=md,
         say=say,

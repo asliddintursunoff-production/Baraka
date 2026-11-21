@@ -327,6 +327,9 @@ class ToolView(BusinessAPIView):
             args=data,
             result=result.get("facts"),
         )
+        if channel == "voice" and result.get("md"):
+            # voice needs the lead sentence, not the tables (shorter Live turn = faster reply)
+            result = {**result, "md": str(result["md"]).split("\n\n", 1)[0]}
         resp = Response(result)
         resp["X-Tool-Ms"] = f"{(time.perf_counter() - t0) * 1000:.1f}"
         return resp

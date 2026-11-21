@@ -16,7 +16,7 @@ from apps.ingestion.normalize import text_key
 from apps.integrations.models import DataSource
 
 from . import uz_format as uz
-from .tools import TOOLS, Tool, ToolContext, envelope
+from .tools import TOOLS, Tool, ToolContext, envelope, speech_of
 
 D0 = Decimal(0)
 
@@ -73,6 +73,7 @@ def done(
 ) -> dict[str, Any]:
     return envelope(
         ok=True,
+        speech=speech_of(facts),
         facts=facts,
         md=md,
         say=headline,
@@ -287,6 +288,7 @@ def _one_product(d: dict[str, Any], name: str) -> dict[str, Any]:
         "product": name,
         "unit": unit,
         "total": M(total),
+        "total_raw": str(total),
         "price_first": S(first),
         "price_last": S(last),
         "price_change": P(change),

@@ -181,6 +181,23 @@ def envelope(**kw: Any) -> dict[str, Any]:
     return base
 
 
+_SPOKEN = re.compile(r"^([−-]?\d[\d  ]*(?:,\d+)?)\s*(mln|so'm)$")
+
+
+def speech_of(facts: dict[str, Any]) -> dict[str, str]:
+    """Spoken words for the money values among the top-level facts ("40,7 mln" -> words)."""
+    out: dict[str, str] = {}
+    for k, v in facts.items():
+        m = _SPOKEN.match(str(v).strip()) if isinstance(v, str) else None
+        if not m:
+            continue
+        n = Decimal(
+            m.group(1).replace(" ", "").replace(" ", "").replace(",", ".").replace("−", "-")
+        )
+        out[k] = uz.speech_amount(n * 1_000_000 if m.group(2) == "mln" else n)
+    return out
+
+
 def for_model(result: dict[str, Any]) -> dict[str, Any]:
     """What the LLM sees: no UI blocks, no long answer templates; <= 2 KB."""
     slim = {k: v for k, v in result.items() if k not in {"ui_blocks", "answer"}}
