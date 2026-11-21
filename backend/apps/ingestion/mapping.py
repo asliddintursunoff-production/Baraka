@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -22,7 +23,7 @@ from config import app_settings as cfg
 
 from .header import detect_header, header_signature
 from .heuristics import guess_mapping
-from .normalize import parse_amount
+from .normalize import parse_amount, text_key
 from .readers import SheetData, WorkbookData
 
 log = logging.getLogger(__name__)
@@ -149,7 +150,24 @@ def sample_text(value: Any) -> str:
     return text[:40] + ("…" if len(text) > 40 else "")
 
 
+# Summary, report, guide, settings and reference tabs of a financial model: their numbers
+# are derived from the ledger tabs, so reading them would double count. Never ingested.
+REPORT_TITLE = re.compile(
+    r"(bosh sahifa|qo'llanma|yo'riqnoma|sozlama|spravochn|ma'lumotnoma|hisoblash|foyda|zarar|"
+    r"pul oqimi|balans|hisobot|tahlil|reja|tekshiruv|zaxira|texkarta|retsept|yarim tayyor|menyu|"
+    r"mahsulot|inventar|ombor|asosiy vosita|hisobdan chiqarish|dashboard|summary|report|settings|"
+    r"instruction|readme|cover|shablon|template|titul|otchet|itog|svodka|nastroyk|balance|cash ?flow|"
+    r"analysis|analiz|budjet|byudjet|budget|plan\b)"
+)
+
+
+def is_report_title(title: str) -> bool:
+    return bool(REPORT_TITLE.search(text_key(title or "")))
+
+
 def heuristic_sheet(sheet: SheetData) -> SheetProposal | None:
+    if is_report_title(sheet.title):
+        return SheetProposal(sheet.title, 1, "", 0, "ignore", 0.95)
     rows = sheet.rows
     h = detect_header(rows)
     if h is None:
@@ -277,9 +295,9 @@ async def propose_workbook(wb: WorkbookData, *, use_llm: bool = True) -> list[Sh
             types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_json_schema=LLM_SCHEMA,
-                max_output_tokens=2000,
+                max_output_tokens=8000,
             ),
-            deadline_s=12.0,
+            deadline_s=30.0,
             kind="mapping",
         )
         data = json.loads(res.response.text or "{}")
@@ -290,7 +308,7 @@ async def propose_workbook(wb: WorkbookData, *, use_llm: bool = True) -> list[Sh
         log.warning("mapping LLM error, heuristics only: %s", str(exc)[:160])
         return props
     llm_by_title = {s.get("title"): s for s in data.get("sheets", []) if isinstance(s, dict)}
-    return [merge(p, llm_by_title.get(p.title)) for p in props]
+    return [p if is_report_title(p.title) else merge(p, llm_by_title.get(p.title)) for p in props]
 
 
 def needs_amount(value: Any) -> Decimal | None:

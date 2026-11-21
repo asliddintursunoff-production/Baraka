@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from asgiref.sync import async_to_sync, sync_to_async
-from django.db import connection
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.ai import uz_format as uz
@@ -28,7 +28,7 @@ from apps.integrations.models import DataSource
 from apps.tenancy.context import tenant_context, today_for
 from apps.tenancy.models import Business
 
-from .mapping import CONFIRM_BELOW, SheetProposal, propose_workbook
+from .mapping import CONFIRM_BELOW, SheetProposal, is_report_title, propose_workbook
 from .models import DataIssue, SheetMapping, SyncRun
 from .pipeline import Ingestor, replace_seed_data
 from .readers import WorkbookData, reader_for
@@ -113,6 +113,38 @@ def save_mapping(
     return m
 
 
+def safe_ingest(
+    business: Business,
+    source: DataSource,
+    ing: Ingestor,
+    sheet: Any,
+    m: SheetMapping,
+    summary: SyncSummary,
+) -> None:
+    """Each sheet in its own savepoint: a bad sheet becomes a DataIssue, the rest continue."""
+    try:
+        with transaction.atomic():
+            ing.ingest(sheet, m)
+    except Exception:
+        log.exception("sheet %r of source %s failed; skipped", sheet.title, source.pk)
+        ing.reload_counterparties()
+        DataIssue.objects.get_or_create(
+            kind="sheet_failed",
+            status=DataIssue.Status.OPEN,
+            message_uz=f"\"{sheet.title}\" varag'ini o'qib bo'lmadi, uni o'tkazib yubordim. Ustunlarini qayta ko'rib chiqing.",
+            defaults={
+                "business": business,
+                "suggestion": {
+                    "action": "remap",
+                    "action_label": "Ustunlarni ko'rish",
+                    "source_id": source.pk,
+                    "sheet": sheet.title,
+                },
+            },
+        )
+        summary.issues += 1
+
+
 def sync_source(
     business: Business,
     source: DataSource,
@@ -156,9 +188,9 @@ def sync_source(
                 ):
                     stale.append(sheet.title)
                     continue
-                if m.sheet_kind == "ignore":
+                if m.sheet_kind == "ignore" or is_report_title(sheet.title):
                     continue
-                ing.ingest(sheet, m)
+                safe_ingest(business, source, ing, sheet, m, summary)
             if stale:
                 props = {
                     p.title: p
@@ -179,7 +211,9 @@ def sync_source(
                         and p.kind != "ignore"
                         and all(c.confidence >= CONFIRM_BELOW for c in p.columns)
                     ):
-                        ing.ingest(sheet, save_mapping(business, source, p))
+                        safe_ingest(
+                            business, source, ing, sheet, save_mapping(business, source, p), summary
+                        )
                     elif p and p.kind != "ignore":
                         DataIssue.objects.get_or_create(
                             kind="remap_needed",

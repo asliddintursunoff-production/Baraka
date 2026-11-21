@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
 
 from apps.engine.dates import add_months, on_day_of_month
@@ -38,6 +39,16 @@ from .normalize import (
     text_key,
 )
 from .readers import SheetData
+
+COUNTERPARTY_NAME_MAX = 120
+
+
+def looks_like_name(name: str) -> bool:
+    """'Agro Go'sht', 'Usta Akmal' yes; a heading or an explanatory sentence no."""
+    if not name or len(name) > 80 or ":" in name or len(name.split()) > 8:
+        return False
+    return not re.match(r"^(jami|итого|всего|total|izoh|eslatma)\b", name.lower())
+
 
 OBLIGATION_CATEGORIES = ("payroll", "loan", "rent", "tax", "supplier", "kommunal")
 CATEGORY_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -124,15 +135,31 @@ class Ingestor:
 
     # --- helpers ---------------------------------------------------------------------
     def counterparty(self, raw: Any) -> Counterparty | None:
+        """Find or create a counterparty; sentences and titles are not names (skipped)."""
         name = clean_name(raw) if raw not in (None, "") else ""
-        if not name:
+        if not looks_like_name(name):
             return None
+        name = name[:COUNTERPARTY_NAME_MAX]
         key = name_key(name)
+        if not key:
+            return None
         cp = self._cps.get(key)
         if cp is None:
-            cp = Counterparty.objects.create(business=self.business, name=name[:160])
+            cp = Counterparty.objects.filter(name=name).first()
+            if cp is None:
+                try:
+                    with transaction.atomic():  # a concurrent/duplicate insert never breaks a sync
+                        cp = Counterparty.objects.create(business=self.business, name=name)
+                except IntegrityError:
+                    cp = Counterparty.objects.filter(name=name).first()
+            if cp is None:
+                return None
             self._cps[key] = cp
         return cp
+
+    def reload_counterparties(self) -> None:
+        """After a rolled-back sheet: forget counterparties that were never committed."""
+        self._cps = {name_key(c.name): c for c in Counterparty.objects.all()}
 
     def issue(
         self, sheet: str, row_no: int | None, exc: RowIssue, raw_row: RawRow | None = None

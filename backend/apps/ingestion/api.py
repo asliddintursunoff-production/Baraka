@@ -58,7 +58,7 @@ def proposals_payload(
                 "summary": f"{len(props)} varaq: "
                 + " · ".join(p.title for p in props[:5])
                 + (" …" if len(props) > 5 else ""),
-                "sheets": [p.payload() for p in props],
+                "sheets": [p.payload() for p in sorted(props, key=lambda p: p.kind == "ignore")],
             }
             for s, props in items
         ],
