@@ -16,7 +16,7 @@ from apps.finance.models import CashAccount
 from apps.integrations.models import DataSource
 
 from . import uz_format as uz
-from .tools import Tool, ToolContext, envelope
+from .tools import TOOLS, Tool, ToolContext, envelope
 
 M = uz.format_mln
 WD = ("Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya")
@@ -564,3 +564,5 @@ CFO_TOOLS.append(
         trend_tool,
     )
 )
+
+TOOLS.update({t.name: t for t in CFO_TOOLS})

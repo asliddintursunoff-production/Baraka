@@ -16,7 +16,7 @@ from apps.ingestion.normalize import text_key
 from apps.integrations.models import DataSource
 
 from . import uz_format as uz
-from .tools import Tool, ToolContext, envelope
+from .tools import TOOLS, Tool, ToolContext, envelope
 
 D0 = Decimal(0)
 
@@ -706,3 +706,5 @@ DETAIL_TOOLS: list[Tool] = [
         assets_tool,
     ),
 ]
+
+TOOLS.update({t.name: t for t in DETAIL_TOOLS})

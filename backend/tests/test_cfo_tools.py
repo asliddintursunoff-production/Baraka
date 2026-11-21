@@ -142,3 +142,26 @@ def test_markdown_answer_parsing_and_chunks():
     assert parse_answer('{"verdict": "no", "headline": "Yo\'q", "steps": []}')["headline"] == "Yo'q"
     md = "\n\n".join(f"Paragraf {i} " + "x" * 150 for i in range(6))
     assert "".join(md_chunks(md)) == md and len(md_chunks(md)) > 1
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        "apps.ai.chat",
+        "apps.ai.cfo_router",
+        "apps.ai.detail_tools",
+        "apps.ai.cfo_tools",
+        "config.urls",
+    ],
+)
+def test_tool_modules_import_in_any_order(first):
+    import subprocess
+    import sys
+
+    code = (
+        "import os, django; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings'); django.setup(); "
+        f"import importlib; importlib.import_module('{first}'); from apps.ai.tools import TOOLS; "
+        "assert {'product_costs', 'break_even', 'trend_watch', 'get_expenses'} <= set(TOOLS)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr[-800:]

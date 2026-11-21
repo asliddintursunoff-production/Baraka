@@ -1247,10 +1247,5 @@ from .advisor_tools import ADVISOR_TOOLS  # noqa: E402
 
 TOOLS.update({t.name: t for t in ADVISOR_TOOLS})
 
-from .cfo_tools import CFO_TOOLS  # noqa: E402
-
-TOOLS.update({t.name: t for t in CFO_TOOLS})
-
-from .detail_tools import DETAIL_TOOLS  # noqa: E402
-
-TOOLS.update({t.name: t for t in DETAIL_TOOLS})
+# CFO and item-level tools register themselves into TOOLS (safe in any import order).
+from . import cfo_tools, detail_tools  # noqa: E402, F401
