@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from django.db.models import Min
+from django.db.models import Min, Sum
 
 from apps.actions.models import ActionPlan
 from apps.engine import (
@@ -412,6 +412,161 @@ def get_forecast(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "headline": s.chip + ".",
             "reason": s.text,
             "steps": [x["text"] for x in advice.steps(base)],
+            "explain": explain_lines(ctx),
+        },
+    )
+
+
+CATEGORY_UZ = {
+    "payroll": "Ish haqi",
+    "rent": "Ijara",
+    "kommunal": "Kommunal",
+    "tax": "Soliq",
+    "loan": "Kredit",
+    "doimiy": "Doimiy xizmatlar (internet, reklama)",
+    "supplier": "Ta'minotchilar",
+    "xom ashyo": "Mahsulot xaridi",
+    "qadoq": "Qadoqlash",
+    "yetkazish": "Yetkazish va taksi",
+    "xo'jalik": "Xo'jalik mollari",
+    "bank komissiyasi": "Bank komissiyasi",
+    "kunbay": "Kunbay ishchilar",
+    "ta'mirlash": "Ta'mirlash",
+    "capex": "Asosiy vositalar (bir martalik)",
+    "dividend": "Dividend",
+    "avans": "Berilgan avans",
+    "financing": "Kapital va kreditlar",
+    "savdo": "Savdo",
+    "boshqa": "Boshqa",
+}
+ONE_OFF = ("capex", "dividend", "avans", "financing")
+
+
+def _month_start(d: date, back: int = 0) -> date:
+    y, m = divmod(d.month - 1 - back, 12)
+    return date(d.year + y, m + 1, 1)
+
+
+def get_expenses(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """Monthly expenses and income by category from the ledger (last complete months)."""
+    from django.db.models import Max
+    from django.db.models.functions import TruncMonth
+
+    months = int(args.get("months", 3))
+    last = Transaction.objects.filter(is_actual=True).aggregate(m=Max("txn_date"))["m"]
+    if last is None:
+        return envelope(
+            ok=True,
+            say="Jadvalda xarajat yozuvlari hali yo'q.",
+            answer={
+                "verdict": "info",
+                "headline": "Jadvalda xarajat yozuvlari hali yo'q.",
+                "reason": "",
+                "steps": [],
+            },
+        )
+    end = _month_start(last) if last.day >= 25 else _month_start(last, 1)
+    starts = [_month_start(end, k) for k in range(months)]
+    rows = (
+        Transaction.objects.filter(
+            is_actual=True, txn_date__gte=starts[-1], txn_date__lt=_month_start(end, -1)
+        )
+        .annotate(m=TruncMonth("txn_date"))
+        .values("m", "direction", "category")
+        .annotate(s=Sum("amount"))
+    )
+    out: dict[date, dict[str, Decimal]] = {m: {} for m in starts}
+    inc: dict[date, Decimal] = dict.fromkeys(starts, Decimal(0))
+    for r in rows:
+        m = r["m"].date() if isinstance(r["m"], datetime) else r["m"]
+        cat = r["category"] or "boshqa"
+        if r["direction"] == "out":
+            out.setdefault(m, {})[cat] = out.get(m, {}).get(cat, Decimal(0)) + r["s"]
+        elif cat not in ONE_OFF:
+            inc[m] = inc.get(m, Decimal(0)) + r["s"]
+
+    def operating(m: date) -> Decimal:
+        return sum((v for c, v in out.get(m, {}).items() if c not in ONE_OFF), Decimal(0))
+
+    last_m = starts[0]
+    total = operating(last_m)
+    avg = (sum((operating(m) for m in starts), Decimal(0)) / len(starts)).quantize(Decimal(1))
+    cats = sorted(
+        ((c, v) for c, v in out.get(last_m, {}).items() if c not in ONE_OFF), key=lambda kv: -kv[1]
+    )
+    one_off = sum((v for c, v in out.get(last_m, {}).items() if c in ONE_OFF), Decimal(0))
+    label = f"{uz.MONTHS[last_m.month - 1]} {last_m.year}"
+    top = ", ".join(f"{CATEGORY_UZ.get(c, c)} {uz.format_mln(v)}" for c, v in cats[:3])
+    net = inc.get(last_m, Decimal(0)) - total
+    headline = f"{label.capitalize()}: xarajatlar {uz.format_mln(total)}, tushum {uz.format_mln(inc.get(last_m, Decimal(0)))}"
+    reason = (
+        f"Eng kattalari: {top}. Oxirgi {months} oyda o'rtacha oyiga {uz.format_mln(avg)} xarajat. "
+        f"Sof natija: {uz.format_mln(net, signed=True)}."
+    )
+    if one_off:
+        reason += f" Bundan tashqari bir martalik to'lovlar: {uz.format_mln(one_off)}."
+    return envelope(
+        facts={
+            "month": last_m.isoformat(),
+            "expenses": money(total),
+            "income": money(inc.get(last_m, Decimal(0))),
+            "net": money(net),
+            "avg_expenses": money(avg),
+            "one_off": money(one_off),
+            "by_category": [
+                {"category": CATEGORY_UZ.get(c, c), "amount": money(v)} for c, v in cats[:10]
+            ],
+            "months": [
+                {
+                    "month": m.isoformat(),
+                    "expenses": money(operating(m)),
+                    "income": money(inc.get(m, Decimal(0))),
+                }
+                for m in starts
+            ],
+        },
+        display={
+            "expenses": uz.format_mln(total),
+            "income": uz.format_mln(inc.get(last_m, Decimal(0))),
+            "avg": uz.format_mln(avg),
+            "by_category": {CATEGORY_UZ.get(c, c): uz.format_mln(v) for c, v in cats[:10]},
+        },
+        say=f"{label.capitalize()} oyida xarajatlar {uz.speech_amount(total)}, tushum {uz.speech_amount(inc.get(last_m, Decimal(0)))}.",
+        ui_blocks=[
+            {
+                "id": "exp",
+                "type": "kpi",
+                "label": f"Xarajatlar · {label}",
+                "value": uz.format_mln_number(total),
+                "unit": "mln so'm",
+                "note": f"o'rtacha oyiga {uz.format_mln(avg)}",
+            },
+            {
+                "id": "inc",
+                "type": "kpi",
+                "label": f"Tushum · {label}",
+                "value": uz.format_mln_number(inc.get(last_m, Decimal(0))),
+                "unit": "mln so'm",
+                "note": f"sof: {uz.format_mln(net, signed=True)}",
+            },
+            {
+                "id": "cats",
+                "type": "steps",
+                "items": [
+                    {
+                        "label": CATEGORY_UZ.get(c, c),
+                        "text": uz.format_mln(v),
+                        "severity": "warning" if i < 3 else "info",
+                    }
+                    for i, (c, v) in enumerate(cats[:8])
+                ],
+            },
+        ],
+        answer={
+            "verdict": "info",
+            "headline": headline,
+            "reason": reason,
+            "steps": [],
             "explain": explain_lines(ctx),
         },
     )
@@ -912,6 +1067,15 @@ TOOLS: dict[str, Tool] = {
                 },
             },
             get_forecast,
+        ),
+        Tool(
+            "get_expenses",
+            "O'tgan oylar xarajatlari va tushumi: oylik jami, kategoriyalar bo'yicha (ish haqi, ijara, mahsulot xaridi...), o'rtacha.",
+            {
+                "type": "object",
+                "properties": {"months": {"type": "integer", "minimum": 1, "maximum": 12}},
+            },
+            get_expenses,
         ),
         Tool(
             "get_upcoming_payments",

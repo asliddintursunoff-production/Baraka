@@ -111,6 +111,9 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
         start = today - timedelta(days=HISTORY_DAYS - 1)
         grouped = (
             Transaction.objects.filter(txn_date__gte=start, txn_date__lte=today, is_actual=True)
+            .exclude(
+                direction="in", category__in=("financing", "capex", "dividend", "avans")
+            )  # not sales
             .values("txn_date", "direction", "category", "counterparty__name")
             .annotate(total=Sum("amount"))
         )

@@ -68,6 +68,9 @@ def _round(x: float) -> int:
     return math.floor(x + 0.5)
 
 
+STALE_DATA_DAYS = 3
+
+
 def revenue_model(
     history: Sequence[DailyActual],
     today: date,
@@ -78,12 +81,18 @@ def revenue_model(
     Days inside the observed span that have no row count as zero sales. With < 8 weeks
     the shape is blended with the segment prior: w_segment = 1 - min(1, weeks / 8).
     """
-    window_start = today - timedelta(days=HISTORY_WEEKS * 7 - 1)
-    by_day = {h.date: to_tiyin(h.inflow) for h in history if window_start <= h.date <= today}
+    # Stale data (the sheet stops days before today): learn from the last 8 weeks that have
+    # sales instead of counting the empty days since then as zero sales.
+    sold = [h.date for h in history if h.date <= today and h.inflow > 0]
+    end = today
+    if sold and (today - max(sold)).days > STALE_DATA_DAYS:
+        end = max(sold)
+    window_start = end - timedelta(days=HISTORY_WEEKS * 7 - 1)
+    by_day = {h.date: to_tiyin(h.inflow) for h in history if window_start <= h.date <= end}
     if not by_day:
         return RevenueModel((0,) * 7, (0,) * 7, 0.0, 0.0, insufficient=True)
     span_start = min(by_day)
-    span_days = (today - span_start).days + 1
+    span_days = (end - span_start).days + 1
     weeks = span_days / 7
 
     values: list[list[int]] = [[] for _ in range(7)]

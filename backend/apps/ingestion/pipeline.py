@@ -51,6 +51,10 @@ def looks_like_name(name: str) -> bool:
 
 
 OBLIGATION_CATEGORIES = ("payroll", "loan", "rent", "tax", "supplier", "kommunal")
+# fixed payments (projected for financial models) and non-operating cash never count as
+# variable cost; financing inflows (capital, loans) are not sales
+NON_OPERATING = ("financing", "capex", "dividend", "avans")
+NOT_VARIABLE = (*OBLIGATION_CATEGORIES, "doimiy", *NON_OPERATING)
 CATEGORY_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "payroll",
@@ -132,6 +136,8 @@ class Ingestor:
             name_key(c.name): c for c in Counterparty.objects.all()
         }
         self.stats = IngestStats()
+        self.finmodel = False  # a restaurant financial-model workbook was ingested
+        self.workbook_sheets: list[SheetData] = []
 
     # --- helpers ---------------------------------------------------------------------
     def counterparty(self, raw: Any) -> Counterparty | None:
@@ -589,8 +595,16 @@ class Ingestor:
             self.ingest_cash(sheet, mapping)
         elif k == "counterparties":
             self.ingest_counterparties(sheet, mapping)
+        elif k.startswith("finmodel_"):
+            from . import finmodel
+
+            finmodel.ingest(self, sheet, k, mapping.header_row)
 
     def finish(self) -> None:
+        if self.finmodel:
+            from .finmodel import project_recurring
+
+            project_recurring(self)
         dedupe_planned()
         estimate_variable_cost_ratio(self.business, self.today)
 
@@ -608,9 +622,17 @@ def dedupe_planned() -> None:
 
 def estimate_variable_cost_ratio(business: Business, today: date) -> Decimal | None:
     start = today - timedelta(days=55)
+    last = (
+        Transaction.objects.filter(txn_date__lte=today)
+        .order_by("-txn_date")
+        .values_list("txn_date", flat=True)
+        .first()
+    )
+    if last and (today - last).days > 3:  # stale data: measure the last 8 weeks that have data
+        today, start = last, last - timedelta(days=55)
     agg = Transaction.objects.filter(txn_date__gte=start, txn_date__lte=today).aggregate(
-        inflow=Sum("amount", filter=Q(direction="in")),
-        var=Sum("amount", filter=Q(direction="out") & ~Q(category__in=OBLIGATION_CATEGORIES)),
+        inflow=Sum("amount", filter=Q(direction="in") & ~Q(category__in=NON_OPERATING)),
+        var=Sum("amount", filter=Q(direction="out") & ~Q(category__in=NOT_VARIABLE)),
     )
     inflow, var = agg["inflow"] or Decimal(0), agg["var"] or Decimal(0)
     if inflow <= 0:

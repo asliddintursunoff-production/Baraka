@@ -48,6 +48,10 @@ KINDS = (
     "loan_schedule",
     "counterparties",
     "cash_balance",
+    "finmodel_kassa",
+    "finmodel_smena",
+    "finmodel_purchases",
+    "finmodel_accounts",
     "ignore",
 )
 FIELD_LABELS = {
@@ -71,6 +75,10 @@ KIND_LABELS = {
     "loan_schedule": "Kredit to'lovlari",
     "counterparties": "Ta'minotchilar ro'yxati",
     "cash_balance": "Kassa qoldig'i",
+    "finmodel_kassa": "Kassa — barcha pul harakatlari",
+    "finmodel_smena": "Smena — kunlik savdo tushumi",
+    "finmodel_purchases": "Kirim — darhol to'langan xaridlar",
+    "finmodel_accounts": "Pul hisoblari — boshlang'ich qoldiq",
     "ignore": "E'tiborsiz",
 }
 CONFIRM_BELOW = cfg.MAPPING_CONFIDENCE_THRESHOLD
@@ -166,6 +174,11 @@ def is_report_title(title: str) -> bool:
 
 
 def heuristic_sheet(sheet: SheetData) -> SheetProposal | None:
+    from .finmodel import proposal as finmodel_proposal
+
+    fm = finmodel_proposal(sheet)  # restaurant financial-model tabs: exact, by header names
+    if fm is not None:
+        return fm
     if is_report_title(sheet.title):
         return SheetProposal(sheet.title, 1, "", 0, "ignore", 0.95)
     rows = sheet.rows
@@ -287,6 +300,11 @@ async def propose_workbook(wb: WorkbookData, *, use_llm: bool = True) -> list[Sh
     ]
     if not use_llm or not any(p.columns for p in props):
         return props
+    if all(
+        p.kind.startswith("finmodel") or (p.kind == "ignore" and p.kind_confidence >= 0.95)
+        for p in props
+    ):
+        return props  # a known financial-model workbook: nothing for the LLM to guess
     from apps.ai.llm import AllModelsFailed, generate
 
     try:
@@ -308,7 +326,14 @@ async def propose_workbook(wb: WorkbookData, *, use_llm: bool = True) -> list[Sh
         log.warning("mapping LLM error, heuristics only: %s", str(exc)[:160])
         return props
     llm_by_title = {s.get("title"): s for s in data.get("sheets", []) if isinstance(s, dict)}
-    return [p if is_report_title(p.title) else merge(p, llm_by_title.get(p.title)) for p in props]
+    return [
+        p
+        if is_report_title(p.title)
+        or p.kind.startswith("finmodel")
+        or (p.kind == "ignore" and p.kind_confidence >= 0.95)
+        else merge(p, llm_by_title.get(p.title))
+        for p in props
+    ]
 
 
 def needs_amount(value: Any) -> Decimal | None:

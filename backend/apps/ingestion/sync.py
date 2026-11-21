@@ -113,6 +113,23 @@ def save_mapping(
     return m
 
 
+def purge_sheet(source: DataSource, title: str) -> None:
+    """Rows once read from a tab that is now ignored are removed (no stale double counting)."""
+    from apps.finance.models import Obligation, Transaction
+
+    from .models import RawRow
+
+    ids = list(
+        RawRow.objects.filter(
+            source=source, sheet_title=title, status=RawRow.Status.ACTIVE
+        ).values_list("pk", flat=True)
+    )
+    if ids:
+        Transaction.objects.filter(raw_row_id__in=ids).delete()
+        Obligation.objects.filter(raw_row_id__in=ids).delete()
+        RawRow.objects.filter(pk__in=ids).update(status=RawRow.Status.DELETED)
+
+
 def safe_ingest(
     business: Business,
     source: DataSource,
@@ -173,6 +190,7 @@ def sync_source(
             wb = cached[0] if cached else reader.read(source)
             progress(f'"{wb.name or source.title}": {len(wb.sheets)} ta varaq o\'qildi…', 30)
             ing = Ingestor(business, source, today)
+            ing.workbook_sheets = list(wb.sheets)
             mappings = {m.sheet_title: m for m in SheetMapping.objects.filter(source=source)}
             stale: list[str] = []
             for sheet in wb.sheets:
@@ -180,6 +198,11 @@ def sync_source(
                 from .mapping import heuristic_sheet
 
                 hp = heuristic_sheet(sheet)
+                if hp and hp.kind == "ignore" and hp.kind_confidence >= 0.95:
+                    purge_sheet(source, sheet.title)  # report / accrual tab: never ingested
+                    continue
+                if hp and hp.kind.startswith("finmodel") and (m is None or m.sheet_kind != hp.kind):
+                    m = save_mapping(business, source, hp)  # exact financial-model mapping
                 if m is None or (
                     hp
                     and hp.header_signature
@@ -188,7 +211,10 @@ def sync_source(
                 ):
                     stale.append(sheet.title)
                     continue
-                if m.sheet_kind == "ignore" or is_report_title(sheet.title):
+                if m.sheet_kind == "ignore" or (
+                    is_report_title(sheet.title) and not m.sheet_kind.startswith("finmodel")
+                ):
+                    purge_sheet(source, sheet.title)
                     continue
                 safe_ingest(business, source, ing, sheet, m, summary)
             if stale:
