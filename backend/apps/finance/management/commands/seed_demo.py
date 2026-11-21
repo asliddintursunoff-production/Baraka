@@ -65,6 +65,12 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **opts: Any) -> None:
         today = datetime.now(ZoneInfo("Asia/Tashkent")).date()
         if Business.objects.filter(seed_tag=SEED_TAG).exists():
+            if not opts["reset"] and opts.get("export"):
+                from apps.finance.demo_export import export_xlsx
+
+                path = export_xlsx(build_navroz(today), opts["export"])
+                self.stdout.write(self.style.SUCCESS(f"Exported {path} (demo data unchanged)"))
+                return
             if not opts["reset"]:
                 raise CommandError("demo data already exists; use --reset to rebuild it")
             self._reset()

@@ -316,3 +316,9 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - 19:22 Budget guard: `AiUsage` logs every chat/light/mapping/TTS/STT/Live/check call with an estimated cost (prices in `app_settings`, estimates). Live mint reserves 60 s and `/live/finish` sets the real seconds. `make check-ai` and `make smoke-ai` pass with the new key (smoke $0.0021).
 - Decision: embeddings are not called at runtime in the MVP (memory uses recency), so there is no `text_hash` cache yet; one is added if M7 embeds.
 - Decision: P2 silence test (10 Q, 600 ms mid-sentence pause, silence 300 ms, free tier before the key change): 0/9 cut off, 1 session error → 300 ms stays.
+- 19:30 M5 finished: browser e2e (DEBUG FakeReader `POST /api/dev/sources/demo`) map → confirm → dashboard 6.5 s, the sheet reproduces the seed forecast exactly, an added expense row + "Hozir yangilash" → cash 44,3 → 41,3 mln.
+- Decision: the loan sheet's payment column is the "Jami" header, never "Qoldiq" (the LLM mapping marked all four money columns as amount → 34,7 mln remaining debt was counted as a payment).
+- Decision: the Sources page shows files whenever files exist (even if the Google credential is gone).
+- Decision: scheduled syncs re-map new/changed sheets with heuristics only (no LLM); `seed_demo --export` without `--reset` only exports.
+- Decision: during work, Django runs on host :8000 (uvicorn --reload) + local `run_scheduler`; Docker runs only db.
+- Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).

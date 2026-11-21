@@ -47,7 +47,7 @@ export default function SourcesPageView() {
     );
 
   const d = normalize(q.data);
-  const empty = !d.connected || d.files.length === 0;
+  const empty = d.files.length === 0;
   const onSynced = async () => {
     invalidateFinance(qc);
     await q.refetch();

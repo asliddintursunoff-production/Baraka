@@ -13,6 +13,7 @@ const ChatPage = lazy(() => import("./pages/Chat"));
 const SourcesPage = lazy(() => import("./pages/Sources"));
 const ConnectPage = lazy(() => import("./pages/Connect"));
 const DevVoice = lazy(() => import("./pages/dev/DevVoice"));
+const LivePage = lazy(() => import("./pages/Live"));
 
 function Lazy({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="p-9 text-text-3">Yuklanmoqda…</div>}>{children}</Suspense>;
@@ -33,7 +34,7 @@ export const router = createBrowserRouter([
   { path: "/knowledge", element: authed(<Placeholder active="knowledge" title="AI bilimi" />) },
   { path: "/sources", element: authed(<SourcesPage />) },
   { path: "/onboarding/connect", element: authed(<ConnectPage />) },
-  { path: "/live", element: authed(<Placeholder active="chat" title="Jonli suhbat" />) },
+  { path: "/live", element: authed(<LivePage />) },
   { path: "/dev/voice", element: <Lazy><DevVoice /></Lazy> },
   { path: "*", element: authed(<Placeholder active="main" title="Sahifa topilmadi" />) },
 ]);

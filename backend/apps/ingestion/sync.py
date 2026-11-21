@@ -168,7 +168,8 @@ def sync_source(
                             wb.name,
                             wb.modified_time,
                             [s for s in wb.sheets if s.title in stale],
-                        )
+                        ),
+                        use_llm=trigger != "schedule",  # the scheduler never calls an LLM
                     )
                 }
                 for sheet in [s for s in wb.sheets if s.title in stale]:

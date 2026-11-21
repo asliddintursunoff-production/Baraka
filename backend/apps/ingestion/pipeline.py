@@ -35,6 +35,7 @@ from .normalize import (
     parse_date,
     parse_day_of_month,
     parse_direction,
+    text_key,
 )
 from .readers import SheetData
 
@@ -478,12 +479,19 @@ class Ingestor:
             clean_name(re.split(r"\s+", sheet.title.strip())[0]) if sheet.title.strip() else "Bank"
         )
         rows: list[tuple[date, Decimal]] = []
+        # several money columns (asosiy qarz / foiz / jami / qoldiq): the payment is "jami",
+        # never the remaining debt; without a "jami" header the largest non-"qoldiq" column
+        headers = [text_key(c) for c in (sheet.rows[h] if h < len(sheet.rows) else [])]
+        amount_cols = cols.get("amount", [])
+        hdr = {i: headers[i] if i < len(headers) else "" for i in amount_cols}
+        total_cols = [i for i in amount_cols if re.search(r"jami|itogo|vsego|total", hdr[i])]
+        amount_cols = (
+            total_cols
+            or [i for i in amount_cols if not re.search(r"qoldiq|qolgan|ostat", hdr[i])]
+            or amount_cols
+        )
         for row in sheet.rows[h + 1 :]:
-            amts = [
-                a
-                for i in cols.get("amount", [])
-                if (a := parse_amount(self.cell(row, i))) is not None
-            ]
+            amts = [a for i in amount_cols if (a := parse_amount(self.cell(row, i))) is not None]
             raw_d = self.first(row, cols, "due_date") or self.first(row, cols, "date")
             try:
                 d = parse_date(raw_d, today=self.today) if raw_d not in (None, "") else None

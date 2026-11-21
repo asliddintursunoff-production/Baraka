@@ -277,3 +277,21 @@ def test_xlsx_reader_reads_dates_and_numbers(demo):
     wb.save(out)
     sheets = xlsx_sheets(out.getvalue())
     assert sheets[0].title == "T" and sheets[0].rows[1][1] == 1500000
+
+
+def test_loan_sheet_uses_total_payment_not_remaining_debt(demo, demo_book):
+    """The UI may confirm every money column as `amount`: the payment is "Jami to'lov"."""
+    _, wb, _ = demo_book
+    _connect(demo, wb)
+    with tenant_context(demo):
+        m = SheetMapping.objects.get(sheet_title="NBU kredit")
+        m.column_map = {"0": "due_date", "1": "amount", "2": "amount", "3": "amount", "4": "amount"}
+        m.save()
+    sync_business(demo, trigger="confirm", force=True, progress=lambda t, p: None, first=True)
+    with tenant_context(demo):
+        loans = set(
+            Obligation.objects.filter(category="loan", status="planned").values_list(
+                "amount", flat=True
+            )
+        )
+    assert loans and max(loans) < 20 * M, loans
