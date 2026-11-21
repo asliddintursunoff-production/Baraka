@@ -8,6 +8,7 @@ urlpatterns = [
     path("api/", include("apps.tenancy.urls")),
     path("api/", include("apps.insights.urls")),
     path("api/", include("apps.actions.urls")),
+    path("api/", include("apps.knowledge.urls")),
     path("api/", include("apps.ai.urls")),
     path("api/", include("apps.telemetry.urls")),
     # Everything that is not the API is the React app (client-side routing).

@@ -17,8 +17,23 @@ AI_MODELS: dict[str, str] = {
     "live": "gemini-3.8-live",  # live voice (native audio)
     "embedding": "gemini-embedding-001",  # pgvector
 }
+# Chat fallback chain (approved 2026-11-21): on 429/503/504 or a passed deadline the next
+# model is tried immediately; a model with 3 errors within 60 s is skipped for 60 s.
+CHAT_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+CHAT_THINKING_BY_MODEL: dict[str, str | None] = {
+    "gemini-3.8-flash": "LOW",
+    "gemini-3.6-flash": "LOW",
+    "gemini-3.5-flash-lite": None,
+}
+CHAT_ATTEMPT_DEADLINE_S = 5.0
+CIRCUIT_ERRORS = 3
+CIRCUIT_WINDOW_S = 60.0
+CIRCUIT_OPEN_S = 60.0
+CHAT_CONTEXT_MAX_TOKENS = 2_000
+TTS_MODEL = "gemini-3.8-flash-tts"
+TTS_VOICE = "Kore"
 # Used only by the M0 voice spike to synthesize Uzbek test questions.
-SPIKE_TTS_MODEL = "gemini-3.8-flash-tts"
+SPIKE_TTS_MODEL = TTS_MODEL
 EMBEDDING_DIM = 768  # output_dimensionality=768; vectors are L2-normalized before storing
 CHAT_THINKING_LEVEL = "LOW"  # lowest level 3.8-flash accepts (MINIMAL is rejected), see AI_NOTES
 CHAT_MAX_TOOL_ROUNDS = 3

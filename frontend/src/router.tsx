@@ -9,6 +9,7 @@ import Placeholder from "./pages/Placeholder";
 // Route-level code splitting (spec §6): heavy pages and voice code load on demand.
 const ForecastPage = lazy(() => import("./pages/Forecast"));
 const CalendarPage = lazy(() => import("./pages/Calendar"));
+const ChatPage = lazy(() => import("./pages/Chat"));
 const DevVoice = lazy(() => import("./pages/dev/DevVoice"));
 
 function Lazy({ children }: { children: ReactNode }) {
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
   { path: "/", element: authed(<MainPage />) },
   { path: "/forecast", element: authed(<ForecastPage />) },
   { path: "/calendar", element: authed(<CalendarPage />) },
-  { path: "/chat", element: authed(<Placeholder active="chat" title="AI CFO" />) },
+  { path: "/chat", element: authed(<ChatPage />) },
   { path: "/knowledge", element: authed(<Placeholder active="knowledge" title="AI bilimi" />) },
   { path: "/sources", element: authed(<Placeholder active="sources" title="Ma'lumotlar" />) },
   { path: "/onboarding/connect", element: authed(<Placeholder active="sources" title="Google Sheets ulash" />) },

@@ -7,6 +7,16 @@ from apps.insights.forecasting import _cache
 from apps.tenancy.models import Business
 
 
+@pytest.fixture(scope="session")
+def django_db_modify_db_settings():
+    """No psycopg pool in tests: pooled connections in worker threads block DB teardown."""
+    from django.conf import settings
+    from django.db import connections
+
+    settings.DATABASES["default"]["OPTIONS"].pop("pool", None)
+    connections["default"].settings_dict["OPTIONS"].pop("pool", None)
+
+
 @pytest.fixture
 def debug_on(settings):
     settings.DEBUG = True

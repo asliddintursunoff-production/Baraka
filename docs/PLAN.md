@@ -259,3 +259,21 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
   - tailwind-merge is configured with the design tokens;
   - segment news shows its real usage ("Maslahatlarda hisobga olinadi"), not the mockup's "Prognozga hisobga olindi";
   - openpyxl and playwright are dev-only dependencies.
+
+### M3 — Tools + chat (done 2026-11-21)
+- **Tools:** registry of 10 tools (spec 9 + `set_staff_count`), one set for chat and Live. Every tool returns `say` (P1) and an answer template. `/api/tools/<name>` takes p50 < 60 ms (tested).
+- **`confirm_plan`:** the backend itself requires an explicit "ha" in the user utterance; it does not trust the LLM.
+- **Plans:** `evaluate_purchase` creates the PROPOSED plan itself, saving one LLM round.
+- **Chat SSE:**
+  - chips use no LLM;
+  - purchase-looking text runs a speculative `evaluate_purchase` (blocks in ~40 ms);
+  - fallback chain 3.8-flash → 3.6-flash → 3.5-flash-lite with a 5 s deadline and circuit breaker;
+  - number guard + one retry, then the engine template;
+  - control tools (remember_fact, …) always use the template wording.
+- **Learning:** correction → deterministic parser (LLM fallback) → candidate with an engine-made example and warning → "To'g'ri, eslab qol" → rule → forecast refreshed.
+- **Chat page:** built by a subagent against `docs/API_CHAT.md`. Browser e2e: cards 43 ms, answer 6.9 s on the free tier (Gemini 3.8-flash quota 20/day exhausted), approve and learn both work.
+- **Decisions:**
+  - the SDK timeout is 10 s (server minimum) while our 5 s deadline uses `asyncio.wait_for`;
+  - the psycopg pool is off in tests;
+  - the approved purchase plan's "execution" is an in-app reminder.
+- **Open:** chat send → answer is 2.5 s p50 only on a paid tier; on the free tier, 3.8-flash 429 + 3.6-flash timeout cost ~5 s before flash-lite answers.

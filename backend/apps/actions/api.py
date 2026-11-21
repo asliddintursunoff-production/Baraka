@@ -93,3 +93,20 @@ class RemindersView(BusinessAPIView):
             kind=ActionPlan.Kind.REMINDER, status=ActionPlan.Status.APPROVED, due_at__gte=since
         ).order_by("due_at")[:50]
         return Response({"reminders": [plan_payload(p) for p in plans]})
+
+
+class ActionApproveView(BusinessAPIView):
+    """The UI button "Ha, shunday qilamiz" — a person approves (idempotent)."""
+
+    def post(self, request: Request, plan_id: int) -> Response:
+        from apps.ai.plans import PlanNotFound, approve_plan
+
+        try:
+            plan = approve_plan(
+                self.business, plan_id, request.user.pk, actor=f"user:{request.user.pk}"
+            )
+        except PlanNotFound:
+            return Response({"error": "not_found", "message": "Reja topilmadi."}, status=404)
+        return Response(
+            {"id": plan.pk, "status": plan.status, "summary": plan.payload.get("summary", "")}
+        )
