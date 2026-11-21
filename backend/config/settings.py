@@ -90,8 +90,10 @@ _app_host = urlparse(APP_URL).hostname or "localhost"
 ALLOWED_HOSTS = [_app_host]
 if DEBUG:
     ALLOWED_HOSTS += ["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]  # noqa: S104
-# Railway's internal healthcheck uses this host header.
-ALLOWED_HOSTS.append("healthcheck.railway.app")
+# Railway's internal healthcheck uses this host header. When the SPA is hosted on Vercel,
+# Vercel's rewrite proxy calls the API with the Railway host (*.up.railway.app), while the
+# browser's Origin stays APP_URL (the Vercel domain), which CSRF_TRUSTED_ORIGINS checks.
+ALLOWED_HOSTS += ["healthcheck.railway.app", ".up.railway.app", ".railway.app"]
 CSRF_TRUSTED_ORIGINS = [APP_URL]
 if DEBUG:
     CSRF_TRUSTED_ORIGINS += ["http://localhost:5173", "http://127.0.0.1:5173"]

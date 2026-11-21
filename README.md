@@ -77,7 +77,9 @@ Demo file: `make seed` then `backend/.venv/bin/python backend/manage.py seed_dem
 - Tests never call Gemini. The only paid commands are `make check-ai` and `make smoke-ai` (5 chat turns + 1 Live session, about $0.01).
 - `make latency` prints page/voice/chat p50/p95 and the AI spend table.
 
-## Deploy (Railway)
+## Deploy (Railway + Vercel)
+**Step-by-step guide (Uzbek): [DEPLOY.md](DEPLOY.md).** It covers Railway (web + scheduler + Postgres with pgvector) and Vercel (frontend, `frontend/vercel.json` proxies `/api` to Railway). The notes below describe a Railway-only setup.
+
 The repo has one image (`Dockerfile`: React build + Django) and two services: **web** and **scheduler**.
 
 1. **New project → Deploy from GitHub repo** (push the repo to GitHub first).
