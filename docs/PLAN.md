@@ -204,3 +204,39 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 1. LATENCY.md P1–P3 (answer template, VAD 300 ms, pre-warm): measured, not applied.
 2. Chat model fallback chain if `gemini-3.8-flash` capacity stays bad (decide before M3).
 3. `seed_demo --export demo_navroz.xlsx` needs an xlsx writer: `openpyxl` (pandas' engine). It's a new library category, so it needs approval before M2.
+
+### M1 — Financial Engine (done 2026-11-21)
+**Acceptance**
+- ✅ All spec §5.3 golden tests pass on clean input without rules, for both 60- and 90-day horizons:
+
+  | Case | Result |
+  |---|---|
+  | baseline | 18,8 · 10-Dec · yes |
+  | buy 25 today | −6,2 · 10-Dec · no |
+  | buy on 12-Jan | 12,3 · 12-Jan · yes |
+  | 9 + 8 + 8 | 9,8 · risky |
+  | revenue −20 % | −7,5 · 10-Jan · no |
+  | +2 staff | 12,8 · 10-Dec · yes |
+  | `spend_limit_until(10-Dec)` | 8 000 000 |
+  | `evaluate_purchase(25)` | no → recommended 12-Jan |
+
+  The mockup cross-checks also pass (25-Nov 40,4 · 1-Dec 48,9 · 9-Dec 78,9 · 15-Dec 30,8 · 25-Dec 46,5 · 10-Jan 30,8; 10-Dec breakdown 78,9 + 3,4 − 63,5; 30-day payments 108,5 / 5).
+- ✅ A separate test group per rule type: payment_shift, recurring, weekday_factor (absolute + yearly Navro'z, neutral in winter), priority, ignore (payments and history).
+- ✅ `simulate` benchmark: p50 ≈ 0.02 ms, p95 < 0.07 ms (budget 5 ms). `forecast(90)` p50 0.36 ms; `evaluate_purchase` p50 0.13 ms.
+- ✅ `uz_format` tests (done in M0). ✅ The engine does not import Django (AST + subprocess test).
+
+**Files:** `apps/engine/{types,money,dates,rules,history,forecast,scenario,purchase,explain,serialize}.py`; tests in `backend/tests/engine/`. Total: 147 pytest, ruff, mypy strict.
+
+**Engine decisions (veto if you disagree)**
+1. `no` only when the balance is negative **on a day with a critical payment**. A negative balance on a day with only deferrable payments → `risky`.
+2. Unpaid payments dated today or earlier hit today's close.
+3. `spend_limit_until` uses the lowest balance from today to the end of the forecast, not just up to `until`, because a purchase lowers every later balance.
+4. `evaluate_purchase` always looks 90 days ahead and only proposes dates with ≥ 35 days of forecast after them, so the next payroll day stays visible.
+5. The segment prior carries only the weekday **shape** (no amounts, per §5.9). So zero own history is `insufficient_data` even with a segment.
+6. Days without rows inside the observed history span count as zero sales.
+7. Confidence = min(history score: 8+ weeks high / 4+ medium; margin score: distance of the lowest day from the threshold in spreads, ≥ 1.28 high / ≥ 0.5 medium).
+8. Fields added beyond spec §5.3:
+   - `ObligationIn.category`: payroll is needed to price `new_staff`; also used by M6 alerts.
+   - `EngineInput.staff_count`.
+   - `PreparedObligation.date_fixed`: rules never move a payment whose date came explicitly from the sheet.
+   - `serialize.py`: canonical input JSON + `inputs_hash`, for `ForecastSnapshot.inputs/inputs_hash`.

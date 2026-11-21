@@ -20,6 +20,7 @@ AI CFO MVP for small Uzbek businesses (hackathon). The product name comes from t
 ## Layout
 - `backend/config/`: `settings.py` reads only the 8 env vars (`ENV_KEYS`). All other constants are in `app_settings.py`.
 - `backend/apps/<app>/`: Django apps. `apps/engine` is pure Python; a test enforces no Django/network imports.
+  Engine API (`apps.engine`): `forecast`, `simulate`, `evaluate_purchase`, `explain_day`, `spend_limit_until`, `aggregate_daily`, `inputs_hash`. Tiyin int64 inside, `Decimal` out. Golden fixtures: `backend/tests/engine/golden.py`.
 - `backend/apps/ai/`: `gemini.py` (client with bounded retries, `scrub()`), `live.py` (Live config + token mint), `uz_format.py` (all Uzbek display/speech text), `prompts.py`, `spike.py` + `dev_views.py` (M0 spike, DEBUG only).
 - `frontend/src/live/voiceClient.ts`: browser Live client (worklets in `frontend/public/worklets/`).
 
