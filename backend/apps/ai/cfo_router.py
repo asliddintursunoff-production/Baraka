@@ -57,6 +57,11 @@ _TABLE: tuple[tuple[str, Routes], ...] = (
 )
 ROUTES = [(re.compile(p, re.IGNORECASE), tools) for p, tools in _TABLE]
 MAX_TOOLS = 6
+_BUY = re.compile(
+    r"(?:yana\s+)?(?:bitta\s+|ikkinchi\s+|yangi\s+)?([a-z'\-]{3,30}(?:\s+[a-z'\-]{3,30})?)\s+(?:sotib\s+)?(?:olsam|olmoqchiman|olaymi|olishim|xarid\s+qilsam)"
+)
+_AMOUNT = re.compile(r"\d[\d\s.,]*\s*(mln|million|ming|so'm|som|\$|usd)|\d{5,}")
+_STOP = {"yana", "bitta", "yangi", "ikkinchi", "pul", "kredit", "qarz", "sotib"}
 
 
 def route(text: str) -> list[tuple[str, dict[str, Any]]]:
@@ -72,6 +77,12 @@ def route(text: str) -> list[tuple[str, dict[str, Any]]]:
         out.append(("product_costs", {"product": name}))
     for name in find_names(t, list(details.get("menu") or {}))[:2]:
         out.append(("menu_analysis", {"dish": name}))
+    # "fritur olsam" without a price -> look the price up on the web first
+    buy = _BUY.search(t)
+    if buy and not _AMOUNT.search(t):
+        item = " ".join(w for w in buy.group(1).split() if w not in _STOP)
+        if item:
+            out.insert(0, ("web_price_lookup", {"item": item}))
     named = {n for n, _ in out}
     for pattern, tools in ROUTES:
         if pattern.search(t):

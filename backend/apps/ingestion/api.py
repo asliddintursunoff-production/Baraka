@@ -175,6 +175,24 @@ class SourcesView(BusinessAPIView):
                     "state_tone": "error" if err else ("new" if added else "same"),
                 }
             )
+        # full inventory from the shared reader: every sheet, its role, header row and rows
+        inv_files = []
+        for src in sources:
+            for it in (src.summary or {}).get("inventory") or []:
+                span = f" · {it['from']} – {it['to']}" if it.get("from") else ""
+                inv_files.append(
+                    {
+                        "source_id": src.pk,
+                        "label": f"{src.title} › {it['sheet']}"
+                        + (" (yashirin)" if it.get("hidden") else ""),
+                        "kind_label": f"{it['role_label']} · {it['layout']} · sarlavha {it['header']}{span}",
+                        "rows": uz.group_digits(it["rows"]),
+                        "state": "E'tiborsiz" if it["role"] == "ignore" else "O'qildi",
+                        "state_tone": "same",
+                    }
+                )
+        if inv_files:
+            files = inv_files
         last_sync = max((s.last_synced_at for s in sources if s.last_synced_at), default=None)
         errors = [s for s in sources if s.status != DataSource.Status.ACTIVE]
         needs_reauth = any(s.status == DataSource.Status.REAUTH for s in sources)

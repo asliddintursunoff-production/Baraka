@@ -260,7 +260,16 @@ def sync_source(
                 from .finmodel import summarize
 
                 source.summary = summarize(source.pk, list(wb.sheets), today)
-                source.save(update_fields=["summary"])
+            try:
+                from apps.workbook.reader import inventory, read_sheets
+
+                source.summary = {
+                    **(source.summary or {}),
+                    "inventory": inventory(read_sheets(list(wb.sheets), wb.name)),
+                }
+            except Exception:
+                log.exception("inventory failed")
+            source.save(update_fields=["summary"])
             st = ing.stats
             summary.sheets += st.sheets
             summary.rows_added += st.rows_added

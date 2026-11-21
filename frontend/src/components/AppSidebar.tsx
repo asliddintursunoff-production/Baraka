@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, Database, House, Lightbulb, Lock, MessageCircle, TrendingUp } from "lucide-react";
+import { CalendarDays, ChevronDown, Database, FileSpreadsheet, House, Lightbulb, Lock, MessageCircle, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -8,13 +8,14 @@ import { cn } from "@/lib/utils";
 
 import { LogoMark } from "./LogoMark";
 
-export type NavKey = "main" | "chat" | "forecast" | "calendar" | "knowledge" | "sources";
+export type NavKey = "main" | "chat" | "forecast" | "calendar" | "knowledge" | "sources" | "files";
 
 const NAV: { key: NavKey; to: string; label: string; Icon: typeof House }[] = [
   { key: "main", to: "/dashboard", label: "Bosh sahifa", Icon: House },
   { key: "chat", to: "/chat", label: "AI CFO", Icon: MessageCircle },
   { key: "forecast", to: "/forecast", label: "Prognoz", Icon: TrendingUp },
   { key: "calendar", to: "/calendar", label: "To'lovlar kalendari", Icon: CalendarDays },
+  { key: "files", to: "/files", label: "Fayl tahlili", Icon: FileSpreadsheet },
   { key: "knowledge", to: "/knowledge", label: "AI bilimi", Icon: Lightbulb },
   { key: "sources", to: "/sources", label: "Ma'lumotlar", Icon: Database },
 ];

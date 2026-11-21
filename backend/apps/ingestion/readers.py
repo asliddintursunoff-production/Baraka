@@ -16,7 +16,7 @@ from apps.integrations import google
 from apps.integrations.models import DataSource
 from apps.tenancy.models import Business
 
-MAX_ROWS = 20_000
+MAX_ROWS = 1_000_000  # effectively no cap (Part 1: no row caps)
 
 
 @dataclass

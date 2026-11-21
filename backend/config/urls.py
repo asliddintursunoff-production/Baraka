@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/", include("apps.integrations.urls")),
     path("api/", include("apps.ingestion.urls")),
     path("api/", include("apps.ai.urls")),
+    path("api/", include("apps.workbook.urls")),
     path("api/", include("apps.telemetry.urls")),
     # Everything that is not the API is the React app (client-side routing).
     re_path(r"^(?!api/|static/).*$", views.spa, name="spa"),

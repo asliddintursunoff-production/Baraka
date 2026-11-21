@@ -1,4 +1,4 @@
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Paperclip } from "lucide-react";
 import type { FormEvent, RefObject } from "react";
 import { Link } from "react-router-dom";
 
@@ -64,6 +64,14 @@ export function Composer({ chips, busy, value, onChange, onSend, inputRef, conta
           onSubmit={submit}
           className="flex items-center gap-[10px] rounded-card border border-border-input bg-surface py-2 pl-4 pr-2 shadow-[0_2px_6px_rgba(16,24,40,.06)] has-[input:focus-visible]:border-primary has-[input:focus-visible]:shadow-[0_0_0_3px_rgba(29,78,216,.18)]"
         >
+          <Link
+            to="/files"
+            aria-label="Excel fayl yuklash (Fayl tahlili)"
+            title="Excel fayl yuklash — AI uni to'liq tahlil qiladi"
+            className="grid size-9 shrink-0 place-items-center rounded-full text-text-3 hover:bg-[#EEF4FF] hover:text-primary"
+          >
+            <Paperclip size={18} />
+          </Link>
           <label htmlFor="ask" className="sr-only">
             AI CFO'ga savol
           </label>

@@ -140,3 +140,20 @@ ADVISOR_THINKING_BY_MODEL: dict[str, str | None] = {
 ADVISOR_MAX_ROUNDS = 6
 ADVISOR_ATTEMPT_DEADLINE_S = 20.0
 ADVISOR_PLAN_MAX = 6
+
+# --- Fayl tahlili (analyst) -----------------------------------------------------------------
+# Chosen from models.list on 2026-11-22: gemini-4-argon exists -> first; then 3.1-pro; then 3.8-flash.
+AI_MODELS["analyst"] = "gemini-4-argon"
+AI_ANALYST_CHAIN = ("gemini-3.8-flash", "gemini-3.1-pro-preview")  # simple questions: fast and good
+# hard questions + "Fayl xulosasi": strongest that answered in tests (argon gave 504 on 2026-11-22)
+AI_ANALYST_DEEP_CHAIN = ("gemini-3.1-pro-preview", "gemini-3.8-flash")
+AI_ANALYST_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "LOW"}
+AI_ANALYST_DEEP_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "HIGH"}
+AI_ANALYST_DAILY_BUDGET_USD = 1.00
+# Prices may change on 2026-12-01; keep them updated here.
+AI_PRICES_PER_M_TOKENS.update(
+    {
+        "gemini-4-argon": (Decimal("2.00"), Decimal("12.00")),
+        "gemini-3.1-pro-preview": (Decimal("2.00"), Decimal("12.00")),
+    }
+)

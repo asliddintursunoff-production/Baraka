@@ -21,6 +21,7 @@ const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 const PricingPage = lazy(() => import("./pages/Pricing"));
 const OnboardingPage = lazy(() => import("./pages/Onboarding"));
 const FirstSyncPage = lazy(() => import("./pages/FirstSync"));
+const FilesPage = lazy(() => import("./pages/Files"));
 
 function Lazy({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="p-9 text-text-3">Yuklanmoqda…</div>}>{children}</Suspense>;
@@ -52,6 +53,7 @@ const ROUTES: RouteObject[] = [
   { path: "/chat", element: authed(<ChatPage />) },
   { path: "/knowledge", element: authed(<KnowledgePage />) },
   { path: "/sources", element: authed(<SourcesPage />) },
+  { path: "/files", element: authed(<FilesPage />) },
   { path: "/onboarding/business", element: onboarding(<OnboardingPage />) },
   { path: "/onboarding/connect", element: onboarding(<ConnectPage />) },
   { path: "/onboarding/analyzing", element: onboarding(<FirstSyncPage />) },
