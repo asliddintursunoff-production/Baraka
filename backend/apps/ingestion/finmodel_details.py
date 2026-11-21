@@ -437,40 +437,114 @@ def assets(sheets: list[SheetData], today: date) -> list[dict[str, str]]:
     return out
 
 
+CHANNEL_RULES = (
+    ("yandex", "Yandex Eats"),
+    ("uzum", "Uzum Tezkor"),
+    ("dostavka", "O'z dostavka"),
+    ("olib", "Olib ketish"),
+    ("zal", "Zal"),
+)
+
+
+def norm_channel(raw: str) -> str:
+    k = text_key(raw)
+    for needle, name in CHANNEL_RULES:
+        if needle in k:
+            return name
+    return raw.strip()
+
+
+def channel_rates(sheets: list[SheetData]) -> dict[str, Decimal]:
+    """Spravochnik channel table (Kanal | Guruh | Kontragent | Komissiya %)."""
+    sh = _sheet(sheets, "spravochnik")
+    if sh is None:
+        return {}
+    for hi, row in enumerate(sh.rows[:12]):
+        keys = _keys(row)
+        ik = next((j for j, k in enumerate(keys) if k == "kanal"), None)
+        ip = next((j for j, k in enumerate(keys) if k.startswith("komissiya")), None)
+        if ik is None or ip is None:
+            continue
+        out: dict[str, Decimal] = {}
+        for r in sh.rows[hi + 1 : hi + 40]:
+            name = r[ik] if ik < len(r) else None
+            if not name:
+                continue
+            pct = _raw(r[ip] if ip < len(r) else None)
+            out[norm_channel(str(name))] = pct / 100 if pct > 1 else pct
+        return out
+    return {}
+
+
 def channels(sheets: list[SheetData], today: date) -> dict[str, Any]:
     """Sotuv per channel per month: revenue (Summa), cost (Tannarx jami), commission, portions,
-    rows; plus the commission rate per channel."""
-    t = _table(_sheet(sheets, "sotuv"), "sana", "taom", "miqdor")
+    rows. Channel names are normalised; formula columns without cached values are recomputed
+    (Summa = qty x price x (1 - discount); commission = Summa x Spravochnik %; cost = qty x menu cost)."""
+    sh = _sheet(sheets, "sotuv")
+    t = _table(sh, "sana", "taom", "miqdor")
     if t is None:
-        return {}
+        return (
+            {
+                "error": "header",
+                "headers": [
+                    str(c)
+                    for c in (sh.rows[3] if sh and len(sh.rows) > 3 else [])
+                    if c not in (None, "")
+                ],
+            }
+            if sh
+            else {}
+        )
     header, rows = t
-    i_d, i_q = _col(header, "sana"), _col(header, "miqdor")
+    i_d, i_q, i_t = _col(header, "sana"), _col(header, "miqdor"), _col(header, "taom")
     i_rev = _col(header, "summa qqs", "summa")
     i_ch, i_com, i_cost = (
         _col(header, "kanal"),
         _col(header, "komissiya so'm"),
         _col(header, "tannarx jami"),
     )
-    i_pct = _col(header, "komissiya %")
+    i_price, i_menu_p, i_disc = (
+        _col(header, "narx ixtiyoriy", "narx"),
+        _col(header, "menyu narxi"),
+        _col(header, "chegirma"),
+    )
+    rates = channel_rates(sheets)
+    menu_cost: dict[str, Decimal] = {}
+    try:
+        menu_cost = {n: _num(d.get("cost")) for n, d in menu(sheets).items()}
+    except (ValueError, TypeError, IndexError, ArithmeticError):
+        pass
     acc: dict[str, dict[str, list[Decimal]]] = defaultdict(
         lambda: defaultdict(lambda: [Decimal(0)] * 5)
     )
-    rate: dict[str, Decimal] = {}
+    computed = 0
+    n_rows = 0
     for r in rows:
         d = _date(_cell(r, i_d), today)
-        ch = _txt(r, i_ch)
-        if d is None or not ch:
+        raw_ch = _txt(r, i_ch) if i_ch is not None else ""
+        if d is None or not raw_ch:
             continue
+        ch = norm_channel(raw_ch)
+        n_rows += 1
+        qty = _num(_cell(r, i_q))
+        rev = _num(_cell(r, i_rev))
+        if not rev and qty:
+            price = _num(_cell(r, i_price)) or _num(_cell(r, i_menu_p))
+            disc = _raw(_cell(r, i_disc))
+            rev = qty * price * (1 - (disc / 100 if disc > 1 else disc))
+            computed += 1
+        com = _num(_cell(r, i_com)) if i_com is not None else Decimal(0)
+        if not com and rates.get(ch):
+            com = rev * rates[ch]
+        cost = _num(_cell(r, i_cost)) if i_cost is not None else Decimal(0)
+        if not cost and qty:
+            cost = qty * menu_cost.get(_txt(r, i_t), Decimal(0))
         a = acc[_month(d)][ch]
-        a[0] += _num(_cell(r, i_rev))
-        a[1] += _num(_cell(r, i_cost))
-        a[2] += _num(_cell(r, i_com))
-        a[3] += _num(_cell(r, i_q))
+        a[0] += rev
+        a[1] += cost
+        a[2] += com
+        a[3] += qty
         a[4] += 1
-        if i_pct is not None and ch not in rate:
-            pct = _raw(_cell(r, i_pct))
-            if pct:
-                rate[ch] = pct
     return {
         "months": {
             m: {
@@ -485,22 +559,43 @@ def channels(sheets: list[SheetData], today: date) -> dict[str, Any]:
             }
             for m, chs in sorted(acc.items())
         },
-        "commission_rate": {k: str(v) for k, v in rate.items()},
+        "commission_rate": {k: str(v) for k, v in rates.items()},
+        "headers": [str(c) for c in header if c not in (None, "")],
+        "rows": n_rows,
+        "recomputed_rows": computed,
+        "channel_column": str(header[i_ch]) if i_ch is not None else None,
     }
 
 
-def counterparties(sheets: list[SheetData], today: date) -> list[dict[str, str]]:
-    """Kontragentlar: name, type, month-end saldo (+ we owe, − they owe us)."""
-    t = _table(_sheet(sheets, "kontragent"), "nomi", "turi")
-    if t is None:
+def counterparties(sheets: list[SheetData], today: date) -> list[dict[str, Any]]:
+    """Kontragentlar: name, type, selected-month saldo, and month-end saldo per month
+    (wide columns labelled "Yan 2026" ...). + we owe, - they owe us."""
+    sh = _sheet(sheets, "kontragent")
+    t = _table(sh, "nomi", "turi")
+    if t is None or sh is None:
         return []
     header, rows = t
     i_n, i_t, i_s = _col(header, "nomi"), _col(header, "turi"), _col(header, "saldo tanl", "saldo")
+    from .finmodel import _month_cols
+
+    found = _month_cols(sh.rows)
+    mcols = found[1] if found else {}
     out = []
     for r in rows:
         name = _txt(r, i_n)
         if name:
-            out.append({"name": name, "type": _txt(r, i_t), "balance": _s(_num(_cell(r, i_s)))})
+            out.append(
+                {
+                    "name": name,
+                    "type": _txt(r, i_t),
+                    "balance": _s(_num(_cell(r, i_s))),
+                    "months": {
+                        m.isoformat(): _s(_num(r[j]))
+                        for j, m in mcols.items()
+                        if j < len(r) and r[j] not in (None, "")
+                    },
+                }
+            )
     return out
 
 

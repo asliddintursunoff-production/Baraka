@@ -553,15 +553,17 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
                 ),
                 None,
             )
-            if (
-                gres is not None
-                and not getattr(turn, "golden_context", False)
-                and any(bl.get("type") == "report" for bl in gres.get("ui_blocks", []))
-            ):
+            if gres is not None and gres.get("pinned_side"):
+                final = finalize(turn, template_answer(gres), "golden")
+                final["markdown"] = str(gres.get("md") or "")
+            elif gres is not None and not getattr(turn, "golden_context", False):
+                # golden question: the golden tool's answer (report, or its failure explanation)
+                # is final — never let the model switch to another intent
                 # golden report: the deterministic card IS the answer (no LLM, every number from the tool)
                 final = finalize(turn, template_answer(gres), "golden")
-                final["markdown"] = ""
                 md = str(gres.get("md") or "")
+                has_report = any(bl.get("type") == "report" for bl in gres.get("ui_blocks", []))
+                final["markdown"] = "" if has_report else re.sub(r"\n?CHIPS:.*$", "", md.rstrip())
                 last = md.rstrip().splitlines()[-1] if md.strip() else ""
                 if last.upper().startswith("CHIPS:"):
                     final["chips"] = [

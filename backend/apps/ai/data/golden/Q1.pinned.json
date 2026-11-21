@@ -1,0 +1,428 @@
+{
+ "intent": "channel_economics",
+ "fingerprint": {
+  "month": "2026-10-01",
+  "revenue": "156187000.00"
+ },
+ "report": {
+  "type": "report",
+  "id": "q1_channel_economics",
+  "intent": "channel_economics",
+  "period": "oktyabr 2026",
+  "verdict": "Yandex va Uzum'dan chiqmang — ular foydali. Lekin o'z dostavkangiz hozir eng kam foyda qoldiryapti: kuryer atigi 42% band.",
+  "verdict_highlight": "Ikkalasini birga ishlating — oyiga +2,0 mln so'm foyda va ~10 mln so'm pul tezroq.",
+  "kpis": [
+   {
+    "label": "Eng foydali kanal hozir",
+    "value": "Uzum",
+    "sub": "49 400 / 100 000 so'm"
+   },
+   {
+    "label": "O'z dostavka hozir",
+    "value": "43 100",
+    "sub": "kuryer 42% yuklangan",
+    "tone": "bad"
+   },
+   {
+    "label": "Tavsiya natijasi",
+    "value": "+2 010 000",
+    "sub": "so'm / oy · +24 mln / yil",
+    "tone": "good"
+   },
+   {
+    "label": "Agregatorlarda turgan pul",
+    "value": "33 300 000",
+    "sub": "31-oktyabr holatiga"
+   }
+  ],
+  "sections": [
+   {
+    "id": "chart_100k",
+    "title": "Har 100 000 so'mlik buyurtmadan qayerga ketadi (oktyabr 2026)",
+    "chart": {
+     "type": "stacked_bar_horizontal",
+     "unit": "so'm",
+     "x": "kanal",
+     "series": [
+      "Masalliq",
+      "Komissiya / dostavka",
+      "Qadoq",
+      "Sizga qoladi"
+     ],
+     "colors": [
+      "#94A3B8",
+      "#F87171",
+      "#CBD5E1",
+      "#2DD4BF"
+     ],
+     "highlight": "Sizga qoladi",
+     "data": [
+      {
+       "kanal": "Uzum Tezkor",
+       "Masalliq": 30370,
+       "Komissiya / dostavka": 18010,
+       "Qadoq": 2200,
+       "Sizga qoladi": 49420
+      },
+      {
+       "kanal": "Yandex Eats",
+       "Masalliq": 29490,
+       "Komissiya / dostavka": 20010,
+       "Qadoq": 2200,
+       "Sizga qoladi": 48300
+      },
+      {
+       "kanal": "O'z dostavka (hozir)",
+       "Masalliq": 29720,
+       "Komissiya / dostavka": 25020,
+       "Qadoq": 2200,
+       "Sizga qoladi": 43060
+      },
+      {
+       "kanal": "O'z dostavka (reja)",
+       "Masalliq": 30440,
+       "Komissiya / dostavka": 17420,
+       "Qadoq": 2200,
+       "Sizga qoladi": 49940
+      }
+     ]
+    }
+   },
+   {
+    "id": "table_100k",
+    "title": "Har 100 000 so'mlik buyurtmadan sizga qancha qoladi (oktyabr 2026)",
+    "table": {
+     "columns": [
+      "Kanal",
+      "Tushum (oy)",
+      "Buyurtma",
+      "O'rtacha chek",
+      "Masalliq",
+      "Komissiya / dostavka",
+      "Qadoq",
+      "Sizga qoladi"
+     ],
+     "rows": [
+      [
+       "Uzum Tezkor",
+       "17 320 000",
+       "174",
+       "99 500",
+       "30 370",
+       "18 010 (komissiya 18%)",
+       "2 200",
+       "**49 400**"
+      ],
+      [
+       "Yandex Eats",
+       "23 840 000",
+       "257",
+       "92 800",
+       "29 490",
+       "20 010 (komissiya 20%)",
+       "2 200",
+       "**48 300**"
+      ],
+      [
+       "O'z dostavka",
+       "16 790 000",
+       "189",
+       "88 800",
+       "29 720",
+       "25 020 (kuryer + yoqilg'i)",
+       "2 200",
+       "**43 100**"
+      ]
+     ]
+    },
+    "note": "Nega o'z dostavka kam qoldiryapti? Kuryer oyligi (2,5 mln) va yoqilg'i (1,7 mln) — qat'iy xarajat. Hozir kuryer oyiga 189 ta buyurtma tashiydi, quvvati ~450 ta. Ya'ni 42% yuklangan. Har bir qo'shimcha buyurtma unga atigi ~6 000 so'mlik yoqilg'i qo'shadi, agregator esa har buyurtmadan ~19 000 so'm komissiya oladi."
+   },
+   {
+    "id": "profit",
+    "title": "Kanal bo'yicha oylik foyda (komissiya va dostavkadan keyin)",
+    "table": {
+     "columns": [
+      "Kanal",
+      "Foyda (oktyabr)"
+     ],
+     "rows": [
+      [
+       "Yandex Eats",
+       "11 520 000"
+      ],
+      [
+       "Uzum Tezkor",
+       "8 560 000"
+      ],
+      [
+       "O'z dostavka",
+       "7 230 000"
+      ],
+      [
+       "**Jami dostavka kanallari**",
+       "**27 310 000**"
+      ]
+     ]
+    }
+   },
+   {
+    "id": "variants",
+    "title": "Variantlar: oylik foyda o'zgarishi",
+    "chart": {
+     "type": "bar",
+     "x": "variant",
+     "y": "qiymat",
+     "unit": "so'm",
+     "data": [
+      {
+       "variant": "Agregatordan chiqish",
+       "qiymat": -20070000,
+       "color": "#F87171"
+      },
+      {
+       "variant": "30% ni o'zimizga o'tkazish",
+       "qiymat": 990000,
+       "color": "#5EEAD4"
+      },
+      {
+       "variant": "Agregatorda narx +8%",
+       "qiymat": 1460000,
+       "color": "#5EEAD4"
+      },
+      {
+       "variant": "Ikkalasi birga (tavsiya)",
+       "qiymat": 2010000,
+       "color": "#2DD4BF"
+      }
+     ]
+    },
+    "table": {
+     "columns": [
+      "Variant",
+      "Nima qilasiz",
+      "Oylik foyda o'zgarishi",
+      "Yillik",
+      "Xavf"
+     ],
+     "rows": [
+      [
+       "❌ Agregatorlardan chiqish",
+       "Yandex + Uzum'ni o'chirish",
+       "**−20 070 000**",
+       "−240 mln",
+       "Mijozlarning ko'pi qaytmaydi"
+      ],
+      [
+       "1. Mijozni o'z dostavkaga o'tkazish",
+       "Agregator buyurtmalarining 30% (~129 ta) ni 5% chegirma bilan Telegram/sayt orqali olish",
+       "**+990 000**",
+       "+11,9 mln",
+       "Kam; kuryer yuklamasi 42% → 71%"
+      ],
+      [
+       "2. Agregatorda narxni +8% qo'yish",
+       "Yandex/Uzum menyusida narx 8% yuqori (komissiyani qoplaydi)",
+       "**+1 460 000**",
+       "+17,5 mln",
+       "Buyurtmalar ~5% kamayishi mumkin"
+      ],
+      [
+       "✅ **1 + 2 birga (tavsiya)**",
+       "Ikkalasi",
+       "**+2 010 000**",
+       "**+24,1 mln**",
+       "Kam"
+      ]
+     ]
+    },
+    "note": "Natija: dostavka kanallaridan oylik foyda 27,3 mln → 29,3 mln. Bu oktyabrdagi sof foydangizga (17,7 mln) nisbatan +11%. O'z dostavkangiz har 100 000 so'mdan 49 900 qoldiradigan bo'ladi — eng foydali kanal."
+   },
+   {
+    "id": "courier",
+    "title": "Kuryer yuklamasi",
+    "chart": {
+     "type": "progress",
+     "now": 0.42,
+     "plan": 0.71,
+     "hire_second_at": 0.7,
+     "label_now": "Hozir: 189 / 450 buyurtma",
+     "label_plan": "Reja: 318 / 450 buyurtma",
+     "note": "2-kuryer yuklama 70% dan oshgandan keyin arziydi."
+    }
+   },
+   {
+    "id": "receivables",
+    "title": "Oy oxirida agregatorlarda turgan pulingiz",
+    "chart": {
+     "type": "line",
+     "x": "oy",
+     "y": "qiymat",
+     "unit": "mln so'm",
+     "data": [
+      {
+       "oy": "Yan 2026",
+       "qiymat": 17.1
+      },
+      {
+       "oy": "Fev 2026",
+       "qiymat": 20.0
+      },
+      {
+       "oy": "Mar 2026",
+       "qiymat": 18.3
+      },
+      {
+       "oy": "Apr 2026",
+       "qiymat": 19.7
+      },
+      {
+       "oy": "May 2026",
+       "qiymat": 23.6
+      },
+      {
+       "oy": "Iyun 2026",
+       "qiymat": 23.4
+      },
+      {
+       "oy": "Iyul 2026",
+       "qiymat": 27.3
+      },
+      {
+       "oy": "Avg 2026",
+       "qiymat": 29.5
+      },
+      {
+       "oy": "Sen 2026",
+       "qiymat": 30.7
+      },
+      {
+       "oy": "Okt 2026",
+       "qiymat": 33.3
+      }
+     ]
+    },
+    "table": {
+     "columns": [
+      "",
+      "Agregatorlar",
+      "O'z dostavka"
+     ],
+     "rows": [
+      [
+       "Pul qachon tushadi",
+       "Keyingi oyning 8–10-sanasida",
+       "Shu kuni (naqd / Click / Payme)"
+      ],
+      [
+       "31-oktyabrda agregatorlarda turgan pulingiz",
+       "**33 300 000** (Yandex 19,1 mln + Uzum 14,2 mln)",
+       "0"
+      ],
+      [
+       "Reja bajarilsa",
+       "~10 000 000 so'm har oy **3–5 hafta oldin** qo'lingizga keladi",
+       ""
+      ]
+     ]
+    },
+    "note": "Bu sizning asosiy muammongizga bevosita yordam beradi: oylik to'lanadigan 5-dekabrda kassada ko'proq pul bo'ladi."
+   },
+   {
+    "id": "actions",
+    "title": "Nima qilish kerak (shu hafta)",
+    "actions": [
+     "**Agregatorlarni o'chirmang.** Ular oyiga 20 mln foyda va yangi mijoz olib keladi.",
+     "**Telegram-bot yoki sayt orqali buyurtma** oching: \"o'zimizdan buyurtma bersangiz −5%\". Har agregator paketiga varaqcha (QR-kod) soling.",
+     "**Yandex va Uzum menyusida narxni 8% yuqori qo'ying** (masalan, lavash mol go'shtli 45 000 → 48 600). Zal va olib ketish narxi o'zgarmaydi.",
+     "**Hozircha 2-kuryer olmang.** Birinchi kuryer ~70% yuklanguncha (oyiga ~320 buyurtma) kuting. Undan keyin 2-kuryer (2,5 mln) arziydi.",
+     "30 kundan keyin natijani tekshiring: o'z dostavka buyurtmalari 189 → ~318 bo'lishi kerak."
+    ]
+   }
+  ],
+  "assumptions": "Taxminlar: kuryer quvvati 450 buyurtma/oy, qo'shimcha buyurtmaga yoqilg'i 6 000 so'm, mijozlarning 30% i o'tadi, narx +8% bo'lsa agregator buyurtmalari 5% kamayadi. Bularni o'zgartirsangiz, qayta hisoblayman.",
+  "source": "Sotuv!G (Kanal), 14 406 qator · Ish haqi (Kuryer) · Kassa (Taksi va yetkazish, Qadoqlash materiallari) · Kontragentlar (saldo, oktyabr) · Spravochnik (komissiya %)"
+ },
+ "speech_segments": [
+  {
+   "cue": "verdict+kpi",
+   "text": "Qisqasi: Yandex va Uzum'dan chiqmang — ular sizga foydali. Lekin o'z dostavkangizdan to'liq foydalanmayapsiz."
+  },
+  {
+   "cue": "chart_100k",
+   "text": "Qarang: har yuz ming so'mlik buyurtmadan Uzum sizga qirq to'qqiz ming, Yandex qirq sakkiz ming so'm qoldiradi. O'z dostavkangiz esa qirq uch ming — chunki kuryeringiz kuniga atigi oltita buyurtma tashiydi, vaqtining yarmidan ko'pi bo'sh."
+  },
+  {
+   "cue": "variants",
+   "text": "Agregatorlardan butunlay chiqsangiz, oyiga yigirma million foyda yo'qotasiz — buni qilmang. Buning o'rniga ikki ish qiling: doimiy mijozlarni besh foiz chegirma bilan o'z Telegram-botingizga o'tkazing, va Yandex bilan Uzum'da narxni sakkiz foiz yuqori qo'ying."
+  },
+  {
+   "cue": "kpi_result+receivables",
+   "text": "Shunda oyiga yana ikki million so'm foyda olasiz — yiliga yigirma to'rt million. Yana bir bonus: hozir agregatorlarda o'ttiz uch million pulingiz turibdi. Reja bilan har oy o'n millioni ancha oldin qo'lingizga keladi — beshinchi dekabrdagi oylikda juda asqotadi."
+  },
+  {
+   "cue": "courier+actions",
+   "text": "Ikkinchi kuryerni hozircha olmang — avval birinchisini to'ldiring. Shu rejani tasdiqlaysizmi? Tasdiqlasangiz, eslatmalarni qo'yib, o'ttiz kundan keyin natijani tekshiraman."
+  },
+  {
+   "cue": "approve_button",
+   "text": ""
+  }
+ ],
+ "speech_short": "Yandex va Uzum'dan chiqmang — ular oyiga yigirma million foyda beradi. Lekin mijozlarni o'z Telegram-botingizga o'tkazib, agregatorda narxni sakkiz foiz oshirsangiz, oyiga yana ikki million foyda qo'shiladi.",
+ "md": "**Xulosa: Yandex va Uzum'dan chiqmang — ular foydali. Lekin o'z dostavkangiz hozir eng kam foyda qoldiryapti, chunki kuryeringiz kuniga atigi ~6 ta buyurtma tashiyapti. Uni to'ldirsangiz, o'z dostavka eng foydali kanalga aylanadi. To'g'ri yo'l — ikkalasini birga ishlatish: oyiga +2,0 mln so'm foyda va ~10 mln so'm pul tezroq qo'lingizga keladi.**\n\nCHIPS: 50% ini o'tkazsam-chi? | 2-kuryer olsam? | Uzum'dan chiqsam?",
+ "plan_summary": "Dostavka rejasi: Telegram-bot −5%, agregatorda narx +8%; 30 kundan keyin tekshirish (189 → ~318 buyurtma)",
+ "facts": {
+  "recommended_delta": "+2 010 000",
+  "exit_delta": "−20 070 000",
+  "receivables": "33 300 000",
+  "load_now": "42%",
+  "load_plan": "71%",
+  "keep_uzum": "49 420",
+  "keep_yandex": "48 300",
+  "keep_own": "43 060",
+  "keep_plan": "49 940"
+ },
+ "side": [
+  {
+   "match": "50\\s*%|ellik\\s+foiz",
+   "answer": "Oyiga **+2,37 mln** (30% da +2,01). Kuryer 404/450 = **90%** — chegarada, sifat tushishi mumkin. 2-kuryer olsangiz natija **−0,13 mln** — hali erta.",
+   "say": "Ellik foiz o'tkazsangiz, oyiga ikki million uch yuz ming bo'ladi, lekin kuryer to'qson foiz band bo'lib qoladi — hozircha o'ttiz foizdan boshlang."
+  },
+  {
+   "match": "(2|ikkinchi)\\s*-?\\s*kuryer",
+   "answer": "30% rejada 2-kuryer bilan **−0,49 mln/oy** — olmang. Yuklama 70% dan oshib, o'z dostavka buyurtmalari ~450 ga yetganda oling."
+  },
+  {
+   "match": "narx\\w*\\s+oshirmasam|faqat\\s+mijoz",
+   "answer": "**+0,99 mln/oy** (narx bilan +2,01)."
+  },
+  {
+   "match": "5\\s*%\\s*(qilsam|qo'ysam)|8\\s*%\\s*emas",
+   "answer": "**+1,67 mln/oy**. Xavf kamroq, foyda biroz kam."
+  },
+  {
+   "match": "uzum\\w*\\s+(butunlay\\s+)?chiq",
+   "answer": "**−4,65 mln/oy**. Uzum oyiga 8,56 mln foyda beradi — chiqmang."
+  },
+  {
+   "match": "nega\\s+uzum|uzum\\s+.*foydaliroq",
+   "answer": "Komissiya 18% vs 20% va o'rtacha chek 99 500 vs 92 800."
+  },
+  {
+   "match": "qanday\\s+(chiqdi|hisob)|raqamlar\\s+qanday",
+   "answer": "Tushum − masalliq − komissiya − qadoq (2,2%) − (o'z dostavka uchun: kuryer 2,5 mln + yoqilg'i 1,7 mln). Manba: Sotuv, Ish haqi, Kassa (oktyabr)."
+  },
+  {
+   "match": "qachon\\s+olaman|pul\\w*\\s+qachon",
+   "answer": "Yandex — har oyning ~8-sanasi, Uzum — ~10-sanasi; 31-oktyabrda jami 33,3 mln turgan edi."
+  },
+  {
+   "match": "telegram|bot\\s+qilish|sayt\\s+qilish",
+   "answer": "Oddiy bot/sayt ~3–5 mln (taxmin). Oyiga +0,99 mln foyda bilan **3–5 oyda** qoplaydi."
+  },
+  {
+   "match": "komissiya\\w*\\s+kamaytir",
+   "answer": "Muzokara: hajm 24 mln/oy; 2 punkt chegirma = oyiga ~0,48 mln. Alternativa — narx ustamasi (variant 2)."
+  }
+ ]
+}

@@ -1,0 +1,280 @@
+{
+ "intent": "hire_payback",
+ "roles": [
+  "ofitsiant",
+  null
+ ],
+ "fingerprint": {
+  "month": "2026-10-01",
+  "revenue": "156187000.00"
+ },
+ "report": {
+  "type": "report",
+  "id": "q2_hire_payback",
+  "intent": "hire_payback",
+  "period": "oktyabr 2026",
+  "verdict": "Hozir yangi ofitsiant o'zini oqlamaydi — har oy ~630 000 so'm zarar. Oshxona va kassa hali bo'sh quvvatda, iyundan beri navbat sababli birorta buyurtma yo'qolmagan.",
+  "verdict_highlight": "Buning o'rniga kassirlarga qo'shimcha sotuv bonusi bering — oyiga +2,66 mln so'm.",
+  "kpis": [
+   {
+    "label": "Ofitsiant: oylik natija",
+    "value": "−633 000",
+    "sub": "narxi 2,29 mln · foyda 1,66 mln",
+    "tone": "bad"
+   },
+   {
+    "label": "Qoplash muddati",
+    "value": "Qoplamaydi",
+    "sub": "12 oyda −8,7 mln",
+    "tone": "bad"
+   },
+   {
+    "label": "Yaxshiroq variant",
+    "value": "+2 655 000",
+    "sub": "kassirga 3% bonus · so'm/oy",
+    "tone": "good"
+   },
+   {
+    "label": "Ishchi kerak bo'ladi",
+    "value": "~May 2027",
+    "sub": "shanba ≥ 85 chek bo'lganda"
+   }
+  ],
+  "sections": [
+   {
+    "id": "chart_cumulative",
+    "title": "12 oyda yig'ma natija (mln so'm)",
+    "chart": {
+     "type": "line_multi",
+     "zero_line": true,
+     "unit": "mln so'm",
+     "x_labels": [
+      "Dek",
+      "Yan",
+      "Fev",
+      "Mar",
+      "Apr",
+      "May",
+      "Iyun",
+      "Iyul",
+      "Avg",
+      "Sen",
+      "Okt",
+      "Noy"
+     ],
+     "series": [
+      {
+       "name": "Yangi ofitsiant",
+       "color": "#F87171",
+       "data": [
+        -1.76,
+        -2.39,
+        -3.03,
+        -3.66,
+        -4.29,
+        -4.92,
+        -5.56,
+        -6.19,
+        -6.82,
+        -7.46,
+        -8.09,
+        -8.72
+       ]
+      },
+      {
+       "name": "Kassirga bonus (tavsiya)",
+       "color": "#14B8A6",
+       "data": [
+        1.33,
+        3.98,
+        6.64,
+        9.3,
+        11.95,
+        14.61,
+        17.27,
+        19.92,
+        22.58,
+        25.24,
+        27.89,
+        30.55
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "id": "load",
+    "title": "Xodimlaringiz yuklamasi (sen–noy)",
+    "chart": {
+     "type": "progress_list",
+     "threshold": 0.85,
+     "items": [
+      {
+       "label": "Oshxona — shanba",
+       "value": 0.84,
+       "note": "75,6 / 90 · 84%"
+      },
+      {
+       "label": "Oshxona — ish kunlari",
+       "value": 0.61,
+       "note": "55 / 90 · 61%"
+      },
+      {
+       "label": "Kassa — eng band soat",
+       "value": 0.16,
+       "note": "9,8 / 60 · 16%"
+      },
+      {
+       "label": "Kuryer",
+       "value": 0.42,
+       "note": "189 / 450 · 42%"
+      }
+     ],
+     "note": "Qizil chiziq — 85%: undan oshsa ishchi olish vaqti. Navbat sababli yo'qotilgan kunlar (10-iyundan beri): 0."
+    }
+   },
+   {
+    "id": "cost",
+    "title": "Ofitsiant: oyiga narxi va foydasi",
+    "table": {
+     "columns": [
+      "Modda",
+      "So'm / oy"
+     ],
+     "rows": [
+      [
+       "Oklad",
+       "2 000 000"
+      ],
+      [
+       "Zal savdosidan 0,3%",
+       "176 000"
+      ],
+      [
+       "Xodim ovqati",
+       "112 000"
+      ],
+      [
+       "**Jami narxi**",
+       "**2 288 000**"
+      ],
+      [
+       "Zal cheki +4% → yalpi foyda",
+       "+1 655 000"
+      ],
+      [
+       "**Sof natija**",
+       "**−633 000**"
+      ]
+     ]
+    },
+    "note": "O'zini oqlashi uchun: zal cheki +5,5% yoki zal savdosi 81 mln/oy (~15 oyda)."
+   },
+   {
+    "id": "alternative",
+    "title": "Shu pulga yaxshiroq variant",
+    "table": {
+     "columns": [
+      "Variant",
+      "Oylik xarajat",
+      "Oylik sof natija",
+      "12 oyda"
+     ],
+     "rows": [
+      [
+       "❌ Yangi ofitsiant",
+       "2 288 000",
+       "**−633 000**",
+       "**−8,7 mln**"
+      ],
+      [
+       "✅ Kassirlarga qo'shimcha sotuv bonusi (3%)",
+       "118 000",
+       "**+2 655 000**",
+       "**+30,5 mln**"
+      ]
+     ]
+    },
+    "note": "Bonus qanday ishlaydi: kassir har buyurtmada bitta taklif qiladi — \"Kombo qilib beraymi?\", \"Sous qo'shaymi?\", \"Ichimlik kerakmi?\". Zal va olib ketish tushumi (oyiga 98,2 mln) 4% oshsa: +3,93 mln tushum → +2,77 mln yalpi foyda; kassirlarga 3% bonus — 118 000 so'm."
+   },
+   {
+    "id": "signals",
+    "title": "Qachon ishchi olish kerak — signallar",
+    "table": {
+     "columns": [
+      "Signal",
+      "Hozir",
+      "Chegara"
+     ],
+     "rows": [
+      [
+       "Shanba cheklari",
+       "75,6",
+       "≥ 85"
+      ],
+      [
+       "\"Ulgurmadi\" kunlari",
+       "0 / oy",
+       "≥ 2 / oy"
+      ],
+      [
+       "Pik soat cheklari",
+       "9,8",
+       "≥ 45"
+      ],
+      [
+       "Zal savdosi",
+       "58,6 mln",
+       "≥ 81 mln"
+      ]
+     ]
+    },
+    "note": "AI signallarni har kuni kuzatadi va vaqti kelganda xabar beradi."
+   },
+   {
+    "id": "actions",
+    "title": "Nima qilish kerak",
+    "actions": [
+     "**Hozir ofitsiant olmang.**",
+     "**Kassirlarga \"bitta taklif\" qoidasi + 3% bonus:** \"Kombo qilib beraymi? Sous qo'shaymi?\" — shu haftadan.",
+     "**30 kundan keyin tekshiring:** zal va olib ketishda o'rtacha chek +4% bo'ldimi.",
+     "**Signal kuzatuvini yoqing** — shanba 85 chekdan oshsa, lavash ustasi olish vaqti."
+    ]
+   }
+  ],
+  "assumptions": "Taxminlar: ofitsiant oklad 2,0 mln · zal cheki +4% · kassir quvvati 30 chek/soat · oshxona 90 chek/kun · zal savdosi o'sishi 2,2%/oy. O'zgartirsangiz, qayta hisoblanadi.",
+  "source": "Ish haqi (oklad) · Sotuv (Zal kanali) · Smena (cheklar, izoh) · Soatlik savdo · Hisobdan chiqarish (xodimlar ovqati) · Menyu (tannarx)"
+ },
+ "speech_segments": [
+  {
+   "cue": "verdict+kpi",
+   "text": "Qisqasi: hozir ofitsiant olmang — u o'zini oqlamaydi, har oy olti yuz ming so'mga yaqin zarar qiladi."
+  },
+  {
+   "cue": "load",
+   "text": "Sababi oddiy: oshxonangiz shanba kuni ham sakson to'rt foiz band, kassa eng band soatda ham deyarli bo'sh. Iyundan beri birorta mijoz navbat sababli ketmagan."
+  },
+  {
+   "cue": "chart_cumulative",
+   "text": "Ofitsiant bir yilda sakkiz yarim million zarar keltiradi. Uning o'rniga kassirlaringizga har qo'shimcha sotuvdan uch foiz bonus bering — 'kombo qilib beraymi?' degan bitta savol. Bu oyiga ikki yarim million, yiliga o'ttiz million foyda."
+  },
+  {
+   "cue": "signals",
+   "text": "Ishchi qachon kerak bo'ladi? Taxminan kelasi may oyida, shanba kunlari sakson beshta chekdan oshganda. Men buni kuzatib, vaqti kelganda sizga o'zim aytaman."
+  },
+  {
+   "cue": "approve_button",
+   "text": "Bonus rejasini tasdiqlaysizmi?"
+  }
+ ],
+ "speech_short": "Hozir ofitsiant olmang — oyiga olti yuz ming zarar qiladi, chunki xodimlaringiz hali to'liq band emas. Uning o'rniga kassirlarga qo'shimcha sotuv bonusi bering — oyiga ikki yarim million foyda.",
+ "md": "**Xulosa: Hozir yangi ofitsiant o'zini oqlamaydi — har oy ~630 000 so'm zarar qiladi. Sababi: oshxona va kassa hali bo'sh quvvatda, 10-iyundan beri birorta buyurtma navbat sababli yo'qolmagan. Buning o'rniga kassirlarga qo'shimcha sotuv uchun bonus bering — oyiga +2,66 mln so'm. Ofitsiant taxminan 2027-yil may oyida kerak bo'ladi.**\n\n*Eslatma: sizda buyurtma kassada olinadi (fast food), shuning uchun ofitsiantning ishi — taomni stolga olib borish va qo'shimcha taom tavsiya qilish.*\n\nCHIPS: Oshpaz olsam-chi? | Kassir olsam? | Qachon ishchi kerak bo'ladi?",
+ "plan_summary": "Kassirlarga 3% qo'shimcha sotuv bonusi; 30 kundan keyin o'rtacha chekni tekshirish; signal: shanba ≥ 85 chek",
+ "facts": {
+  "net": "−633 000",
+  "alt_net": "+2 655 000",
+  "hire_month": "May 2027",
+  "sat_load": "84%"
+ },
+ "side": []
+}

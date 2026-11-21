@@ -1,0 +1,389 @@
+{
+ "intent": "revenue_growth_plan",
+ "fingerprint": {
+  "month": "2026-10-01",
+  "revenue": "156187000.00"
+ },
+ "report": {
+  "type": "report",
+  "id": "q4_revenue_growth_plan",
+  "intent": "revenue_growth_plan",
+  "period": "oktyabr 2026",
+  "verdict": "10% ga chiqish mumkin — 6 haftada, deyarli pul sarflamasdan.",
+  "verdict_highlight": "5 ta harakat: oyiga +15,6 mln tushum (156,2 → 171,8 mln) va +8,0 mln sof foyda. Eng tezi — narx va kassadagi qo'shimcha sotuv, eng kattasi — lanch-set va Instagram.",
+  "kpis": [
+   {
+    "label": "Maqsad",
+    "value": "171,8 mln",
+    "sub": "156,2 mln dan · +10%"
+   },
+   {
+    "label": "Muddat",
+    "value": "6 hafta",
+    "sub": "1-haftadan natija"
+   },
+   {
+    "label": "Foyda",
+    "value": "+8 000 000",
+    "sub": "so'm/oy · +45%",
+    "tone": "good"
+   },
+   {
+    "label": "Kerakli pul",
+    "value": "~4,4 mln",
+    "sub": "reklama + menyu"
+   }
+  ],
+  "sections": [
+   {
+    "id": "waterfall",
+    "title": "Oylik tushum: oktyabr → reja (mln so'm)",
+    "chart": {
+     "type": "waterfall",
+     "start": {
+      "label": "Oktyabr",
+      "value": 156.2
+     },
+     "steps": [
+      {
+       "label": "Agregator",
+       "value": 1.07
+      },
+      {
+       "label": "Gazli ich.",
+       "value": 0.62
+      },
+      {
+       "label": "Qo'sh. sotuv",
+       "value": 3.93
+      },
+      {
+       "label": "Lanch-set",
+       "value": 3.93
+      },
+      {
+       "label": "Instagram",
+       "value": 6.0
+      }
+     ],
+     "end": {
+      "label": "Reja",
+      "value": 171.75
+     },
+     "target_line": 171.8
+    }
+   },
+   {
+    "id": "plan_chart",
+    "title": "8 haftalik o'sish vs maqsad (mln so'm/oy)",
+    "chart": {
+     "type": "line_multi",
+     "x_labels": [
+      "1-h",
+      "2-h",
+      "3-h",
+      "4-h",
+      "5-h",
+      "6-h",
+      "7-h",
+      "8-h"
+     ],
+     "series": [
+      {
+       "name": "Reja",
+       "color": "#14B8A6",
+       "data": [
+        1.7,
+        3.7,
+        7.6,
+        9.6,
+        12.6,
+        15.6,
+        15.6,
+        15.6
+       ]
+      }
+     ],
+     "ref_lines": [
+      {
+       "y": 15.6,
+       "label": "Maqsad +15,6 mln",
+       "color": "#F59E0B"
+      }
+     ],
+     "unit": "mln so'm"
+    },
+    "note": "Kunlik nazorat: 5,04 → 5,54 mln/kun."
+   },
+   {
+    "id": "levers",
+    "title": "5 ta harakat (oyiga)",
+    "table": {
+     "columns": [
+      "#",
+      "Harakat",
+      "Qachon",
+      "Tushum",
+      "Foyda",
+      "Xarajat",
+      "Ishonch"
+     ],
+     "rows": [
+      [
+       "1",
+       "Agregatorda narx +8%",
+       "1-hafta",
+       "+1 070 000",
+       "+1 460 000",
+       "0",
+       "Yuqori"
+      ],
+      [
+       "2",
+       "Gazli ichimlik 12 000 → 13 000",
+       "1-hafta",
+       "+620 000",
+       "+820 000",
+       "0",
+       "Yuqori"
+      ],
+      [
+       "3",
+       "Kassada \"bitta taklif\" + 3% bonus (Kombo? Sous? Ichimlik?)",
+       "2–3-hafta",
+       "+3 930 000",
+       "+2 660 000",
+       "118 000/oy",
+       "O'rta"
+      ],
+      [
+       "4",
+       "Lanch-set du–pa 12:00–15:00: lavash tovuqli + choy = 40 000",
+       "3–4-hafta",
+       "+3 930 000",
+       "+2 840 000",
+       "menyu 300 000 (bir marta)",
+       "O'rta"
+      ],
+      [
+       "5",
+       "Instagram kampaniya (avgustdagidek, +4 mln)",
+       "5–6-hafta",
+       "+6 000 000",
+       "+200 000",
+       "4 000 000/oy",
+       "O'rta"
+      ],
+      [
+       "",
+       "**Jami**",
+       "**6 hafta**",
+       "**+15 550 000 (+10,0%)**",
+       "**+7 980 000**",
+       "",
+       ""
+      ]
+     ]
+    },
+    "note": "Natija: oylik tushum 171,8 mln, sof foyda 17,7 → ~25,7 mln (+45%)."
+   },
+   {
+    "id": "levers_chart",
+    "title": "Har bir harakat: tushum va foyda (mln so'm/oy)",
+    "chart": {
+     "type": "bar_grouped",
+     "x": "label",
+     "group_colors": {
+      "tushum": "#94A3B8",
+      "foyda": "#14B8A6"
+     },
+     "unit": "mln so'm",
+     "data": [
+      {
+       "label": "Agregator narxi",
+       "tushum": 1.07,
+       "foyda": 1.46
+      },
+      {
+       "label": "Gazli ichimlik",
+       "tushum": 0.62,
+       "foyda": 0.82
+      },
+      {
+       "label": "Qo'shimcha sotuv",
+       "tushum": 3.93,
+       "foyda": 2.66
+      },
+      {
+       "label": "Lanch-set",
+       "tushum": 3.93,
+       "foyda": 2.84
+      },
+      {
+       "label": "Instagram",
+       "tushum": 6.0,
+       "foyda": 0.2
+      }
+     ]
+    }
+   },
+   {
+    "id": "evidence",
+    "title": "Dalillar — sizning ma'lumotingizdan",
+    "table": {
+     "columns": [
+      "Savol",
+      "Dalil"
+     ],
+     "rows": [
+      [
+       "Narx oshsa mijoz qochadimi?",
+       "1-sentyabrdagi narx oshirishdan keyin cheklar/kun 61,7 → 59,7 (−3%), o'rtacha chek 77 950 → 81 260 (+4%); oktyabrda cheklar 62,3 ga qaytdi"
+      ],
+      [
+       "Hafta boshida joy bormi?",
+       "Du–pa oshxona yuklamasi 61%, shanba 84% — lanch uchun bo'sh quvvat bor"
+      ],
+      [
+       "Reklama ishlaydimi?",
+       "Avgust (reklama 8 mln): tushum 149,1 mln — iyul va sentyabr o'rtachasidan +11 mln yuqori. Hisobda konservativ +6 mln olindi"
+      ],
+      [
+       "Oshxona yetadimi?",
+       "Reja bilan shanba yuklamasi ~87% (chegara 95%) — yetadi"
+      ]
+     ]
+    }
+   },
+   {
+    "id": "weekly",
+    "title": "8 haftalik reja (oylik run-rate, mln so'm)",
+    "table": {
+     "columns": [
+      "Hafta",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+     ],
+     "rows": [
+      [
+       "Qo'shilgan tushum (oyiga)",
+       "+1,7",
+       "+3,7",
+       "+7,6",
+       "+9,6",
+       "+12,6",
+       "**+15,6**",
+       "+15,6",
+       "+15,6"
+      ],
+      [
+       "Maqsad",
+       "15,6",
+       "15,6",
+       "15,6",
+       "15,6",
+       "15,6",
+       "15,6",
+       "15,6",
+       "15,6"
+      ]
+     ]
+    }
+   },
+   {
+    "id": "actions",
+    "title": "Nima qilish kerak",
+    "actions": [
+     "**Bugun:** Yandex/Uzum menyusida narx +8%, gazli ichimlik 13 000.",
+     "**Ertaga:** kassirlar bilan 10 daqiqalik yig'ilish — \"bitta taklif\" qoidasi va 3% bonus.",
+     "**3-hafta:** lanch-set menyusi (banner, Telegram post).",
+     "**5-hafta:** Instagram kampaniya — 4 mln, 2 hafta (avgustdagi format).",
+     "**Har dushanba:** AI haftalik natijani maqsad bilan solishtiradi."
+    ]
+   }
+  ],
+  "assumptions": "Taxminlar: qo'shimcha sotuv +4% · lanch +6 chek/kun (20% kannibalizatsiya) · Instagram — avgust natijasining yarmi · agregator +8% da buyurtma −5% · gazli hajmi −3%.",
+  "source": "Foyda-zarar · Smena · Sotuv kanallari · Soatlik savdo · Menyu · Kassa (reklama) · Narx tarixi (Menyu izohi)"
+ },
+ "speech_segments": [
+  {
+   "cue": "verdict+kpi",
+   "text": "Qisqasi: o'n foiz o'sish real — olti haftada, deyarli pul sarflamasdan. Oylik tushum bir yuz ellik oltidan bir yuz yetmish ikki millionga chiqadi."
+  },
+  {
+   "cue": "waterfall",
+   "text": "Beshta harakat bor. Birinchi hafta: Yandex va Uzum'da narxni sakkiz foiz oshiring va gazli ichimlikka ming so'm qo'shing. Ikkinchi hafta: kassirlar har mijozga bitta taklif beradi — 'kombo qilaymi?' — buning uchun uch foiz bonus oladi."
+  },
+  {
+   "cue": "evidence",
+   "text": "Mijoz qochadi deb qo'rqmang: sentyabrda narx oshirganingizda cheklar atigi uch foiz kamaydi va bir oyda qaytdi. Hafta boshida oshxonangiz oltmish bir foiz band — u yerga lanch-set qo'yamiz."
+  },
+  {
+   "cue": "plan_chart",
+   "text": "Oxirida avgustdagidek Instagram kampaniya. Hammasi birga oyiga o'n besh million tushum va sakkiz million qo'shimcha foyda."
+  },
+  {
+   "cue": "approve_button",
+   "text": "Sakkiz haftalik rejani tasdiqlaysizmi? Har dushanba natijani o'zim tekshirib beraman."
+  }
+ ],
+ "speech_short": "Olti haftada o'n foiz mumkin: agregatorda narx, kassada qo'shimcha sotuv, hafta boshiga lanch-set va Instagram. Oyiga o'n besh million tushum, sakkiz million foyda.",
+ "md": "**Xulosa: 10% ga chiqish mumkin — 6 haftada, deyarli pul sarflamasdan. 5 ta harakat oyiga +15,6 mln so'm tushum (156,2 → 171,8 mln) va +8,0 mln so'm sof foyda beradi. Eng tezi — narx va kassadagi qo'shimcha sotuv (1-hafta), eng kattasi — lanch-set va Instagram (3–6-hafta).**\n\n### 5 ta harakat (oktyabr asosida, oyiga)\n| # | Harakat | Qachon | Tushum | Foyda | Xarajat | Ishonch |\n|---|---|---|---:|---:|---:|---|\n| 1 | Agregatorda narx +8% | 1-hafta | +1 070 000 | +1 460 000 | 0 | Yuqori |\n| 2 | Gazli ichimlik 12 000 → 13 000 | 1-hafta | +620 000 | +820 000 | 0 | Yuqori |\n| 3 | Kassada \"bitta taklif\" + 3% bonus (Kombo? Sous? Ichimlik?) | 2–3-hafta | +3 930 000 | +2 660 000 | 118 000/oy | O'rta |\n| 4 | Lanch-set du–pa 12:00–15:00: lavash tovuqli + choy = 40 000 | 3–4-hafta | +3 930 000 | +2 840 000 | menyu 300 000 (bir marta) | O'rta |\n| 5 | Instagram kampaniya (avgustdagidek, +4 mln) | 5–6-hafta | +6 000 000 | +200 000 | 4 000 000/oy | O'rta |\n|  | **Jami** | **6 hafta** | **+15 550 000 (+10,0%)** | **+7 980 000** |  |  |\n\nNatija: oylik tushum **171,8 mln**, sof foyda **17,7 → ~25,7 mln** (+45%).\n\n### Nima qilish kerak (shu hafta)\n1. **Bugun:** Yandex/Uzum menyusida narx +8%, gazli ichimlik 13 000.\n2. **Ertaga:** kassirlar bilan 10 daqiqalik yig'ilish — \"bitta taklif\" qoidasi va 3% bonus.\n3. **3-hafta:** lanch-set menyusi (banner, Telegram post).\n4. **5-hafta:** Instagram kampaniya — 4 mln, 2 hafta (avgustdagi format).\n5. **Har dushanba:** AI haftalik natijani maqsad bilan solishtiradi.\n\nCHIPS: Reklamasiz qilsa bo'ladimi? | 20% kerak bo'lsa? | Qancha pul kerak?",
+ "plan_summary": "8 haftalik o'sish rejasi: agregator narxi +8%, gazli 13 000, kassada 'bitta taklif' + 3% bonus, lanch-set du–pa, Instagram; har dushanba nazorat",
+ "facts": {
+  "target": "171 800 000",
+  "revenue_delta": "+15 550 000",
+  "profit_delta": "+7 980 000",
+  "weeks": "6",
+  "budget": "~4 400 000"
+ },
+ "side": [
+  {
+   "match": "reklamasiz|reklama\\w*\\s+(siz|qilmasdan|bo'lmasa)|instagram\\w*siz",
+   "answer": "**4 ta harakat: +9,55 mln (+6,1%)**, foyda +7,8 mln — foydaning deyarli hammasi saqlanadi. 10% ga yetish uchun lanch-setni dam olish kunlari kechki vaqtga ham kengaytirish kerak.",
+   "say": "Reklamasiz ham oyiga to'qqiz yarim million qo'shasiz — bu olti foiz. O'n foizga yetish uchun lanch-setni kechki vaqtga ham kengaytiramiz."
+  },
+  {
+   "match": "narx\\w*\\s+oshirmasdan|narxni\\s+oshirmay",
+   "answer": "Qo'shimcha sotuv + lanch + Instagram: **+13,9 mln (+8,9%)**, foyda +5,7 mln."
+  },
+  {
+   "match": "20\\s*%|yigirma\\s+foiz",
+   "answer": "+31 mln kerak. 5 ta harakat +15,6 mln beradi; qolgan +15 mln uchun **quvvat yetmaydi** (shanba 95% ga chiqadi) → 3-lavash apparati + ustasi (Q3) yoki kechki dostavka smenasi. Muddat: 3–4 oy."
+  },
+  {
+   "match": "eng\\s+tez",
+   "answer": "Agregator narxi + gazli ichimlik — **bugun**, oyiga +1,7 mln tushum, +2,3 mln foyda, xarajat 0."
+  },
+  {
+   "match": "foyda\\w*\\s+qancha|qancha\\s+foyda",
+   "answer": "**+8,0 mln/oy**: sof foyda 17,7 → ~25,7 mln."
+  },
+  {
+   "match": "qancha\\s+pul\\s+kerak|pul\\s+kerak|byudjet",
+   "answer": "~4,4 mln: Instagram 4 mln + menyu/banner 0,3 mln + bonus 0,12 mln/oy. Kassa xavfsiz."
+  },
+  {
+   "match": "qochmaydimi|qochadimi|narxdan\\s+qoch",
+   "answer": "Sentyabr: cheklar −3%, o'rtacha chek +4%, bir oyda tiklandi. Agregatorda +8% dan keyin buyurtma ~5% kam (hisobga olingan)."
+  },
+  {
+   "match": "lanch\\w*\\s+qanday|lanch-set\\s+qanday",
+   "answer": "Lavash tovuqli + choy = 40 000 (alohida 44 000). Du–pa 12:00–15:00. Marja ~74%."
+  },
+  {
+   "match": "kombo\\w*\\s+narx",
+   "answer": "Kombo marjasi 68%; −10% narx foydani tushiradi, agar sotuv +15% dan kam oshsa. Tavsiya: narxni emas, taklifni kuchaytiring (3-harakat)."
+  },
+  {
+   "match": "qanday\\s+kuzat|natija\\w*\\s+kuzat|nazorat",
+   "answer": "Kunlik maqsad 5,54 mln; har dushanba AI hisobot: haftalik tushum, o'rtacha chek, du–pa lanch cheklari, agregator buyurtmalari."
+  }
+ ]
+}

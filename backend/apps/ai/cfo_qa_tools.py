@@ -172,41 +172,146 @@ def payables_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = _summary()
     if s is None:
         return _no_data()
-    bal = s.get("balances") or []
-    owe = sorted([b for b in bal if _D(b.get("balance")) > 0], key=lambda b: -_D(b["balance"]))
-    recv = sorted([b for b in bal if _D(b.get("balance")) < 0], key=lambda b: _D(b["balance"]))
-    to = sum((_D(b["balance"]) for b in owe), D0)
-    tr = -sum((_D(b["balance"]) for b in recv), D0)
-    m = G.last_month(s)
-    head = f"**{_mon(m)} oxiri holatiga kontragentlarga jami qarzingiz {M(to)} ({len(owe)} ta); sizga qarzdorlar {M(tr)}.**"
-    lines = [
-        head,
-        "",
-        f"### Siz qarzdor bo'lganlar — top {min(10, len(owe))} (isbot: Kontragentlar varag'i, saldo)",
-        "| # | Kontragent | Turi | Qarz | Ulushi |",
-        "|---|---|---|---|---|",
-    ]
-    facts: dict[str, Any] = {"total_owe": M(to), "total_recv": M(tr)}
-    for i, b in enumerate(owe[:10], 1):
-        v = _D(b["balance"])
-        lines.append(
-            f"| {i} | {b['name']} | {b.get('type', '')} | {M(v)} | {P(v / to if to else D0)} |"
+    cps = (s.get("details") or {}).get("counterparties") or []
+    last = date.fromisoformat(str(s.get("last_date"))[:10]) if s.get("last_date") else None
+    m = last.replace(day=1).isoformat() if last else G.last_month(s)
+    import calendar
+
+    partial = bool(last and last.day < calendar.monthrange(last.year, last.month)[1])
+    period = f"{uz.MONTHS[int(m[5:7]) - 1]} 1–{last.day}" if partial and last else _mon(m)
+
+    def sal(b: dict[str, Any]) -> Decimal:
+        return _D((b.get("months") or {}).get(m, b.get("balance")))
+
+    rows = (
+        [(b, sal(b)) for b in cps]
+        if cps
+        else [(b, _D(b["balance"])) for b in (s.get("balances") or [])]
+    )
+    rows = [(b, v) for b, v in rows if abs(v) >= 1000]
+    t = lambda b: str(b.get("type", "")).lower()  # noqa: E731
+    loan = [(b, v) for b, v in rows if "kredit" in t(b) or "bank" in b["name"].lower()]
+    deposit = [(b, v) for b, v in rows if "ijara" in t(b) and v < 0]
+    aggs = [(b, v) for b, v in rows if "agregator" in t(b) and v < 0]
+    staff = [(b, v) for b, v in rows if "xodim" in t(b) and v > 0]
+    used = {id(b) for b, _ in loan + deposit + aggs + staff}
+    other_owe = sorted(
+        [(b, v) for b, v in rows if id(b) not in used and v > 0], key=lambda x: -x[1]
+    )
+    other_recv = sorted(
+        [(b, v) for b, v in rows if id(b) not in used and v < 0], key=lambda x: x[1]
+    )
+    owe_total = sum((v for _, v in loan + staff + other_owe), D0)
+    recv_total = -sum((v for _, v in aggs + other_recv), D0)
+    head = (
+        f"**{period} holatiga: siz qarzdorsiz {M(owe_total)}, sizga qarzdorlar {M(recv_total)}"
+        + (
+            f" (+ ijara depoziti {M(-sum((v for _, v in deposit), D0))}, qaytariladigan)"
+            if deposit
+            else ""
         )
-        facts[f"owe_{b['name']}"] = M(v)
-    if recv:
-        lines += ["", "### Sizga qarzdorlar", "| Kontragent | Turi | Summa |", "|---|---|---|"]
-        for b in recv[:10]:
-            lines.append(f"| {b['name']} | {b.get('type', '')} | {M(-_D(b['balance']))} |")
-            facts[f"recv_{b['name']}"] = M(-_D(b["balance"]))
+        + ".**"
+    )
+    lines = [head, ""]
+    facts: dict[str, Any] = {"owe_total": M(owe_total), "recv_total": M(recv_total)}
+    base = ctx.base
+    if loan:
+        b, v = loan[0]
+        hist = sorted((k, _D(x)) for k, x in (b.get("months") or {}).items() if k <= m)
+        principal = (
+            (hist[-2][1] - hist[-1][1]) if len(hist) > 1 and hist[-2][1] > hist[-1][1] else D0
+        )
+        if not principal and len(hist) > 2:
+            principal = hist[-3][1] - hist[-2][1]
+        lm = G.last_month(s)
+        interest = G.pl_value(s, "foiz xarajatlari", lm)
+        prev_m = (date.fromisoformat(lm) - timedelta(days=1)).replace(day=1).isoformat()
+        opening = (
+            _D((b.get("months") or {}).get(prev_m)) or v
+        )  # interest of month lm accrues on the balance at its start
+        rate = (interest * 12 / opening * 100).quantize(Decimal(1)) if opening else D0
+        nxt = (
+            next(
+                (o for o in base.obligations if o.category == "loan" and o.date > base.today), None
+            )
+            if not base.insufficient_data
+            else None
+        )
+        months_left = int((v / principal).to_integral_value()) if principal else None
+        save = (v * rate / 100 / 12).quantize(Decimal(1))
+        lines += [
+            "### Bank krediti",
+            "| Qoldiq | Foiz | Har oy | Keyingi to'lov | Yopiladi |",
+            "|---:|---:|---:|---|---|",
+            f"| {M(v)} | {rate}% | {M(principal)} asosiy + ~{M(interest)} foiz | {Dt(nxt.date) + ' · ' + M(Decimal(nxt.amount)) if nxt else '25-sana'} | ~{months_left} oyda |"
+            if months_left
+            else f"| {M(v)} | {rate}% | ~{M(interest)} foiz | {Dt(nxt.date) if nxt else '—'} | — |",
+            f"Maslahat: muddatidan oldin to'liq yopsangiz, foizdan oyiga ~{M(save)} tejaysiz — lekin kassada kamida 3 oylik doimiy xarajat qolishi shart.",
+            "",
+        ]
+        facts.update(
+            {
+                "loan": M(v),
+                "loan_rate": f"{rate}%",
+                "loan_principal": M(principal),
+                "loan_save": M(save),
+            }
+        )
+    if aggs:
+        due = {"yandex": 8, "uzum": 10}
+        lines += [
+            "### Agregatorlar sizga qarzdor (keyingi oyda tushadi)",
+            "| Agregator | Summa | Kutilgan sana |",
+            "|---|---:|---|",
+        ]
+        for b, v in sorted(aggs, key=lambda x: x[1]):
+            d = next((dd for k, dd in due.items() if k in b["name"].lower()), 10)
+            lines.append(f"| {b['name']} | {M(-v)} | har oyning ~{d}-sanasi |")
+            facts[f"recv_{b['name']}"] = M(-v)
+        lines.append("")
+    if deposit:
+        lines += (
+            ["### Ijara depoziti (qaytariladigan — undiriladigan qarz emas)"]
+            + [f"- {b['name']}: {M(-v)}" for b, v in deposit]
+            + [""]
+        )
+    if staff:
+        lines += [
+            f"### Xodimlarga ish haqi qarzi: {M(sum((v for _, v in staff), D0))} (keyingi oyning 5-sanasida to'lanadi)",
+            "",
+        ]
+    if other_owe:
+        lines += (
+            [
+                "### Boshqa kreditorlar (siz qarzdor)",
+                "| Kontragent | Turi | Summa |",
+                "|---|---|---:|",
+            ]
+            + [f"| {b['name']} | {b.get('type', '')} | {M(v)} |" for b, v in other_owe[:10]]
+            + [""]
+        )
+    if other_recv:
+        lines += (
+            ["### Boshqa debitorlar (sizga qarzdor)"]
+            + [f"- {b['name']} ({b.get('type', '')}): {M(-v)}" for b, v in other_recv[:10]]
+            + [""]
+        )
+    if not loan and not aggs and not other_owe:
+        lines.append(f"Yetkazib beruvchilarga qarz yo'q ({period}).")
     lines += [
+        f"_Manba: Kontragentlar varag'i, saldo ({period}); 1 000 so'mdan kichik saldolar yashirilgan._",
         "",
-        "### Guideline",
-        "- Eng katta qarzni birinchi yoping, lekin chegirma (naqd to'lovga 2–3%) so'rang.",
-        "- Agregatorlardan (Yandex/Uzum) kelishi kerak bo'lgan pul — to'lov jadvalini tekshiring; kechiksa yozma talab qiling.",
-        "",
-        "CHIPS: Kassa yetadimi? | Yaqin to'lovlar | Foydani qanday oshiraman?",
+        "CHIPS: Kreditni yopsam-chi? | Kassa yetadimi? | Yaqin to'lovlar",
     ]
-    return _done(facts, lines, head)
+    md = "\n".join(lines)
+    return envelope(
+        ok=True,
+        facts=facts,
+        speech=speech_of(facts),
+        md=md,
+        say=head.strip("*"),
+        answer={"headline": head.strip("*"), "reason": ""},
+    )
 
 
 # 6. hiring payback -------------------------------------------------------------------------

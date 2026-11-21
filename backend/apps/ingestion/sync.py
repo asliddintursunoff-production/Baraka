@@ -182,7 +182,16 @@ def sync_source(
         try:
             reader = reader_for(source, business)
             modified = reader.modified_time(source)
-            if not force and not first and modified and modified == source.modified_time:
+            from .finmodel import SUMMARY_VERSION
+
+            outdated = bool(source.summary) and (source.summary or {}).get("v") != SUMMARY_VERSION
+            if (
+                not force
+                and not first
+                and not outdated
+                and modified
+                and modified == source.modified_time
+            ):
                 run.status, run.message = "skipped", "yangi qator yo'q"
                 summary.skipped += 1
                 return
@@ -271,6 +280,7 @@ def sync_source(
                 source.summary = {
                     **(source.summary or {}),
                     "inventory": inventory(read_sheets(list(wb.sheets), wb.name)),
+                    "v": SUMMARY_VERSION,
                 }
             except Exception:
                 log.exception("inventory failed")

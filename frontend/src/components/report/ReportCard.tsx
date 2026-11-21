@@ -10,6 +10,7 @@ import {
   LabelList,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,7 +22,13 @@ import { cn } from "@/lib/utils";
 
 type Row = Record<string, string | number>;
 export interface ReportChart {
-  type: "stacked_bar_horizontal" | "bar" | "progress" | "line" | "line_multi" | "progress_list";
+  type: "stacked_bar_horizontal" | "bar" | "progress" | "line" | "line_multi" | "progress_list" | "waterfall" | "bar_grouped";
+  start?: { label: string; value: number };
+  end?: { label: string; value: number };
+  steps?: { label: string; value: number }[];
+  target_line?: number;
+  ref_lines?: { y: number; label: string; color: string }[];
+  group_colors?: Record<string, string>;
   x_labels?: string[];
   zero_line?: boolean;
   threshold?: number;
@@ -57,6 +64,7 @@ export interface Report {
   kpis: { label: string; value: string; sub?: string; tone?: "good" | "bad" }[];
   sections: ReportSection[];
   assumptions?: string;
+  source?: string;
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString("ru-RU").replace(/,/g, " ");
@@ -178,8 +186,12 @@ function LineMulti({ c }: { c: ReportChart }) {
           <XAxis dataKey="x" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} width={40} />
           <Tooltip formatter={(v) => `${String(v).replace(".", ",")} ${c.unit ?? ""}`} />
+          {(c.ref_lines ?? []).map((r) => (
+            <ReferenceLine key={r.label} y={r.y} stroke={r.color} strokeDasharray="5 4" label={{ value: r.label, position: "insideTopLeft", fontSize: 11, fill: r.color }} />
+          ))}
+          {c.zero_line && <ReferenceLine y={0} stroke="#98A2B3" />}
           {series.map((s) => (
-            <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2.5} dot={false} />
+            <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2.5} dot={!!c.ref_lines} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -216,7 +228,78 @@ function ProgressList({ c }: { c: ReportChart }) {
   );
 }
 
+function Waterfall({ c }: { c: ReportChart }) {
+  const start = c.start ?? { label: "", value: 0 };
+  const end = c.end ?? { label: "", value: 0 };
+  let acc = start.value;
+  const rows = [
+    { label: start.label, base: 0, val: start.value, color: "#94A3B8", text: String(start.value).replace(".", ",") },
+    ...(c.steps ?? []).map((st) => {
+      const r = { label: st.label, base: acc, val: st.value, color: "#14B8A6", text: `+${st.value.toFixed(2).replace(".", ",")}` };
+      acc += st.value;
+      return r;
+    }),
+    { label: end.label, base: 0, val: end.value, color: "#0F766E", text: end.value.toFixed(1).replace(".", ",") },
+  ];
+  const lo = Math.floor((start.value * 0.96) / 5) * 5;
+  const hi = Math.ceil((Math.max(end.value, c.target_line ?? 0) * 1.01) / 5) * 5;
+  const y = (v: number) => ((hi - v) / (hi - lo)) * 100;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="relative h-[220px] w-full border-b border-border">
+        {c.target_line && (
+          <div className="absolute left-0 right-0 border-t-2 border-dashed border-[#F59E0B]" style={{ top: `${y(c.target_line)}%` }}>
+            <span className="absolute -top-5 left-0 text-12 font-semibold text-[#B45309]">Maqsad</span>
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-stretch gap-2 px-1">
+          {rows.map((r) => {
+            const top = y(r.base + r.val);
+            const bottom = r.base ? y(r.base) : 100;
+            return (
+              <div key={r.label} className="relative flex-1">
+                <div className="absolute left-0 right-0 rounded-[4px]" style={{ top: `${top}%`, height: `${Math.max(1, bottom - top)}%`, background: r.color }} />
+                <span className="absolute left-0 right-0 text-center text-12 font-bold" style={{ top: `calc(${top}% - 18px)` }}>
+                  {r.text}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex gap-2 px-1">
+        {rows.map((r) => (
+          <span key={r.label} className="flex-1 text-center text-11 text-text-3">
+            {r.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BarGrouped({ c }: { c: ReportChart }) {
+  const keys = Object.keys(c.group_colors ?? {});
+  return (
+    <div className="h-[220px] w-full">
+      <ResponsiveContainer>
+        <BarChart data={c.data ?? []} margin={{ left: 0, right: 8, top: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+          <XAxis dataKey={c.x ?? "label"} tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} width={36} />
+          <Tooltip formatter={(v) => `${String(v).replace(".", ",")} ${c.unit ?? ""}`} />
+          {keys.map((k) => (
+            <Bar key={k} dataKey={k} fill={c.group_colors?.[k]} radius={3} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function Chart({ c }: { c: ReportChart }) {
+  if (c.type === "waterfall") return <Waterfall c={c} />;
+  if (c.type === "bar_grouped") return <BarGrouped c={c} />;
   if (c.type === "line_multi") return <LineMulti c={c} />;
   if (c.type === "progress_list") return <ProgressList c={c} />;
   if (c.type === "stacked_bar_horizontal") return <StackedH c={c} />;
@@ -297,6 +380,7 @@ export function ReportCard({
         </div>
       )}
       {(!compact || full) && report.assumptions && <p className="m-0 text-12 text-text-3">{report.assumptions}</p>}
+      {report.source && <p className="m-0 border-t border-border pt-2 text-12 text-text-3">Manba: {report.source}</p>}
       {(!compact || full) && (
         <button
           type="button"

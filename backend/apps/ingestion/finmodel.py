@@ -759,6 +759,10 @@ def _sheet(sheets: list[SheetData], *prefixes: str) -> SheetData | None:
     return next((s for s in sheets if any(text_key(s.title).startswith(p) for p in prefixes)), None)
 
 
+# Bump when the summary gains fields: every source is re-read once on its next sync.
+SUMMARY_VERSION = 3
+
+
 def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str, Any]:
     """Month-by-month figures from the cash ledger and the journals, reconciled with the
     workbook's own reports (Pul oqimi / Balans / Foyda-zarar), tolerance 1 %."""
@@ -899,6 +903,7 @@ def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str,
         "reports": report_tables(sheets),
         "journals": journal_breakdowns(sheets, today),
         "details": finmodel_details.details(sheets, today),
+        "v": SUMMARY_VERSION,
     }
 
 

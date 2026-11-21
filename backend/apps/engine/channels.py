@@ -250,15 +250,24 @@ def compute(
             )
     cap = p.capacity * p.couriers
     bal = (det.get("counterparties") or []) or (s.get("balances") or [])
-    recv = {
-        b["name"]: -_d(b["balance"])
+    aggs_cp = [
+        b
         for b in bal
-        if str(b.get("type", "")).lower().startswith("agregator") and _d(b["balance"]) < 0
-    }
-    hist_row = ((s.get("reports") or {}).get("balans") or {}).get(
-        "mijozlar va agregatorlar qarzi"
-    ) or {}
-    hist = [(k, _d(v)) for k, v in sorted(hist_row.items()) if k <= m and _d(v) > 0]
+        if "agregator" in str(b.get("type", "")).lower()
+        or any(w in b["name"].lower() for w in ("yandex", "uzum"))
+    ]
+
+    def saldo(b: dict[str, Any], month: str) -> Decimal:
+        return _d((b.get("months") or {}).get(month, b.get("balance")))
+
+    recv = {b["name"]: -saldo(b, m) for b in aggs_cp if saldo(b, m) < 0}
+    months_all = sorted({k for b in aggs_cp for k in (b.get("months") or {}) if k <= m})
+    hist = [(k, sum((-saldo(b, k) for b in aggs_cp if saldo(b, k) < 0), D0)) for k in months_all]
+    if not hist:
+        hist_row = ((s.get("reports") or {}).get("balans") or {}).get(
+            "mijozlar va agregatorlar qarzi"
+        ) or {}
+        hist = [(k, _d(v)) for k, v in sorted(hist_row.items()) if k <= m and _d(v) > 0]
     net = _d(((s.get("reports") or {}).get("pl") or {}).get("sof foyda", {}).get(m))
     return ChannelEconomics(
         m,

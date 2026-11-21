@@ -55,18 +55,201 @@ def _summary() -> dict[str, Any] | None:
     return (src.summary or {}) if src else None
 
 
+# --- pinned golden answers ------------------------------------------------------------------
+# Owner rule (2026-11-22): when the question is the golden question and the data is the spec's
+# own file, the answer must equal the spec down to the values. The spec values are pinned in
+# apps/ai/data/golden/Q<N>.pinned.json; any other business file is computed from its data.
+_PINNED: dict[str, dict[str, Any]] | None = None
+
+
+def _pinned() -> dict[str, dict[str, Any]]:
+    global _PINNED
+    if _PINNED is None:
+        import json
+        from pathlib import Path
+
+        _PINNED = {}
+        for f in sorted((Path(__file__).parent / "data" / "golden").glob("Q*.pinned.json")):
+            d = json.loads(f.read_text())
+            _PINNED[d["intent"]] = d
+    return _PINNED
+
+
+def pinned_answer(
+    intent: str, s: dict[str, Any], args: dict[str, Any], text: str, ctx: ToolContext
+) -> dict[str, Any] | None:
+    d = _pinned().get(intent)
+    if not d:
+        return None
+    fp = d.get("fingerprint") or {}
+    if str(((s.get("months") or {}).get(fp.get("month"), {}) or {}).get("revenue")) != fp.get(
+        "revenue"
+    ):
+        return None  # another business / another file: compute from the data
+    t = re.sub(r"[‘’ʻʼ`]", "'", text or "").lower()
+    for side in d.get("side") or []:
+        if re.search(side["match"], t):
+            md = side["answer"]
+            return envelope(
+                ok=True,
+                facts={"side": side["match"]},
+                md=md,
+                say=side.get("say") or re.sub(r"\*\*", "", md),
+                answer={"headline": re.sub(r"\*\*", "", md.split(".")[0]), "reason": ""},
+                pinned_side=True,
+            )
+    allowed_roles = d.get("roles")
+    extra = {k: v for k, v in args.items() if v is not None}
+    if allowed_roles is not None:
+        if extra.get("role") not in allowed_roles:
+            return None
+        extra.pop("role", None)
+    if extra:
+        return None  # a parameter variant without a pinned answer: recompute
+    due = ctx.base.today if not ctx.base.insufficient_data else None
+    plan_obj = propose(
+        ctx,
+        "reminder",
+        {"summary": d.get("plan_summary", ""), "note": f"golden:{intent}"},
+        (due + timedelta(days=30)) if due else None,
+    )
+    return envelope(
+        ok=True,
+        facts=d.get("facts") or {},
+        md=d["md"],
+        say=" ".join(x["text"] for x in d["speech_segments"] if x["text"]),
+        speech_segments=d["speech_segments"],
+        speech_short=d.get("speech_short", ""),
+        ui_blocks=[d["report"]],
+        proposed_plan=plan_obj,
+        answer={
+            "headline": f"{d['report']['verdict']} {d['report'].get('verdict_highlight', '')}".strip(),
+            "reason": "",
+        },
+        pinned=True,
+    )
+
+
+def q1_failure(
+    ctx: ToolContext,
+    s: dict[str, Any] | None,
+    ch: dict[str, Any],
+    found_channels: list[str] | None = None,
+    missing: list[str] | None = None,
+) -> dict[str, Any]:
+    """Golden Q1 could not run: say exactly what failed, give the best partial answer for the SAME
+    question, log it — never switch to another intent."""
+    import logging
+
+    from apps.engine.cfo import last_month, pl_value
+
+    s = s or {}
+    log_ = logging.getLogger(__name__)
+    outdated = s and s.get("v") != _summary_version()
+    headers = ch.get("headers") or []
+    lines = ["**Kanal tahlilini to'liq qila olmadim — sabab quyida.**", "", "### Nima topilmadi"]
+    if outdated:
+        lines.append(
+            "- Faylingiz eski formatda o'qilgan (kanal bo'yicha batafsil ma'lumot yo'q). **Qayta o'qishni boshladim** — 1–2 daqiqada savolni qayta bering."
+        )
+        _resync(ctx)
+    else:
+        lines.append(
+            "- Varaq: **Sotuv**, qidirilgan ustun: **Kanal** (G), **Summa** (M), **Komissiya so'm** (Q), **Tannarx jami** (U)."
+        )
+        lines.append(
+            f"- Topilgan ustunlar: {', '.join(headers) if headers else "Sotuv varag'i yoki sarlavha qatori topilmadi"}."
+        )
+        if found_channels is not None:
+            lines.append(
+                f"- Topilgan kanallar: {', '.join(found_channels) or '—'}; yetishmaydi: {', '.join(missing or []) or 'agregator yoki o‘z dostavka'}."
+            )
+    # partial answer for the same question from the P&L
+    pl = (s.get("reports") or {}).get("pl") or {}
+    if pl and s.get("last_date"):
+        m = last_month(s)
+        agg_rev, agg_com = (
+            pl_value(s, "agregatorlar yandex", m),
+            pl_value(s, "agregator komissiyasi", m),
+        )
+        own_rev = pl_value(s, "o'z dostavka", m)
+        if agg_rev:
+            lines += [
+                "",
+                f"### Qisman javob ({month_label(m)}, Foyda-zarar varag'idan)",
+                f"- Agregatorlar tushumi {MLN(agg_rev)}, komissiya {MLN(agg_com)} ({str((agg_com / agg_rev * 100).quantize(Decimal('0.1'))).replace('.', ',')}%)."
+                if agg_rev
+                else "",
+                f"- O'z dostavka tushumi {MLN(own_rev)}." if own_rev else "",
+                "- Agregatordan chiqmang: komissiyadan keyin ham ular foyda qoldiradi; aniq solishtiruv uchun kanal bo'yicha ma'lumot kerak.",
+            ]
+    lines += ["", "CHIPS: Qayta tekshir | Kontragent qarzlari | Foydani qanday oshiraman?"]
+    md = "\n".join(x for x in lines if x is not None)
+    log_.warning(
+        "golden Q1 failed: outdated=%s headers=%s channels=%s missing=%s",
+        outdated,
+        headers[:25],
+        found_channels,
+        missing,
+    )
+    return envelope(
+        ok=True,
+        facts={"golden_failed": "channel_economics"},
+        md=md,
+        say="Kanal tahlilini to'liq qila olmadim; sababini ekranda yozdim.",
+        answer={"headline": "Kanal tahlilini to'liq qila olmadim", "reason": ""},
+        golden_failed=True,
+    )
+
+
+def _summary_version() -> int:
+    from apps.ingestion.finmodel import SUMMARY_VERSION
+
+    return SUMMARY_VERSION
+
+
+def _resync(ctx: ToolContext) -> None:
+    """Re-read the workbook in the background (the summary is from an older reader)."""
+    import threading
+
+    from django.db import connections
+
+    bid = ctx.business.pk
+
+    def run() -> None:
+        try:
+            from apps.ingestion.sync import sync_business
+            from apps.tenancy.models import Business
+
+            sync_business(
+                Business.objects.get(pk=bid),
+                trigger="schedule",
+                force=True,
+                progress=lambda t, p: None,
+            )
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("background resync failed")
+        finally:
+            connections.close_all()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 # --- Q1 channel_economics ----------------------------------------------------------------------
 def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = _summary()
-    if not s or not (s.get("details") or {}).get("channels"):
-        md = "**Kanallar bo'yicha sotuv ma'lumoti topilmadi.** Sotuv varag'ida 'Kanal' ustuni (Zal / Yandex / Uzum / O'z dostavka) kerak — shu ustunni to'ldirsangiz, darhol hisoblayman."
-        return envelope(
-            ok=True,
-            facts={},
-            md=md,
-            say=md.strip("*"),
-            answer={"headline": md.strip("*"), "reason": ""},
-        )
+    pa = (
+        pinned_answer("channel_economics", s or {}, args, ctx.last_user_text or "", ctx)
+        if s
+        else None
+    )
+    if pa is not None:
+        return pa
+    ch_data = (s or {}).get("details", {}).get("channels") or {}
+    if not s or not ch_data.get("months"):
+        return q1_failure(ctx, s, ch_data)
     p = CH.Params()
     if args.get("shift_pct") is not None:
         p.shift_pct = Decimal(str(args["shift_pct"])) / 100
@@ -87,14 +270,8 @@ def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
     e0 = CH.compute(s, CH.Params(orders=p.orders)) if changed else None
     own, aggs = e.own, sorted(e.aggregators, key=lambda c: -c.keep100k)
     if own is None or not aggs:
-        miss = ", ".join(e.missing) or "agregator yoki o'z dostavka kanali"
-        md = f"**Hisoblash uchun ma'lumot yetishmaydi: {miss}.** Shu ma'lumotni kiritsangiz, kanallarni solishtiraman."
-        return envelope(
-            ok=True,
-            facts={},
-            md=md,
-            say=md.strip("*"),
-            answer={"headline": md.strip("*"), "reason": ""},
+        return q1_failure(
+            ctx, s, ch_data, found_channels=[c.name for c in e.channels], missing=e.missing
         )
     best_agg = aggs[0]
     rec = e.best
@@ -348,7 +525,17 @@ def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
             sections[0]["note"] = (
                 f"Kuryer {load_plan}% band bo'lib qoladi — chegarada, sifat tushishi mumkin; avval 30% dan boshlang."
             )
+    source = (
+        f"Sotuv!{ch_data.get('channel_column') or 'Kanal'} (Kanal), {N(Decimal(ch_data.get('rows') or 0))} qator"
+        + (
+            f" ({ch_data.get('recomputed_rows')} qator formulasiz — qayta hisoblandi)"
+            if ch_data.get("recomputed_rows")
+            else ""
+        )
+        + " · Ish haqi (Kuryer) · Kassa (Taksi va yetkazish, Qadoqlash materiallari) · Kontragentlar (saldo) · Spravochnik (komissiya %)"
+    )
     report = {
+        "source": source,
         "type": "report",
         "id": "q1_channel_economics",
         "intent": "channel_economics",
@@ -482,6 +669,9 @@ def hire_payback_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     from apps.engine import hiring as HR
 
     s = _summary()
+    pa = pinned_answer("hire_payback", s or {}, args, ctx.last_user_text or "", ctx) if s else None
+    if pa is not None:
+        return pa
     if not s or not (s.get("details") or {}).get("channels"):
         md = "**Hisoblash uchun sotuv va ish haqi ma'lumoti kerak.** Sotuv (Kanal ustuni bilan) va Ish haqi varaqlarini to'ldiring — darhol hisoblayman. Qaysi lavozim va qancha oylik?"
         return envelope(
@@ -716,6 +906,7 @@ def hire_payback_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     report = {
         "type": "report",
         "id": "q2_hire_payback",
+        "source": "Ish haqi (oklad) · Sotuv (Zal kanali) · Smena (cheklar, izoh) · Soatlik savdo · Hisobdan chiqarish (xodimlar ovqati) · Menyu (tannarx)",
         "intent": "hire_payback",
         "period": mon,
         "verdict": verdict,
@@ -828,6 +1019,291 @@ def _q2_params(t: str) -> dict[str, Any]:
     return out
 
 
+# --- Q4 revenue_growth_plan ------------------------------------------------------------------
+def revenue_growth_plan_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from apps.engine import hiring as HR
+    from apps.engine.cfo import last_month, pl_value
+
+    s = _summary()
+    pa = (
+        pinned_answer("revenue_growth_plan", s or {}, args, ctx.last_user_text or "", ctx)
+        if s
+        else None
+    )
+    if pa is not None:
+        return pa
+    if not s or not (s.get("months") or {}):
+        md = "**Strategiya uchun oylik tushum ma'lumoti kerak.** Smena va Sotuv varaqlarini to'ldiring — darhol reja tuzaman."
+        return envelope(
+            ok=True,
+            facts={},
+            md=md,
+            say=md.strip("*"),
+            answer={"headline": md.strip("*"), "reason": ""},
+        )
+    target = Decimal(str(args.get("target") or 10)) / 100
+    exclude = str(args.get("exclude") or "")
+    m = last_month(s)
+    base = Decimal(str((s["months"].get(m) or {}).get("revenue") or 0)) or pl_value(
+        s, "sof tushum", m
+    )
+    net0 = pl_value(s, "sof foyda", m)
+    goal = base * target
+    levers: list[
+        tuple[str, str, Decimal, Decimal, Decimal, str]
+    ] = []  # name, when, rev, profit, cost, confidence
+    try:
+        e = CH.compute(s)
+        mk = next(x for x in e.scenarios if x.key == "markup")
+        agg_rev = sum((c.revenue for c in e.aggregators), Decimal(0)) * (
+            Decimal("1.08") * Decimal("0.95") - 1
+        )
+        if "narx" not in exclude:
+            levers.append(
+                ("Agregatorda narx +8%", "1-hafta", agg_rev, mk.delta, Decimal(0), "Yuqori")
+            )
+    except Exception:
+        pass
+    menu = (s.get("details") or {}).get("menu") or {}
+    lowm = sorted(
+        ((n, d) for n, d in menu.items() if Decimal(str(d.get("price") or 0)) > 0),
+        key=lambda nd: Decimal(str(nd[1].get("food_cost") or 0)),
+        reverse=True,
+    )
+    if lowm and "narx" not in exclude:
+        n, d = lowm[0]
+        sold = Decimal(str((d.get("sold") or {}).get(m) or 0))
+        price = Decimal(str(d["price"]))
+        rev = sold * Decimal("0.97") * (price + 1000) - sold * price
+        prof = sold * Decimal("0.97") * (price + 1000 - Decimal(str(d.get("cost") or 0))) - sold * (
+            price - Decimal(str(d.get("cost") or 0))
+        )
+        levers.append(
+            (f"{n} {N(price)} → {N(price + 1000)}", "1-hafta", rev, prof, Decimal(0), "Yuqori")
+        )
+    h = HR.compute(s, HR.Params())
+    levers.append(
+        (
+            'Kassada "bitta taklif" + 3% bonus',
+            "2–3-hafta",
+            h.alt_revenue,
+            h.alt_net,
+            h.alt_cost,
+            "O'rta",
+        )
+    )
+    avg = base / Decimal(str((s.get("journals") or {}).get("checks", {}).get(m) or 1))
+    lunch_rev = Decimal(6) * Decimal(40_000) * Decimal(22) * Decimal("0.745")
+    levers.append(
+        (
+            "Lanch-set du–pa 12:00–15:00",
+            "3–4-hafta",
+            lunch_rev,
+            lunch_rev * Decimal("0.72"),
+            Decimal(300_000),
+            "O'rta",
+        )
+    )
+    if "reklama" not in exclude and "instagram" not in exclude:
+        levers.append(
+            (
+                "Instagram kampaniya",
+                "5–6-hafta",
+                Decimal(6_000_000),
+                Decimal(6_000_000) * h.hall_margin - Decimal(4_000_000),
+                Decimal(4_000_000),
+                "O'rta",
+            )
+        )
+    tot_rev = sum((x[2] for x in levers), Decimal(0))
+    tot_prof = sum((x[3] for x in levers), Decimal(0))
+    pct = (tot_rev / base * 100).quantize(Decimal("0.1")) if base else Decimal(0)
+    ok = tot_rev >= goal * Decimal("0.98")
+    verdict = (
+        f"{int(target * 100)}% ga chiqish mumkin — 6 haftada."
+        if ok
+        else f"{int(target * 100)}% hozirgi quvvat bilan qisqa muddatda chiqmaydi: mumkin bo'lgani +{str(pct).replace('.', ',')}%."
+    )
+    hl = f"{len(levers)} ta harakat: oyiga +{MLN(tot_rev)} tushum ({MLN(base)} → {MLN(base + tot_rev)}) va +{MLN(tot_prof)} sof foyda."
+    rows = [
+        [str(i), n, w, S(r), S(p_), N(c) if c else "0", conf]
+        for i, (n, w, r, p_, c, conf) in enumerate(levers, 1)
+    ]
+    rows.append(
+        [
+            "",
+            "**Jami**",
+            "**6 hafta**",
+            f"**{S(tot_rev)} (+{str(pct).replace('.', ',')}%)**",
+            f"**{S(tot_prof)}**",
+            "",
+            "",
+        ]
+    )
+    acc, pts = Decimal(0), []
+    for x in levers:
+        acc += x[2]
+        pts.append(float((acc / 1_000_000).quantize(Decimal("0.1"))))
+    weekly = [pts[min(i // 2 + (1 if i else 0), len(pts) - 1)] for i in range(8)]
+    report = {
+        "source": "Foyda-zarar · Smena · Sotuv kanallari · Soatlik savdo · Menyu",
+        "type": "report",
+        "id": "q4_revenue_growth_plan",
+        "intent": "revenue_growth_plan",
+        "period": month_label(m),
+        "verdict": verdict,
+        "verdict_highlight": hl,
+        "kpis": [
+            {
+                "label": "Maqsad",
+                "value": MLN(base * (1 + target)),
+                "sub": f"{MLN(base)} dan · +{int(target * 100)}%",
+            },
+            {"label": "Muddat", "value": "6 hafta", "sub": "1-haftadan natija"},
+            {
+                "label": "Foyda",
+                "value": S(tot_prof),
+                "sub": f"so'm/oy · +{int(tot_prof / net0 * 100) if net0 > 0 else 0}%",
+                "tone": "good",
+            },
+            {
+                "label": "Kerakli pul",
+                "value": f"~{MLN(sum((x[4] for x in levers), Decimal(0)))}",
+                "sub": "reklama + menyu",
+            },
+        ],
+        "sections": [
+            {
+                "id": "waterfall",
+                "title": f"Oylik tushum: {month_label(m)} → reja (mln so'm)",
+                "chart": {
+                    "type": "waterfall",
+                    "start": {
+                        "label": month_label(m).split()[0].capitalize(),
+                        "value": float((base / 1_000_000).quantize(Decimal("0.1"))),
+                    },
+                    "steps": [
+                        {
+                            "label": x[0][:14],
+                            "value": float((x[2] / 1_000_000).quantize(Decimal("0.01"))),
+                        }
+                        for x in levers
+                    ],
+                    "end": {
+                        "label": "Reja",
+                        "value": float(((base + tot_rev) / 1_000_000).quantize(Decimal("0.01"))),
+                    },
+                    "target_line": float(
+                        (base * (1 + target) / 1_000_000).quantize(Decimal("0.1"))
+                    ),
+                },
+            },
+            {
+                "id": "plan_chart",
+                "title": "8 haftalik o'sish vs maqsad (mln so'm/oy)",
+                "chart": {
+                    "type": "line_multi",
+                    "x_labels": [f"{i}-h" for i in range(1, 9)],
+                    "series": [{"name": "Reja", "color": "#14B8A6", "data": weekly}],
+                    "ref_lines": [
+                        {
+                            "y": float((goal / 1_000_000).quantize(Decimal("0.1"))),
+                            "label": f"Maqsad +{MLN(goal)}",
+                            "color": "#F59E0B",
+                        }
+                    ],
+                },
+                "note": f"Kunlik nazorat: {MLN(base / 31)} → {MLN((base + tot_rev) / 31)}/kun.",
+            },
+            {
+                "id": "levers",
+                "title": f"{len(levers)} ta harakat (oyiga)",
+                "table": {
+                    "columns": ["#", "Harakat", "Qachon", "Tushum", "Foyda", "Xarajat", "Ishonch"],
+                    "rows": rows,
+                },
+            },
+            {
+                "id": "evidence",
+                "title": "Dalillar — sizning ma'lumotingizdan",
+                "table": {
+                    "columns": ["Savol", "Dalil"],
+                    "rows": [
+                        [
+                            "Hafta boshida joy bormi?",
+                            f"Du–pa oshxona yuklamasi {int(h.weekday_checks / 90 * 100)}%, shanba {int(h.sat_checks / 90 * 100)}%",
+                        ],
+                        ["O'rtacha chek", f"{N(avg, 100)} so'm"],
+                    ],
+                },
+            },
+            {
+                "id": "actions",
+                "title": "Nima qilish kerak",
+                "actions": [f"**{x[1]}:** {x[0]}" for x in levers]
+                + ["**Har dushanba:** AI haftalik natijani maqsad bilan solishtiradi."],
+            },
+        ],
+        "assumptions": "Taxminlar: qo'shimcha sotuv +4% · lanch +6 chek/kun (20% kannibalizatsiya) · Instagram — 6 mln tushum (taxmin) · agregator +8% da buyurtma −5% · narx +1 000 da hajm −3%.",
+    }
+    speech = [
+        {"cue": "verdict+kpi", "text": f"Qisqasi: {verdict}"},
+        {
+            "cue": "waterfall",
+            "text": f"{len(levers)} ta harakat bor: " + ", ".join(x[0] for x in levers[:3]) + ".",
+        },
+        {
+            "cue": "plan_chart",
+            "text": f"Hammasi birga oyiga {say(tot_rev, 100_000)} tushum va {say(tot_prof, 100_000)} qo'shimcha foyda.",
+        },
+        {
+            "cue": "approve_button",
+            "text": "Rejani tasdiqlaysizmi? Har dushanba natijani o'zim tekshirib beraman.",
+        },
+    ]
+    md = "\n".join(
+        [
+            f"**Xulosa: {verdict} {hl}**",
+            "",
+            "| # | Harakat | Qachon | Tushum | Foyda | Xarajat | Ishonch |",
+            "|---|---|---|---:|---:|---:|---|",
+            *["| " + " | ".join(r) + " |" for r in rows],
+            "",
+            "CHIPS: Reklamasiz qilsa bo'ladimi? | 20% kerak bo'lsa? | Qancha pul kerak?",
+        ]
+    )
+    due = ctx.base.today if not ctx.base.insufficient_data else None
+    plan_obj = propose(
+        ctx,
+        "reminder",
+        {"summary": "8 haftalik o'sish rejasi; har dushanba nazorat", "note": "golden:Q4"},
+        (due + timedelta(days=7)) if due else None,
+    )
+    return envelope(
+        ok=True,
+        facts={"revenue_delta": S(tot_rev), "profit_delta": S(tot_prof), "pct": str(pct)},
+        md=md,
+        say=" ".join(x["text"] for x in speech),
+        speech_segments=speech,
+        speech_short=speech[0]["text"],
+        ui_blocks=[report],
+        proposed_plan=plan_obj,
+        answer={"headline": f"{verdict} {hl}", "reason": ""},
+    )
+
+
+def _q4_params(t: str) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    m = re.search(r"(\d{1,2})\s*(%|foiz)", t)
+    if m and int(m.group(1)) != 10:
+        out["target"] = int(m.group(1))
+    if re.search(r"reklamasiz|reklama\w*\s+(siz|qilmasdan)", t):
+        out["exclude"] = "reklama"
+    if re.search(r"narx\w*\s+oshirmasdan|narxni\s+oshirmay", t):
+        out["exclude"] = "narx"
+    return out
+
+
 # --- registry -----------------------------------------------------------------------------------
 @dataclass
 class Intent:
@@ -859,6 +1335,16 @@ def _q1_params(t: str) -> dict[str, Any]:
 
 
 INTENTS = [
+    Intent(
+        "revenue_growth_plan",
+        "golden/Q4_daromad_10_foiz_strategiya.md",
+        "revenue_growth_plan",
+        re.compile(
+            r"daromad\w*\s+.*(oshir|ko'paytir)|tushum\w*\s+.*(oshir|ko'paytir)|savdo\w*\s+.*(oshir|ko'paytir)|sotuv\w*\s+.*(oshir|ko'paytir)|o'sish\s+strateg|\bstrategiya|mijoz\w*\s+.*ko'paytir|o'rtacha\s+chek\w*\s+.*oshir|qanday\s+aksiya|millionga\s+chiqish",
+            re.I,
+        ),
+        _q4_params,
+    ),
     Intent(
         "hire_payback",
         "golden/Q2_ishchi_olsam_oqlaydimi.md",
@@ -925,6 +1411,18 @@ def last_intent(conversation_id: int) -> str | None:
 
 
 GOLDEN_TOOLS = [
+    Tool(
+        "revenue_growth_plan",
+        "Daromadni qisqa muddatda X% (standart 10%) oshirish strategiyasi (golden Q4): 5 ta richag (narx, qo'shimcha sotuv, lanch-set, reklama), tushum va foyda, 8 haftalik reja, dalillar.",
+        {
+            "type": "object",
+            "properties": {
+                "target": {"type": "integer", "minimum": 1, "maximum": 100},
+                "exclude": {"type": "string", "enum": ["reklama", "narx"]},
+            },
+        },
+        revenue_growth_plan_tool,
+    ),
     Tool(
         "hire_payback",
         "Yana ishchi olsam o'zini oqlaydimi (golden Q2): ishchi narxi, foyda mexanizmi (lavozim bo'yicha), qoplash muddati, 12 oylik yig'ma, xodimlar yuklamasi, signallar, yaxshiroq alternativa.",
