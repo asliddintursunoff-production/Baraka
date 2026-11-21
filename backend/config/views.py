@@ -62,6 +62,14 @@ _cached_index = lru_cache(maxsize=1)(_read_index)
 @ensure_csrf_cookie
 def spa(request: HttpRequest) -> HttpResponse:
     page = _read_index() if settings.DEBUG else _cached_index()  # dev: re-read each time
+    if page is None and not settings.DEBUG:
+        # API-only deploy (frontend on Vercel): a plain status page instead of an error
+        app_url = html.escape(settings.APP_URL)
+        return HttpResponse(
+            "<!doctype html><meta charset=utf-8><title>"
+            + html.escape(settings.APP_NAME)
+            + f"</title><p>API ishlayapti. Ilova: <a href='{app_url}'>{app_url}</a></p>"
+        )
     if page is None:
         return HttpResponse(
             "<!doctype html><meta charset=utf-8><title>"

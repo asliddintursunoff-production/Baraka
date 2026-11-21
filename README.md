@@ -78,30 +78,7 @@ Demo file: `make seed` then `backend/.venv/bin/python backend/manage.py seed_dem
 - `make latency` prints page/voice/chat p50/p95 and the AI spend table.
 
 ## Deploy (Railway + Vercel)
-**Step-by-step guide (Uzbek): [DEPLOY.md](DEPLOY.md).** It covers Railway (web + scheduler + Postgres with pgvector) and Vercel (frontend, `frontend/vercel.json` proxies `/api` to Railway). The notes below describe a Railway-only setup.
-
-The repo has one image (`Dockerfile`: React build + Django) and two services: **web** and **scheduler**.
-
-1. **New project → Deploy from GitHub repo** (push the repo to GitHub first).
-2. **Database:** add PostgreSQL with pgvector. Use the *pgvector* template (`pgvector/pgvector:pg16`); the first migration runs `CREATE EXTENSION vector`.
-3. **web service** (from the repo):
-   - Settings → Config-as-code: `railway.json` (Dockerfile build, start `/app/docker/start-web.sh`, health check `/api/health`).
-   - `start-web.sh` runs `migrate` and then gunicorn + uvicorn workers on `$PORT`.
-   - Settings → Networking → **Generate domain**, e.g. `bizpilot.up.railway.app`.
-4. **scheduler service:** add the same repo again as a second service, with Config-as-code `railway.scheduler.json` (start `python manage.py run_scheduler`, no HTTP health check). It runs the 15-minute sync and the 08:00 brief. It never calls an LLM.
-5. **Variables** (both services; use Railway's *Shared variables*):
-
-   | Variable | web | scheduler | Value |
-   |---|---|---|---|
-   | `APP_NAME` | ✓ | ✓ | `BizPilot AI` |
-   | `APP_URL` | ✓ | ✓ | `https://<your-domain>` (exact, no trailing slash) |
-   | `DEBUG` | ✓ | ✓ | `false` |
-   | `DJANGO_SECRET_KEY` | ✓ | ✓ | the same long random string in both (it also derives the token-encryption key) |
-   | `DATABASE_URL` | ✓ | ✓ | `${{Postgres.DATABASE_URL}}` (reference to the DB service) |
-   | `GEMINI_API_KEY` | ✓ | – | Gemini key (billing enabled) |
-   | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | ✓ | ✓ | the OAuth web client |
-   | `GOOGLE_PICKER_API_KEY` | ✓ | – | Picker API key |
-
-6. **Google Cloud:** add `https://<your-domain>` to the OAuth client's *Authorized JavaScript origins*. Add `https://<your-domain>/api/integrations/google/callback` to *Authorized redirect URIs*. Add `https://<your-domain>/*` to the Picker API key's HTTP referrers.
-7. **Demo data (once):** in the web service shell, `python manage.py seed_demo --reset`. Log in with `demo@demo.uz` / `demo12345`.
-8. **Check:** `https://<your-domain>/api/health?deep=1` returns `{"ok": true, ...}`.
+Step-by-step guide (Uzbek): **[DEPLOY.md](DEPLOY.md)**.
+- Railway: `pgvector` (Docker image `pgvector/pgvector:pg16` + volume), `web` (Root Directory `backend`, `backend/Dockerfile`), optional `scheduler` (same, start command `python manage.py run_scheduler`).
+- Vercel: Root Directory `frontend`; `frontend/vercel.json` proxies `/api` and `/app-config.js` to the Railway web domain.
+- The root `Dockerfile` (frontend + backend in one image) is used by `docker compose` and as a single-service fallback.
