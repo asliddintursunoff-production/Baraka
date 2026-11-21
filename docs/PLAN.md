@@ -332,6 +332,7 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - Decision: oauthlib env flags moved from `integrations/google.py` to `settings.py` (apps must not touch `os.environ`).
 - Decision: Railway runs `migrate` inside `start-web.sh` (one web replica), so no pre-deploy command is needed.
 - 20:12 Decision: removed `pandas` from requirements (never imported; 12 MB download timed out on the slow network); pip in the Dockerfile uses `--retries 10 --timeout 120`; `.dockerignore` excludes spike audio, screenshots and test fixtures.
+- 20:16 Final: Docker image `bizpilot-app` built once (pip on a ~50 kB/s network took ~10 min); smoke test on :8099 → `/api/health?deep=1` ok, SPA 200. Local servers for the manual test: uvicorn on :8000 + `run_scheduler`, Docker runs only db.
 
 ## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).
