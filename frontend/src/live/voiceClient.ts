@@ -350,6 +350,11 @@ export class VoiceClient {
       const args = (call.args ?? {}) as Record<string, unknown>;
       const t0 = performance.now();
       this.opts.onToolCall?.(name, args);
+      // "ha" may be transcribed after the model already called confirm_plan: wait briefly
+      // for this turn's transcription so the backend sees the real answer.
+      for (let i = 0; i < 6 && name === "confirm_plan" && this.utteranceTurn !== this.turn; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
       const body = this.opts.annotateToolCalls
         ? { ...args, _user_utterance: this.utterance.trim(), _channel: "voice" }
         : args;

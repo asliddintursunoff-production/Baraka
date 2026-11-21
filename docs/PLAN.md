@@ -311,8 +311,6 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
   - the demo export's Kassa row is **yesterday's** end-of-day balance, so today's rows (and any row the owner adds) roll forward and move the forecast;
   - sync log entries carry a `tone` (success/muted/error) for colour.
 - **Verified live:** the OAuth start URL is accepted by Google (no redirect_uri_mismatch). The Picker and the real Sheets read are the user's manual acceptance test.
-
-## 8. Deferred
 - 19:22 Budget guard: `AiUsage` logs every chat/light/mapping/TTS/STT/Live/check call with an estimated cost (prices in `app_settings`, estimates). Live mint reserves 60 s and `/live/finish` sets the real seconds. `make check-ai` and `make smoke-ai` pass with the new key (smoke $0.0021).
 - Decision: embeddings are not called at runtime in the MVP (memory uses recency), so there is no `text_hash` cache yet; one is added if M7 embeds.
 - Decision: P2 silence test (10 Q, 600 ms mid-sentence pause, silence 300 ms, free tier before the key change): 0/9 cut off, 1 session error → 300 ms stays.
@@ -321,4 +319,9 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - Decision: the Sources page shows files whenever files exist (even if the Google credential is gone).
 - Decision: scheduled syncs re-map new/changed sheets with heuristics only (no LLM); `seed_demo --export` without `--reset` only exports.
 - Decision: during work, Django runs on host :8000 (uvicorn --reload) + local `run_scheduler`; Docker runs only db.
+- 19:35 M4: /live page (orb, captions, cards, text fallback), token prefetch on hover + background refresh (P3), `say` in tool results (P1), 300 ms silence confirmed (P2, 0/9 cut off), auto-close 30 s idle / hidden tab / leave / 5 min, 429 "Bugungi ovoz limiti tugadi".
+- Decision: when `confirm_plan` arrives before the turn's "ha" transcription, the client waits up to 600 ms for it.
+- Decision: the in-browser fake-mic e2e was blocked by the tool permission check, so the voice page is on the manual checklist; the Live API path itself is covered by `smoke-ai`.
+
+## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).

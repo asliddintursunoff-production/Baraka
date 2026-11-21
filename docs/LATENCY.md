@@ -75,3 +75,19 @@ Weak spot: when the model phrases a tool answer itself, it picks facts inconsist
 
 ## Chat model capacity (affects M3)
 On 2026-11-21 `gemini-3.8-flash` answered every call with 503/504 (details in `AI_NOTES.md`). The chat budget (send → answer ≤ 2.5 s p50) cannot be met while that holds. A fallback chain will be proposed in M3.
+
+## M4 — P2 silence test (thinking pauses), 2026-11-21
+`manage.py voice_spike --pause-ms 600`: each of the 10 questions gets a 600 ms "thinking" pause inserted at the quietest word gap in the middle third of the sentence. Silence is set to 300 ms (`LIVE_SILENCE_DURATION_MS`). A turn counts as **cut off** if the model starts audio or calls a tool before the user's real speech end.
+
+| Result | Value |
+|---|---|
+| Sessions | 10 (9 ok, 1 server `1006 abnormal closure`) |
+| Cut off during the pause | **0 / 9** |
+| speech end → first audio, p50 | 1 495 ms |
+| speech end → answer audio after a tool, p50 | 3 800 ms |
+
+The Live server's end-of-turn detection does not end the turn on a 600 ms mid-sentence pause, even at 300 ms silence. **Decision: 300 ms stays** (the rule was: raise it to 500 ms if more than 1 of 10 is cut off).
+
+`make smoke-ai` (new key, paid tier) Live check: Q3 "25 millionga jihoz olsam, oylikka yetadimi?" → tool called, speech end → first audio 851 ms, answer audio after the tool 2 920 ms.
+
+**Live limits (budget rules):** the page closes the session and releases the mic after 30 s with no speech in either direction, when the tab is hidden, when the user leaves the page, or after 5 min. Each token mint reserves 60 s of Live cost, and `/live/finish` replaces it with the real duration.
