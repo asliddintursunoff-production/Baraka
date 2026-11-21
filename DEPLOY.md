@@ -1,11 +1,12 @@
 # Deploy: hammasi Railway'da (GitHub'dan)
 
-`main` ga push qilinsa, Railway o'zi qayta deploy qiladi. SSH, CLI yoki config fayl kerak emas.
+`main` ga push qilinsa, Railway o'zi qayta deploy qiladi.
 
 | Servis | Manba | Nima |
 |---|---|---|
-| `pgvector` | Docker image `pgvector/pgvector:pg16` | baza (PostgreSQL 16 + pgvector) |
-| `web` | GitHub `Baraka`, Root Directory **bo'sh** (ildizdagi `Dockerfile`) | sayt (React) + API (Django) **bitta domenda** |
+| `pgvector` | Docker image `pgvector/pgvector:pg16` | baza |
+| `web` | GitHub `Baraka`, Root Directory `backend` | API (Django) |
+| `frontend` | GitHub `Baraka`, Root Directory `frontend` | sayt (React + Caddy). `/api` ni `web` ga proksi qiladi |
 | `scheduler` | GitHub `Baraka`, Root Directory `backend` | fon vazifalari (ixtiyoriy) |
 
 ---
@@ -18,27 +19,21 @@
 4. **Variables:**
    ```
    POSTGRES_USER=bizpilot
-   POSTGRES_PASSWORD=<faqat harf va raqam: python3 -c "import secrets;print(secrets.token_hex(24))">
+   POSTGRES_PASSWORD=<faqat harf va raqam>
    POSTGRES_DB=bizpilot
    PGDATA=/var/lib/postgresql/data/pgdata
    ```
-Domen kerak emas.
 
-## 2. `web`: sayt + API
+## 2. `web`: backend (API)
 
-1. **+ New** → **GitHub Repo** → `asliddintursunoff-production/Baraka`.
-2. Settings:
-   - **Service name:** `web`
-   - **Root Directory:** **bo'sh qoldiring**. Ildizdagi `Dockerfile` frontendni build qiladi va Django bilan birga ishga tushiradi; start: migrate → server.
-   - **Branch:** `main`
-   - (ixtiyoriy) Deploy → **Healthcheck Path:** `/api/health`
-3. **Variables** (Raw Editor):
+1. **+ New** → **GitHub Repo** → `Baraka` → Settings → **Root Directory: `backend`**.
+2. **Variables:**
    ```
    APP_NAME=Baraka
-   APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
+   APP_URL=https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
    DEBUG=false
    PORT=8000
-   DJANGO_SECRET_KEY=<python3 -c "import secrets;print(secrets.token_urlsafe(64))">
+   DJANGO_SECRET_KEY=<uzun tasodifiy satr>
    DATABASE_URL=postgres://${{pgvector.POSTGRES_USER}}:${{pgvector.POSTGRES_PASSWORD}}@${{pgvector.RAILWAY_PRIVATE_DOMAIN}}:5432/${{pgvector.POSTGRES_DB}}
    GEMINI_API_KEY=<kalit>
    GOOGLE_OAUTH_CLIENT_ID=<client id>
@@ -46,13 +41,27 @@ Domen kerak emas.
    GOOGLE_PICKER_API_KEY=<picker kaliti>
    SEED_DEMO=1
    ```
-   `SEED_DEMO=1` = `demo@demo.uz / demo12345` demo hisobi (faqat birinchi marta yaratiladi).
-4. Settings → Networking → **Generate Domain** → Port: `8000`. Masalan `web-production-1234.up.railway.app`.
-5. **Tekshirish:**
-   - `https://<domen>/api/health?deep=1` → `{"ok": true, ..., "db": true}`
-   - `https://<domen>/` → bosh sahifa (Landing), `/login` → kirish
+   `APP_URL` = **frontend** domeni, chunki foydalanuvchi saytni o'sha domenda ochadi (login/CSRF va Google OAuth shunga bog'liq).
+3. Networking → **Generate Domain** → Port `8000`.
+4. Tekshirish: `https://<web-domen>/api/health?deep=1` → `"db": true`
 
-Build birinchi marta 5–10 daqiqa oladi (npm + pip).
+## 2b. `frontend`: sayt
+
+1. **+ New** → **GitHub Repo** → xuddi shu `Baraka`.
+2. Settings:
+   - **Service name:** `frontend`
+   - **Root Directory:** `frontend`. Railway `frontend/Dockerfile` ni o'zi topadi: React build + Caddy.
+   - **Branch:** `main`
+3. **Variables:**
+   ```
+   BACKEND_URL=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
+   PORT=8080
+   ```
+4. Networking → **Generate Domain** → Port `8080`. Masalan `frontend-production-5678.up.railway.app`.
+5. Tekshirish:
+   - `https://<frontend-domen>/` → bosh sahifa
+   - `https://<frontend-domen>/api/health?deep=1` → `"db": true` (proksi ishlayapti)
+   - `/login` → `demo@demo.uz / demo12345` (`SEED_DEMO=1` bo'lsa)
 
 ## 3. `scheduler`: fon vazifalari (ixtiyoriy)
 
@@ -67,7 +76,7 @@ Har 15 daqiqada Google Sheets sinxron va 08:00 xulosa. Usiz ham ilova ishlaydi, 
 3. **Variables:**
    ```
    APP_NAME=Baraka
-   APP_URL=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
+   APP_URL=https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
    DEBUG=false
    DJANGO_SECRET_KEY=<web'dagi bilan AYNAN bir xil>
    DATABASE_URL=postgres://${{pgvector.POSTGRES_USER}}:${{pgvector.POSTGRES_PASSWORD}}@${{pgvector.RAILWAY_PRIVATE_DOMAIN}}:5432/${{pgvector.POSTGRES_DB}}
@@ -77,7 +86,7 @@ Har 15 daqiqada Google Sheets sinxron va 08:00 xulosa. Usiz ham ilova ishlaydi, 
 
 ## 4. Google Cloud Console
 
-`<domen>` = web domeni (masalan `web-production-1234.up.railway.app`):
+`<domen>` = **frontend** domeni (masalan `frontend-production-5678.up.railway.app`):
 - OAuth client → **Authorized JavaScript origins:** `https://<domen>`
 - **Authorized redirect URIs:** `https://<domen>/api/integrations/google/callback`
 - Picker API key → **HTTP referrers:** `https://<domen>/*`
@@ -90,8 +99,9 @@ Har 15 daqiqada Google Sheets sinxron va 08:00 xulosa. Usiz ham ilova ishlaydi, 
 | Loglarda `could not translate host name "pgvector.railway.internal"` | Baza servisi nomi aynan `pgvector` emas. Nomini o'zgartiring yoki `DATABASE_URL` dagi `pgvector` so'zini haqiqiy nomga almashtiring. |
 | `password authentication failed` | Parolda maxsus belgi bor. Faqat harf va raqam qo'ying, `pgvector` volume'ini o'chirib qayta yarating (parol faqat birinchi ishga tushishda yoziladi). |
 | Domen ochilmaydi / healthcheck yiqiladi | `PORT=8000` va domen porti `8000` ekanini tekshiring. Deploy loglarini ko'ring. |
-| Domen "API ishlayapti" deydi | Root Directory `backend` bo'lib qolgan. **Bo'sh** qiling, shunda ildizdagi `Dockerfile` (sayt + API) ishlatiladi. |
-| `403 CSRF` login'da | `APP_URL` brauzerdagi manzil bilan aynan bir xil bo'lsin. `https://${{RAILWAY_PUBLIC_DOMAIN}}` shuni avtomatik beradi. |
+| Frontend'da `/api/...` 502 beradi | `frontend` dagi `BACKEND_URL` = `https://<web-domen>` (https bilan, oxirida `/` yo'q) ekanini tekshiring. |
+| `web` domeni "API ishlayapti" deydi | To'g'ri: saytni **frontend** domenida oching. |
+| `403 CSRF` login'da | `web` dagi `APP_URL` = frontend domeni bo'lsin (`https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}`). |
 | Google `redirect_uri_mismatch` | Redirect URI = `https://<domen>/api/integrations/google/callback` |
 | Build'da `npm` yoki `pip` timeout | Railway'da **Redeploy** ni bosing (tarmoq vaqtinchalik). |
 
