@@ -125,3 +125,69 @@ Hot reload bilan ishlash: `make install && make db && make dev` → http://local
 - `.env` `.gitignore` da. Barcha kalitlar faqat Railway Variables'da.
 - GitHub token, Gemini va OAuth kalitlarini chat, issue yoki commit'ga yozmang. Tasodifan ko'rinib qolsa, darhol bekor qilib yangisini yarating.
 - Google refresh token'lar bazada `DJANGO_SECRET_KEY` dan olingan kalit bilan shifrlangan. Shu kalitni almashtirsangiz, foydalanuvchilar Google'ni qayta ulashi kerak bo'ladi.
+
+## 10. GitHub'siz: shu kompyuterdagi papkadan Railway CLI bilan
+
+`railway up` joriy papkani (`.gitignore` hisobga olinadi, `.env` yuklanmaydi) Railway'ga yuklaydi va `Dockerfile` bilan build qiladi. Bu variantda frontend ham shu servisda bo'ladi (Vercel shart emas): `APP_URL` = Railway domeni.
+
+```bash
+# 0) CLI
+npm i -g @railway/cli && railway --version
+railway login                       # brauzer ochiladi (yoki: railway login --browserless)
+
+# 1) Sinalgan versiyaga o'ting (railway up papkadagi fayllarni yuklaydi, branch'ni emas)
+cd ~/Desktop/FinBaraka
+git checkout main
+
+# 2) Project
+railway init                        # yangi project, nomi: Baraka (mavjud bo'lsa: railway link)
+```
+
+3) **Baza:** railway.com → project → `+ New` → *Template* → **pgvector** → *Deploy*. Servis nomini `Postgres` qoldiring.
+
+```bash
+# 4) web servisi va domen
+railway add --service web           # bo'sh servis yaratadi
+railway domain --service web        # masalan https://web-production-xxxx.up.railway.app — yozib oling
+```
+
+5) **Variables:** dashboard → `web` → *Variables* → *Raw Editor* ga quyidagini joylang. Kalitlarni terminalga yozmang, shell history'da qolib ketadi.
+```
+APP_NAME=BizPilot AI
+APP_URL=https://web-production-xxxx.up.railway.app
+DEBUG=false
+DJANGO_SECRET_KEY=<python -c "import secrets;print(secrets.token_urlsafe(64))">
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+GEMINI_API_KEY=<.env dagi qiymat>
+GOOGLE_OAUTH_CLIENT_ID=<.env dagi qiymat>
+GOOGLE_OAUTH_CLIENT_SECRET=<.env dagi qiymat>
+GOOGLE_PICKER_API_KEY=<.env dagi qiymat>
+```
+
+```bash
+# 6) Deploy (root'dagi railway.json avtomatik ishlaydi: Dockerfile, migrate, health check)
+railway up --service web            # build loglari terminalda
+railway logs --service web          # ishga tushish loglari
+curl https://web-production-xxxx.up.railway.app/api/health?deep=1   # {"ok": true, ..., "db": true}
+
+# 7) Demo ma'lumot (ixtiyoriy, bir marta)
+railway ssh --service web
+python manage.py seed_demo --reset   # demo@demo.uz / demo12345
+exit
+```
+
+8) **Scheduler (ixtiyoriy):** 15 daqiqalik sinxron va 08:00 xulosa uchun. Ilova usiz ham ishlaydi; "Hozir yangilash" tugmasi qo'lda sinxron qiladi.
+```bash
+railway add --service scheduler
+```
+Dashboard → `scheduler` → *Settings → Config-as-code* → `railway.scheduler.json`. *Variables* ga `web` dagi qiymatlarni joylang (yoki Shared Variables). Keyin:
+```bash
+railway up --service scheduler
+```
+
+9) **Google Console:**
+   - JS origin: `https://web-production-xxxx.up.railway.app`
+   - Redirect URI: `https://web-production-xxxx.up.railway.app/api/integrations/google/callback`
+   - Picker API key referrer: `https://web-production-xxxx.up.railway.app/*`
+
+10) **Yangilash:** kodni o'zgartirgandan keyin `railway up --service web` (va scheduler).
