@@ -125,11 +125,20 @@ class ChatBootstrapView(BusinessAPIView):
 
     def get(self, request: Request) -> Response:
         b = self.business
-        conv = (
-            Conversation.objects.filter(user_id=request.user.pk, channel="chat")
-            .order_by("-created_at")
-            .first()
-        )
+        cid = request.query_params.get("conversation_id")
+        conv = None
+        if request.query_params.get("new"):
+            conv = Conversation.objects.create(
+                business=b, user_id=request.user.pk, channel="chat", title="Yangi chat"
+            )
+        elif cid and str(cid).isdigit():
+            conv = Conversation.objects.filter(user_id=request.user.pk, pk=int(cid)).first()
+        if conv is None:
+            conv = (
+                Conversation.objects.filter(user_id=request.user.pk, channel="chat")
+                .order_by("-created_at")
+                .first()
+            )
         if conv is None:
             conv = Conversation.objects.create(
                 business=b, user_id=request.user.pk, channel="chat", title="Chat"
@@ -141,6 +150,18 @@ class ChatBootstrapView(BusinessAPIView):
         return Response(
             {
                 "conversation_id": conv.pk,
+                "conversations": [
+                    {
+                        "id": c.pk,
+                        "title": (c.title or "Chat")[:60],
+                        "channel": c.channel,
+                        "date": c.created_at.date().isoformat(),
+                    }
+                    for c in Conversation.objects.filter(user_id=request.user.pk)
+                    .annotate(n=Count("message"))
+                    .filter(n__gt=0)
+                    .order_by("-created_at")[:40]
+                ],
                 "business_name": b.name,
                 "brief": {"time": "08:00", **brief},
                 "messages": [message_payload(m) for m in msgs],
@@ -183,6 +204,9 @@ async def chat_messages(request: HttpRequest) -> HttpResponseBase:
                 if conv_id
                 else None
             )
+            if conv is not None and conv.title in ("Yangi chat", "Chat", ""):
+                conv.title = text[:60]
+                conv.save(update_fields=["title"])
             return conv or Conversation.objects.create(
                 business=business, user_id=user.pk, channel="chat", title=text[:60]
             )

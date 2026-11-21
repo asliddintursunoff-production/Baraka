@@ -31,8 +31,16 @@ _TABLE: tuple[tuple[str, Routes], ...] = (
         REVIEW,
     ),
     (
-        r"nima\s+qilish\s+kerak|foyda\w*\s+(qanday\s+)?oshir|o'sish|rivojlan|ko'proq\s+foyda|daromad\w*\s+oshir",
+        r"nima\s+qilish\s+kerak|nima\s+qilay|roadmap|yo'l\s+xarita|foyda\w*\s+(qanday\s+)?oshir|o'sish|rivojlan|ko'proq\s+foyda|daromad\w*\s+oshir",
         [("growth_plan", {})],
+    ),
+    (
+        r"nega\s+.*(tushdi|kamaydi|kamayib|kam\b|ozaydi)|qayerga\s+ketdi|pul\w*\s+qayerga|qancha\s+edi|summa\w*\s+tush|kassa\w*\s+(nega|kamay)",
+        [("cash_change", {})],
+    ),
+    (
+        r"bozor\w*\s+narx|raqobatchi|oqtepa|evos|max\s*way|boshqalar\w*\s+(qancha|narx)|nech\s*pul|qanchaga\s+(sot|qo'y)|narx\w*\s+(qancha|qo'y|kutar|oshir)",
+        [("market_prices", {})],
     ),
     (r"zararsiz|break.?even|nechta\s+chek|minimal\s+savdo", [("break_even", {})]),
     (

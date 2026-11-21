@@ -1,0 +1,563 @@
+{
+ "fetched": "2026-11-22",
+ "city": "Toshkent",
+ "items": [
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Tandir lavash",
+   "price": 39000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pishloqli tandir lavash",
+   "price": 42000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Shaurma",
+   "price": 31000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Tovuqli shaurma",
+   "price": 29000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Oqtepa Burger",
+   "price": 34000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Oqtepa Cheese",
+   "price": 36000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Oqtepa Grand Cheese",
+   "price": 55000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Fri gigant",
+   "price": 30000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Hot-dog",
+   "price": 19000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pishloqli Hot-dog",
+   "price": 21000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Shoxona Hot-dog",
+   "price": 28000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pepsi 0.4L",
+   "price": 9000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pepsi 0.5L",
+   "price": 10000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pepsi 1.5L",
+   "price": 19000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Kok choy 0.3L",
+   "price": 5000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Limonli kok choy 0.3L",
+   "price": 7000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Americano 200ml",
+   "price": 14000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Kapuchino 200ml",
+   "price": 14000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Latte 200 ml",
+   "price": 14000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Qizil karam salat",
+   "price": 10000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Lavash seti",
+   "price": 45000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Hot dog seti",
+   "price": 45000,
+   "source": ""
+  },
+  {
+   "chain": "Oqtepa Lavash",
+   "item": "Pita doner seti",
+   "price": 55000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Lavash bilan mol go'shti L",
+   "price": 44000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Tovuqli lavash L",
+   "price": 37000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Tovuqli shaurma L",
+   "price": 34000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Macho lavash",
+   "price": 63000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Macho shaurma",
+   "price": 60000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Dabl chizburger",
+   "price": 57000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Qishloqcha kartoshka",
+   "price": 21000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Gap yo'q Kombo 1",
+   "price": 58000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Chizzi Beef Combo",
+   "price": 82000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Chizzi Chicken Combo",
+   "price": 79000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Amerikaно классический",
+   "price": 14000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Капучино классический",
+   "price": 17000,
+   "source": ""
+  },
+  {
+   "chain": "Evos",
+   "item": "Латте классический",
+   "price": 17000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Lavash original mini",
+   "price": 25000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Lavash s pishloqom mini",
+   "price": 28000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Lavash mol go'shti",
+   "price": 35000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Shaurma oddiy",
+   "price": 29000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Shaurma pishloqli",
+   "price": 32000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Gamburger",
+   "price": 25000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Chizburger",
+   "price": 28000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Kartoshka fri",
+   "price": 15000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Hot-dog",
+   "price": 18000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Gazli ichimlik (Coca-Cola 0.5)",
+   "price": 10000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Choy",
+   "price": 5000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Kofe",
+   "price": 12000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Salat",
+   "price": 15000,
+   "source": ""
+  },
+  {
+   "chain": "Max Way",
+   "item": "Kombo (Mini Box)",
+   "price": 27000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Lavash go'shtli",
+   "price": 45000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Lavash tovuqli",
+   "price": 39000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Pishloqli lavash go'shtli",
+   "price": 48000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Pishloqli lavash tovuqli",
+   "price": 42000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Mini lavash",
+   "price": 29000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Shaurma (Donar)",
+   "price": 40000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Big Donar",
+   "price": 49000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "XL BBQ Burger",
+   "price": 41000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Prince Burger",
+   "price": 43000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "XL BBQ Chizburger",
+   "price": 44000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Prince Chizburger",
+   "price": 46000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "XL BBQ Dablchizburger",
+   "price": 61000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Kartoshka fri",
+   "price": 21000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Hot-dog klassik",
+   "price": 24000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Hot-dog pishloqli",
+   "price": 32000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Salat Sezar",
+   "price": 40000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Top Kombo",
+   "price": 65000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Klassik Kombo",
+   "price": 66000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Juftlik Kombo",
+   "price": 141000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Piramida Kombo",
+   "price": 38000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Toyimli Kombo",
+   "price": 79000,
+   "source": ""
+  },
+  {
+   "chain": "Feed Up",
+   "item": "Baquvvat Kombo",
+   "price": 112000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Shefburger",
+   "price": 32000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Chizburger",
+   "price": 28000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Tvister",
+   "price": 20000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Kartoshka fri standart",
+   "price": 19000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Vishenniy pirojok",
+   "price": 13000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Klab sandvich kombo",
+   "price": 45000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Shefburger kombo",
+   "price": 35000,
+   "source": ""
+  },
+  {
+   "chain": "KFC Uzbekistan",
+   "item": "Tvister kombo",
+   "price": 33000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Burger Klassik",
+   "price": 26000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Chizburger",
+   "price": 28000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Hot-dog",
+   "price": 23000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Kartoshka fri",
+   "price": 20000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Mazzarella burger set Coca-cola",
+   "price": 39000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Kombo set",
+   "price": 26000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Klassik set",
+   "price": 43000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Greek salad",
+   "price": 32000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Caesar salad",
+   "price": 32000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Ice tea",
+   "price": 23000,
+   "source": ""
+  },
+  {
+   "chain": "Les Ailes",
+   "item": "Les tea!",
+   "price": 15000,
+   "source": ""
+  }
+ ],
+ "facts": [
+  "O'zbekistonda umumiy ovqatlanish korxonalari soni 2026 yil holatiga ko'ra 30,888 taga yetdi, shundan 30,740 tasi kichik va mikrobiznes subyektlaridir (O'zbekiston Respublikasi Milliy statistika qo'mitasi)",
+  "Toshkent shahridagi fast-food va restoranlar biznesida o'rtacha food cost (mahsulot tannarxi) ko'rsatkichi 30% dan 38% gacha bo'lgan oralig'ni tashkil qiladi (DORA tahliliy ma'lumotlari)",
+  "Restoran va kafelarda ish haqi ulushi (labor cost) umumiy tushumning o'rtacha 15-20% qismini tashkil etib, kadrlar taqchilligi sharoitida o'sib bormoqda (MarketDev tahlili)",
+  "Toshkentda umumiy ovqatlanish shoxobchalari uchun tijorat ko'chmas mulk ijara haqi joylashuviga qarab yuqori darajada o'zgarib, xarajatlarning muhim qismini tashkil qiladi (PwC Uzbekistan)",
+  "Yandex Eats va Uzum Tezkor yetkazib berish agregatorlari hamkor restoranlardan buyurtma summasidan o'rtacha 20% dan 30% gacha komissiya haqi oladi (Delever tahliliy hisoboti)",
+  "Toshkentdagi o'rtacha chek miqdori oddiy kafelarda 75,000 so'mdan boshlanib, o'rta darajadagi restoranlarda ikki kishi uchun 325,000 so'mgacha, fast-food tarmoqlarida esa 55,000 so'm atrofida shakllanadi (Numbeo)",
+  "O'zbekistonda oziq-ovqat mahsulotlari va umumiy ovqatlanish xizmatlari narxlarida sezilarli yillik inflyatsiya kuzatilib, bu masalliqlar tannarxiga bosim o'tkazmoqda (O'zbekiston Respublikasi Milliy statistika qo'mitasi)",
+  "Mavsumiylik omili restoran biznesiga jiddiy ta'sir ko'rsatib, yoz oylarida ochiq havordagi terrasalar va kechki tashriflar evaziga faollik oshsa, qish mavsumida oqim biroz pasayadi (MarkDev)",
+  "Toshkent restoran va fast-food tarmoqlarida asosiy peak (eng yuqori) soatlar kunduzgi 13:00–15:00 (biznes-lanch vaqti) hamda kechki 19:00–22:00 oralig'iga to'g'ri keladi (AliPos blogi)"
+ ]
+}

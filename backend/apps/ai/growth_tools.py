@@ -68,6 +68,7 @@ def growth_plan_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         f"**{g.verdict}: kassa xavfsiz ({M(cash)}, 90 kunda eng kami {M(fmin or cash)}), "
         f"lekin foydani oyiga +{M(g.uplift_lo)} … +{M(g.uplift_hi)} oshirish mumkin — sof foyda {M(g.net_profit)} → {M(new_lo)}–{M(new_hi)}.**"
     )
+    facts_m: dict[str, Any] = {}
     pt = g.profit_trend[-4:]
     fc0, fc1 = (g.food_cost[0], g.food_cost[-1]) if g.food_cost else (None, None)
     lines = [head, "", "### Nima uchun"]
@@ -110,6 +111,37 @@ def growth_plan_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             + "; ".join(lv.steps)
             + f". _Taxmin: {'; '.join(lv.assumptions)}._"
         )
+    rp = next((lv for lv in top if lv.key == "reprice"), None)
+    if rp:
+        lines += [
+            "",
+            "### Bozor narxlari bilan solishtirish (Toshkent)",
+            "| Taom | Sizda | Bozor median | Misol |",
+            "|---|---|---|---|",
+        ]
+        for x in [d for d in g.dishes if d.fc > g.fc_target][:6]:
+            items = market_for(x.name)
+            if items:
+                ps = sorted(Decimal(i["price"]) for i in items)
+                med = ps[len(ps) // 2]
+                facts_m[f"mkt_{x.name}"] = M(med)
+                lines.append(
+                    f"| {x.name} | {M(x.price)} | {M(med)} | {items[0]['chain']} «{items[0]['item']}» {M(Decimal(items[0]['price']))} |"
+                )
+    lines += [
+        "",
+        "### Yo'l xaritasi (pulni oshirish)",
+        "| Muddat | Nima qilinadi | Kutilgan natija |",
+        "|---|---|---|",
+    ]
+    acc_lo = acc_hi = D0
+    for wk, lv in zip(("1-hafta", "2–3-hafta", "1-oy", "2-oy", "3-oy"), top, strict=False):
+        acc_lo += lv.lo
+        acc_hi += lv.hi
+        lines.append(f"| {wk} | {lv.title} | foyda +{M(acc_lo)} … +{M(acc_hi)}/oy (jamlanma) |")
+    lines.append(
+        f"| 3-oy oxiri | Natijani o'lchash, ishlamaganini to'xtatish | sof foyda {M(g.net_profit + acc_lo)} – {M(g.net_profit + acc_hi)}/oy |"
+    )
     lines += [
         "",
         "### Menyu tahlili",
@@ -139,6 +171,7 @@ def growth_plan_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     }
     for i, lv in enumerate(top):
         facts[f"lever{i}_lo"], facts[f"lever{i}_hi"] = M(lv.lo), M(lv.hi)
+    facts.update(facts_m)
     md = "\n".join(lines)
     return envelope(
         ok=True,
@@ -398,3 +431,239 @@ GROWTH_TOOLS = [
     ),
 ]
 TOOLS.update({t.name: t for t in GROWTH_TOOLS})
+
+
+def cash_change_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """Why cash went up/down: start -> end, every outflow item, top products bought, vs previous month."""
+    s = _summary()
+    if s is None:
+        return _no_data()
+    months = sorted(m for m, v in s.get("months", {}).items() if v.get("cash_end"))
+    m = args.get("month") or (months[-1] if months else None)
+    if not m or m not in months:
+        return _no_data()
+    i = months.index(m)
+    pm = months[i - 1] if i else None
+    end = Decimal(s["months"][m]["cash_end"])
+    start = (
+        Decimal(s["months"][pm]["cash_end"]) if pm else Decimal(str((s.get("balances") and 0) or 0))
+    )
+    rev = Decimal(s["months"][m].get("revenue") or 0)
+    out = {
+        k: Decimal(v)
+        for k, v in (s.get("journals", {}).get("outflow_items", {}).get(m) or {}).items()
+    }
+    prev = (
+        {
+            k: Decimal(v)
+            for k, v in (s.get("journals", {}).get("outflow_items", {}).get(pm) or {}).items()
+        }
+        if pm
+        else {}
+    )
+    act = s.get("journals", {}).get("activities", {}).get(m) or {}
+    total_out = sum(out.values(), D0)
+    mon = uz.MONTHS[int(m[5:7]) - 1].lower()
+    ch = end - start
+    head = f"**{mon.capitalize()} oyida kassa {M(start)} dan {M(end)} ga {'oshdi' if ch >= 0 else 'kamaydi'} ({'+' if ch >= 0 else '−'}{M(abs(ch))}).**"
+    lines = [head, "", "### Pul qayerdan keldi"]
+    lines.append(
+        f"- Savdo tushumi: {M(rev)} (operatsion pul oqimi {M(Decimal(str(act.get('operating', 0))))})."
+    )
+    if Decimal(str(act.get("owner_in", 0) or 0)):
+        lines.append(f"- Ta'sischi kiritmasi: {M(Decimal(str(act['owner_in'])))}.")
+    if Decimal(str(act.get("loan_in", 0) or 0)):
+        lines.append(f"- Kredit olindi: {M(Decimal(str(act['loan_in'])))}.")
+    lines += [
+        "",
+        f"### Pul qayerga ketdi (jami {M(total_out)})",
+        "| Modda | Summa | O'tgan oyga nisbatan |",
+        "|---|---|---|",
+    ]
+    for k, v in sorted(out.items(), key=lambda kv: -kv[1]):
+        p = prev.get(k)
+        diff = f"{'+' if v - p >= 0 else '−'}{M(abs(v - p))}" if p is not None else "yangi"
+        lines.append(f"| {k} | {M(v)} | {diff} |")
+    pur = s.get("details", {}).get("purchases", {}) or {}
+    prods = sorted(
+        (
+            (n, Decimal(str((p.get("months") or {}).get(m, {}).get("amount") or 0)))
+            for n, p in pur.items()
+        ),
+        key=lambda x: -x[1],
+    )[:6]
+    if prods and prods[0][1] > 0:
+        lines += [
+            "",
+            "### Eng ko'p pul ketgan mahsulotlar",
+            *[f"- {n}: {M(a)}" for n, a in prods if a > 0],
+        ]
+    ups = sorted(((k, v - prev.get(k, D0)) for k, v in out.items() if pm), key=lambda x: -x[1])[:3]
+    lines += ["", "### Sababi"]
+    if ch < 0:
+        lines.append(
+            "- Chiqimlar tushumdan ko'p bo'ldi. Eng ko'p o'sgan chiqimlar: "
+            + ", ".join(f"{k} (+{M(d)})" for k, d in ups if d > 0)
+            + "."
+        )
+    else:
+        lines.append(
+            f"- Tushum chiqimlardan {M(ch)} ko'p bo'ldi; eng ko'p o'sgan chiqimlar: "
+            + ", ".join(f"{k} (+{M(d)})" for k, d in ups if d > 0)
+            + "."
+        )
+    lines += [
+        "",
+        "CHIPS: Mahsulot xarajatlarini kamaytirish | Kelasi oy kassa qancha bo'ladi? | Foydani qanday oshiraman?",
+    ]
+    facts = {
+        "start": M(start),
+        "end": M(end),
+        "change": M(abs(ch)),
+        "revenue": M(rev),
+        "total_out": M(total_out),
+    }
+    for k, v in out.items():
+        facts[f"out_{k}"] = M(v)
+        if k in prev:
+            facts[f"diff_{k}"] = M(abs(v - prev[k]))
+    for n, a in prods:
+        facts[f"prod_{n}"] = M(a)
+    md = "\n".join(lines)
+    return envelope(
+        ok=True,
+        facts=facts,
+        speech=speech_of(facts),
+        md=md,
+        say=head.strip("*"),
+        answer={"headline": head.strip("*"), "reason": ""},
+    )
+
+
+TOOLS["cash_change"] = Tool(
+    "cash_change",
+    "Kassa nega o'zgardi (oshdi/kamaydi): oy boshi va oxiri, pul qayerdan keldi, qayerga ketdi (har modda, o'tgan oyga nisbatan), eng ko'p pul ketgan mahsulotlar, sababi.",
+    {
+        "type": "object",
+        "properties": {"month": {"type": "string", "description": "YYYY-MM-01 (ixtiyoriy)"}},
+    },
+    cash_change_tool,
+)
+
+
+# --- fast-food market knowledge (Tashkent chains, fetched from the web, shared by all users) --
+_MARKET: dict[str, Any] | None = None
+KEYWORDS = {
+    "lavash": ("lavash",),
+    "shaurma": ("shaurma", "doner"),
+    "chizburger": ("chiz", "cheese"),
+    "burger": ("burger", "gamburger"),
+    "fri": ("fri", "kartoshka"),
+    "hot-dog": ("hot",),
+    "ichimlik": ("pepsi", "cola", "kola", "fanta", "gazli", "ichimlik"),
+    "choy": ("choy", "chay", "tea"),
+    "kofe": ("amerik", "americ", "кофе", "kofe", "амери"),
+    "salat": ("salat", "sezar", "caesar"),
+    "kombo": ("kombo", "combo", "set"),
+}
+
+
+def market() -> dict[str, Any]:
+    global _MARKET
+    if _MARKET is None:
+        import json
+        from pathlib import Path
+
+        p = Path(__file__).parent / "data" / "fastfood_tashkent.json"
+        _MARKET = json.loads(p.read_text()) if p.exists() else {"items": [], "facts": []}
+    return _MARKET
+
+
+def kind_of(name: str) -> str | None:
+    n = name.lower()
+    if "chiz" in n or "cheese" in n:
+        return "chizburger"
+    for k, words in KEYWORDS.items():
+        if any(w in n for w in words):
+            return k
+    return None
+
+
+def market_for(dish: str) -> list[dict[str, Any]]:
+    k = kind_of(dish)
+    if not k:
+        return []
+    out = [i for i in market()["items"] if kind_of(i["item"]) == k]
+    if "mol" in dish.lower() and k == "lavash":
+        out = [i for i in out if "tovuq" not in i["item"].lower()] or out
+    if "tovuq" in dish.lower():
+        out = [
+            i for i in out if "tovuq" in i["item"].lower() or "chicken" in i["item"].lower()
+        ] or out
+    return out
+
+
+def market_prices_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    s = _summary()
+    menu = (s or {}).get("details", {}).get("menu", {}) if s else {}
+    want = str(args.get("dish") or "").strip()
+    dishes = [
+        n for n in menu if not want or want.lower() in n.lower() or kind_of(n) == kind_of(want)
+    ] or ([want] if want else list(menu))
+    lines = ["**Toshkent bozoridagi narxlar (raqobatchilar) va sizning narxingiz:**", ""]
+    facts: dict[str, Any] = {}
+    lines += ["| Taom | Sizda | Bozor (min – median – max) | Misollar |", "|---|---|---|---|"]
+    for d in dishes:
+        items = market_for(d)
+        mine = Decimal(str(menu.get(d, {}).get("price") or 0))
+        if not items:
+            continue
+        ps = sorted(Decimal(i["price"]) for i in items)
+        med = ps[len(ps) // 2]
+        ex = "; ".join(f"{i['chain']} «{i['item']}» {M(Decimal(i['price']))}" for i in items[:3])
+        lines.append(
+            f"| {d} | {M(mine) if mine else '—'} | {M(ps[0])} – {M(med)} – {M(ps[-1])} | {ex} |"
+        )
+        facts[f"{d}_mine"], facts[f"{d}_median"], facts[f"{d}_min"], facts[f"{d}_max"] = (
+            M(mine),
+            M(med),
+            M(ps[0]),
+            M(ps[-1]),
+        )
+    if len(lines) == 4:
+        lines.append("| — | — | Bu taom uchun bozor narxi topilmadi | — |")
+    lines += [
+        "",
+        "### Bozor faktlari (Toshkent fast-food)",
+        *[f"- {f}" for f in market().get("facts", [])[:6]],
+    ]
+    lines += [
+        "",
+        f"_Narxlar internetdan yig'ilgan ({market().get('fetched')}), taxminiy; filial va aksiyaga qarab farq qiladi._",
+        "",
+        "CHIPS: Qaysi taomni qimmatlatsam bo'ladi? | Foydani qanday oshiraman? | Food cost nega yuqori?",
+    ]
+    md = "\n".join(lines)
+    return envelope(
+        ok=True,
+        facts=facts,
+        speech=speech_of(facts),
+        md=md,
+        say="Toshkent bozoridagi narxlar bilan solishtirdim.",
+        answer={"headline": "Bozor narxlari", "reason": ""},
+    )
+
+
+TOOLS["market_prices"] = Tool(
+    "market_prices",
+    "Toshkent fast-food bozor narxlari (Oqtepa Lavash, Evos, Max Way, Feed Up, KFC, Les Ailes): taom bo'yicha min/median/max va sizning narxingiz; bozor faktlari (food cost, agregator komissiyasi, o'rtacha chek, peak soatlar). Narx tavsiya qilishdan oldin chaqir.",
+    {"type": "object", "properties": {"dish": {"type": "string", "maxLength": 80}}},
+    market_prices_tool,
+)
+
+
+def market_facts_text() -> str:
+    m = market()
+    return "Toshkent fast-food bozori (internetdan, hamma uchun umumiy bilim): " + " | ".join(
+        m.get("facts", [])[:8]
+    )

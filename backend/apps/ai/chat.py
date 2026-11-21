@@ -92,7 +92,8 @@ MD_RULES = """Javob formati — markdown (JSON emas), o'zbek tilida:
 - Biznes holati yoki umumiy tahlil so'ralsa yana: ### Pul manbai, ### Yashirin xavf, ### Yakuniy baho.
 - Tool natijasidagi "md" matni tayyor jadval va raqamlar: undan foydalan, jadvallarni qisqartirib bo'lsa ham ko'rsat. Mahsulot, taom, xodim nomlarini aniq yoz; "boshqa xarajatlar" deb umumlashtirma.
 - Tool natijasida yo'q sana yoki sonni yozma (masalan "2-noyabrgacha buyurtma bering" — bunday sana yo'q bo'lsa, "shu hafta" de). Jami, farq yoki o'rtachani o'zing hisoblama; tool'da "combined_total" kabi tayyor jami bo'lsa, faqat o'shani ishlat.
-- Oddiy savolga qisqa javob (3–8 qator); hisobot yoki tahlil so'ralsa to'liq.
+- Qisqa savolga ham TO'LIQ javob ber: raqam + SABAB (pul qayerga ketdi: qaysi modda, qaysi mahsulot, qancha, o'tgan oyga nisbatan) + nima qilish kerak. "Shuncha bor edi" deb to'xtama — nega o'zgarganini tushuntir. Qisqa savol oldingi xabarlarning davomi bo'lishi mumkin: suhbat tarixidan mavzuni ol ("nech pulga?" — oldingi tavsiyadagi narx haqida).
+- Narx tavsiya qilsang, bozor narxlari bilan solishtir (market_prices tool: Toshkentdagi raqobatchilar — Oqtepa Lavash, Evos, Max Way va h.k.).
 - Eng oxirgi qator: "CHIPS: savol 1 | savol 2 | savol 3" — shu javobga bog'liq keyingi 3 ta savol."""
 ADVISOR_SCHEMA = {
     "type": "object",
@@ -368,6 +369,25 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def recent_dialogue(business: Any, exclude: int | None = None, n: int = 12) -> str:
+    """Last messages across chat + voice conversations (Live and new chats keep the context)."""
+    qs = Message.objects.filter(business=business)
+    if exclude:
+        qs = qs.exclude(conversation_id=exclude)
+    rows = list(qs.order_by("-created_at").values("role", "content", "answer")[:n])[::-1]
+    out = []
+    for r in rows:
+        text = r["content"] or ""
+        if (
+            r["role"] != "user"
+            and isinstance(r.get("answer"), dict)
+            and r["answer"].get("markdown")
+        ):
+            text = str(r["answer"]["markdown"])[:600]
+        out.append(f"{'Foydalanuvchi' if r['role'] == 'user' else 'AI'}: {text[:600]}")
+    return "\n".join(out)
+
+
 def parse_answer(text: str) -> dict[str, Any] | None:
     """Markdown answer (the contract) or the older JSON answer; chips from the last line."""
     raw = (text or "").strip()
@@ -577,6 +597,9 @@ async def llm_loop(
     if advisor:
         fmt["playbooks"] = await db(turn.business, lambda: playbook_text(turn.business, turn.text))
     fmt["md_rules"] = MD_RULES
+    from .growth_tools import market_facts_text
+
+    fmt["md_rules"] += "\n- " + market_facts_text()[:1500].replace("{", "(").replace("}", ")")
     system = (ADVISOR_SYSTEM if advisor else SYSTEM).format(**fmt)
     guard_ctx = await db(turn.business, lambda: guard_context(ctx))
     history = await db(
@@ -584,16 +607,31 @@ async def llm_loop(
         lambda: list(
             Message.objects.filter(conversation=turn.conversation)
             .order_by("-created_at")
-            .values("role", "content")[1:7]
+            .values("role", "content", "answer")[1:15]
         ),
     )
+
+    def _hist_text(h: dict[str, Any]) -> str:
+        if (
+            h["role"] != "user"
+            and isinstance(h.get("answer"), dict)
+            and h["answer"].get("markdown")
+        ):
+            return str(h["answer"]["markdown"])[:1800]
+        return h["content"] or "…"
+
     contents: list[types.Content] = [
         types.Content(
             role="user" if h["role"] == "user" else "model",
-            parts=[types.Part(text=h["content"] or "…")],
+            parts=[types.Part(text=_hist_text(h))],
         )
         for h in reversed(history)
     ]
+    voice_ctx = await db(
+        turn.business, lambda: recent_dialogue(turn.business, exclude=turn.conversation.pk)
+    )
+    if voice_ctx and len(history) < 2:
+        system += "\n\nOldingi suhbatlar (ovozli va boshqa chatlar, kontekst uchun):\n" + voice_ctx
     pre = [
         f"{name}: {json.dumps(for_model(r), ensure_ascii=False, default=str)}"
         for name, r in turn.results.items()

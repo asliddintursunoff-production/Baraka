@@ -77,6 +77,17 @@ def live_context(business: Business) -> list[str]:
         lines.append("Tasdiqlangan qoidalar va eslatmalar: " + "; ".join([*rules, *notes]))
     if business.staff_count:
         lines.append(f"Xodimlar soni: {business.staff_count}.")
+    from .chat import recent_dialogue
+    from .growth_tools import market_facts_text
+
+    lines.append(market_facts_text()[:1500])
+
+    dlg = recent_dialogue(business, n=16)
+    if dlg:
+        lines.append(
+            "Oxirgi suhbat (chat va ovoz; foydalanuvchi shu mavzuni davom ettirishi mumkin, kontekstni yo'qotma):\n"
+            + dlg[:4000]
+        )
     return lines
 
 

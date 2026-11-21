@@ -19,6 +19,7 @@ import { ApiError, apiGet } from "@/lib/api";
 import type { Answer, ChatBootstrap, ChatMessage, ChatStreamEvents, SendPayload, Voice } from "@/lib/chatTypes";
 import { postSse } from "@/lib/sse";
 import { track } from "@/lib/telemetry";
+import { cn } from "@/lib/utils";
 
 const STREAM_FAILED = "Javob olib bo'lmadi. Internet aloqasini tekshirib, qaytadan urinib ko'ring.";
 
@@ -338,11 +339,18 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
 }
 
 export default function ChatPage() {
+  const [sel, setSel] = useState<{ id?: number; isNew?: boolean }>({});
+  const url = sel.isNew
+    ? "/api/chat/bootstrap?new=1"
+    : sel.id
+      ? `/api/chat/bootstrap?conversation_id=${sel.id}`
+      : "/api/chat/bootstrap";
   const q = useQuery({
-    queryKey: ["chat", "bootstrap"],
-    queryFn: () => apiGet<ChatBootstrap>("/api/chat/bootstrap"),
+    queryKey: ["chat", "bootstrap", sel.isNew ? `new-${sel.id ?? 0}` : (sel.id ?? "last")],
+    queryFn: () => apiGet<ChatBootstrap & { conversations?: ConvRow[] }>(url),
     // History is merged with bubbles streamed in this session; refetch only on mount/invalidation.
     refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
 
   if (q.isPending)
@@ -357,9 +365,54 @@ export default function ChatPage() {
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       </AppShell>
     );
+  const convs = q.data.conversations ?? [];
   return (
     <AppShell active="chat">
-      <ChatView boot={q.data} />
+      <div className="flex min-h-0 w-full flex-1">
+        <aside className="hidden w-[230px] shrink-0 flex-col gap-1 border-r border-border bg-surface p-3 lg:flex">
+          <button
+            type="button"
+            onClick={() => setSel({ isNew: true, id: Date.now() })}
+            className="mb-2 rounded-card bg-ink px-3 py-2 text-left text-14 font-semibold text-white"
+          >
+            + Yangi chat
+          </button>
+          <div className="flex flex-col gap-0.5 overflow-y-auto">
+            {convs.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSel({ id: c.id })}
+                className={cn(
+                  "truncate rounded-inner px-2 py-1.5 text-left text-13",
+                  c.id === q.data.conversation_id ? "bg-[#EEF4FF] font-semibold text-primary" : "text-text-2 hover:bg-bg",
+                )}
+                title={c.title}
+              >
+                {c.channel === "voice" ? "🎙 " : ""}
+                {c.title}
+              </button>
+            ))}
+          </div>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <button
+            type="button"
+            onClick={() => setSel({ isNew: true, id: Date.now() })}
+            className="m-2 self-start rounded-card border border-border px-3 py-1.5 text-13 font-semibold lg:hidden"
+          >
+            + Yangi chat
+          </button>
+          <ChatView key={q.data.conversation_id} boot={q.data} />
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+interface ConvRow {
+  id: number;
+  title: string;
+  channel: string;
+  date: string;
 }
