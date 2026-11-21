@@ -281,6 +281,8 @@ def _monthly(today: date) -> list[dict[str, str]]:
 
 
 class DashboardView(BusinessAPIView):
+    requires_data = True  # 409 no_data until a source is synced
+
     def get(self, request: Request) -> Response:
         b = self.business
         cached = get_forecast(b)
@@ -352,6 +354,8 @@ def run_preset(cached: CachedForecast, preset: dict[str, Any]) -> dict[str, Any]
 
 
 class ForecastView(BusinessAPIView):
+    requires_data = True  # 409 no_data until a source is synced
+
     def get(self, request: Request) -> Response:
         cached = get_forecast(self.business)
         base = cached.result
@@ -376,6 +380,8 @@ class ForecastView(BusinessAPIView):
 
 class SimulateView(BusinessAPIView):
     """POST {preset} | {text}. Free text: deterministic parse here; the LLM path is M3."""
+
+    requires_data = True  # 409 no_data until a source is synced
 
     def post(self, request: Request) -> Response:
         cached = get_forecast(self.business)
@@ -417,6 +423,8 @@ class SimulateView(BusinessAPIView):
 
 # --- Calendar ---------------------------------------------------------------------------
 class CalendarView(BusinessAPIView):
+    requires_data = True  # 409 no_data until a source is synced
+
     def get(self, request: Request) -> Response:
         b = self.business
         base = get_forecast(b).result

@@ -28,6 +28,9 @@ class Business(models.Model):
     segment_key = models.CharField(max_length=64, blank=True, db_index=True)
     staff_count = models.PositiveIntegerField(null=True, blank=True)
     seed_tag = models.CharField(max_length=16, blank=True, db_index=True)  # rows made by seed_demo
+    is_demo = models.BooleanField(default=False)  # seeded demo: never mixed with a real business
+    profile_completed = models.BooleanField(default=True)  # False right after /register
+    salary_day = models.PositiveSmallIntegerField(null=True, blank=True)  # 1..31 (onboarding)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -127,24 +127,33 @@ class Command(BaseCommand):
             out[role] = user
         return out
 
-    def _business(self, biz: DemoBusiness, users: dict[str, Any] | None) -> Business:
+    def _business(
+        self,
+        biz: DemoBusiness,
+        users: dict[str, Any] | None,
+        *,
+        tag: str = SEED_TAG,
+        name: str | None = None,
+    ) -> Business:
         monthly = sum(biz.weekday_revenue, Decimal(0)) / 7 * 30
         business = Business.objects.create(
-            name=biz.name,
+            name=name or biz.name,
+            is_demo=True,
             kind=biz.kind,
             city=biz.city,
             safe_min_balance=biz.safe_min,
             staff_count=biz.staff_count,
             segment_key=f"{biz.kind}:toshkent:{revenue_band(monthly)}",
-            seed_tag=SEED_TAG,
+            seed_tag=tag,
         )
         now = datetime.now(ZoneInfo("Asia/Tashkent"))
         with tenant_context(business):
             if users:
                 Membership.objects.create(user=users["owner"], business=business, role="owner")
-                Membership.objects.create(
-                    user=users["accountant"], business=business, role="accountant"
-                )
+                if users["accountant"] != users["owner"]:
+                    Membership.objects.create(
+                        user=users["accountant"], business=business, role="accountant"
+                    )
             names = {t.counterparty for t in biz.txns if t.counterparty} | {
                 o.counterparty for o in biz.obligations if o.counterparty
             }
@@ -240,6 +249,10 @@ class Command(BaseCommand):
             origin=RuleCandidate.Origin.PATTERN,
         )
         for text, usage in SEGMENT_INSIGHTS:
+            if MemoryItem.unscoped.filter(
+                business__isnull=True, kind=MemoryItem.Kind.SEGMENT, text=text
+            ).exists():
+                continue  # global insight: once, however many demo businesses exist
             MemoryItem.unscoped.create(
                 business=None,
                 kind=MemoryItem.Kind.SEGMENT,

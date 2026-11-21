@@ -15,8 +15,10 @@ from django.views.decorators.http import require_GET
 APP_CONFIG_TAG = '<script src="/app-config.js"></script>'
 
 
-def app_config() -> dict[str, str]:
-    return {"appName": settings.APP_NAME}
+def app_config() -> dict[str, object]:
+    from config import app_settings as cfg
+
+    return {"appName": settings.APP_NAME, "pricing": cfg.PRICING}
 
 
 def _app_config_js() -> str:

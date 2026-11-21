@@ -111,6 +111,8 @@ def session_payload(business: Business) -> dict[str, Any]:
 class LiveSessionView(BusinessAPIView):
     """POST /api/live/session and GET /api/live/session/prefetch (hover on "Jonli gaplashish")."""
 
+    requires_data = True  # 409 no_data until a source is synced
+
     def _mint(self) -> Response:
         if budget.over_limit():
             log.warning("AI budget reached: Live session refused")

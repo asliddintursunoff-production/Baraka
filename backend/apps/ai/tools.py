@@ -83,6 +83,17 @@ class ToolContext:
     def base(self) -> ForecastResult:
         return self.cached.result
 
+    @property
+    def short_history(self) -> bool:
+        """Under MIN_HISTORY_DAYS of real data: no forecasts or purchase decisions."""
+        from apps.tenancy.gate import history_days
+
+        if self.business.is_demo:
+            return self.base.insufficient_data
+        from config import app_settings as cfg
+
+        return self.base.insufficient_data or history_days(self.business) < cfg.MIN_HISTORY_DAYS
+
     def history_months(self) -> int:
         if self._history_months is None:
             first = Transaction.objects.aggregate(m=Min("txn_date"))["m"]
@@ -246,10 +257,43 @@ def propose(
 
 
 # --- tools --------------------------------------------------------------------------------
+def cash_only(ctx: ToolContext) -> dict[str, Any]:
+    """Short history: only current cash and the next payments, no forecast."""
+    base = ctx.base
+    cash = base.close_on(base.today)
+    end = base.today + timedelta(days=30)
+    pays = sorted(
+        (o for o in base.obligations if base.today <= o.date <= end), key=lambda o: o.date
+    )[:3]
+    lines = "; ".join(
+        f"{uz.format_date(o.date)} — {o.title} {uz.format_mln(o.amount)}" for o in pays
+    )
+    note = "Prognoz va xarid qarorlari uchun kamida 2 haftalik ma'lumot kerak."
+    reason = (f"Kelgusi to'lovlar: {lines}. " if pays else "") + note
+    return envelope(
+        ok=True,
+        insufficient_data=True,
+        facts={
+            "cash": money(cash),
+            "payments": [
+                {"date": o.date.isoformat(), "title": o.title, "amount": money(o.amount)}
+                for o in pays
+            ],
+        },
+        say=f"Hozir kassada {uz.speech_amount(cash)} bor. {note}",
+        answer={
+            "verdict": "info",
+            "headline": f"Hozir kassada {uz.format_mln(cash)}",
+            "reason": reason,
+            "steps": [],
+        },
+    )
+
+
 def get_cash_status(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     base = ctx.base
-    if base.insufficient_data:
-        return insufficient()
+    if base.insufficient_data or ctx.short_history:
+        return cash_only(ctx)
     cash = base.close_on(base.today)
     d, low = base.min_date, base.min_balance
     pays = advice.payments_on(base, d)
@@ -980,8 +1024,17 @@ TOOLS: dict[str, Tool] = {
 }
 
 
+# forecasts and decisions: replaced by "not enough data yet" under MIN_HISTORY_DAYS
+SHORT_HISTORY_BLOCKED = frozenset(
+    {"get_forecast", "evaluate_purchase", "simulate_change", "explain_day", "propose_plan"}
+)
+
+
 def run_tool(ctx: ToolContext, name: str, raw_args: Any) -> dict[str, Any]:
     tool = TOOLS.get(name)
     if tool is None:
         raise ToolArgError(f"unknown tool {name}")
-    return tool.handler(ctx, validate(tool.parameters, raw_args or {}))
+    args = validate(tool.parameters, raw_args or {})
+    if name in SHORT_HISTORY_BLOCKED and ctx.short_history:
+        return insufficient()
+    return tool.handler(ctx, args)

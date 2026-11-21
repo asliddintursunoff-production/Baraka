@@ -113,3 +113,19 @@ BUDGET_MESSAGE_LIVE = "Bugungi ovoz limiti tugadi"
 # --- Alerts + brief (M6): templates only, never an LLM -----------------------------------
 ALERT_HORIZON_DAYS = 30
 DAILY_BRIEF_AT = time(8, 0)  # Asia/Tashkent
+
+# --- Pricing (public /pricing page) --------------------------------------------------------
+# Amounts are NOT decided yet: None renders the design's "[narx]" / "[N]" placeholder.
+# Fill in real numbers here only; never in the frontend.
+PRICING: dict[str, dict[str, int | None]] = {
+    "trial": {
+        "price_uzs": 0,
+        "days": None,
+        "sheets": None,
+        "chat_per_day": None,
+        "voice_minutes": None,
+    },
+    "business": {"price_uzs_month": None},
+}
+# --- "No data, no answer" ------------------------------------------------------------------
+MIN_HISTORY_DAYS = 14  # under this: short_history (no forecasts or purchase decisions)

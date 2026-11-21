@@ -31,6 +31,7 @@ from apps.knowledge.models import BusinessRule, MemoryItem
 from apps.telemetry import timing
 from apps.tenancy.api import BusinessAPIView
 from apps.tenancy.context import tenant_context
+from apps.tenancy.gate import NO_DATA_BODY, data_status
 from config import app_settings as cfg
 
 from . import budget
@@ -120,6 +121,8 @@ def message_payload(m: Message) -> dict[str, Any]:
 
 
 class ChatBootstrapView(BusinessAPIView):
+    requires_data = True  # 409 no_data until a source is synced
+
     def get(self, request: Request) -> Response:
         b = self.business
         conv = (
@@ -154,6 +157,8 @@ async def chat_messages(request: HttpRequest) -> HttpResponseBase:
     business = getattr(request, "business", None)
     if not user.is_authenticated or business is None:
         return JsonResponse({"error": "auth_required"}, status=401)
+    if await sync_to_async(data_status)(business) == "no_data":
+        return JsonResponse(NO_DATA_BODY, status=409)  # no data, no answer
     try:
         body = json.loads(request.body or b"{}")
     except ValueError:
@@ -235,6 +240,8 @@ def tts_wav(text: str) -> bytes:
 
 
 class ChatSpeechView(BusinessAPIView):
+    requires_data = True  # 409 no_data until a source is synced
+
     def get(self, request: Request, message_id: int) -> HttpResponse:
         if message_id in _speech_cache:
             return HttpResponse(_speech_cache[message_id], content_type="audio/wav")
@@ -260,6 +267,8 @@ class ChatSpeechView(BusinessAPIView):
 def transcribe(request: HttpRequest) -> JsonResponse:
     if not request.user.is_authenticated or getattr(request, "business", None) is None:
         return JsonResponse({"error": "auth_required"}, status=401)
+    if data_status(request.business) == "no_data":  # type: ignore[attr-defined]
+        return JsonResponse(NO_DATA_BODY, status=409)
     audio = request.body
     if not audio or len(audio) > 3_000_000:
         return JsonResponse(
@@ -292,6 +301,8 @@ def transcribe(request: HttpRequest) -> JsonResponse:
 
 class ToolView(BusinessAPIView):
     """POST /api/tools/<name> (Live): args validated by schema; no LLM, no network."""
+
+    requires_data = True  # 409 no_data until a source is synced
 
     def post(self, request: Request, name: str) -> Response:
         if name not in TOOLS:

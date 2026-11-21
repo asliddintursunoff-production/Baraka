@@ -65,7 +65,7 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **opts: Any) -> None:
         groups: dict[str, list[Business]] = defaultdict(list)
-        for b in Business.objects.exclude(segment_key=""):
+        for b in Business.objects.exclude(segment_key="").exclude(seed_tag="demo_user"):
             groups[b.segment_key].append(b)
         for key, members in groups.items():
             shapes = [s for b in members if (s := weekday_shape(b))]

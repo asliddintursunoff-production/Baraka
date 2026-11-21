@@ -176,9 +176,9 @@ def test_session_cannot_select_foreign_business(client, demo):
         ).status_code
         == 403
     )
-    dash = client.get("/api/dashboard").json()
-    assert dash["business"]["name"] == "Eve Shop"
-    assert "Navro'z" not in str(dash)
+    r = client.get("/api/dashboard")  # Eve's own empty business: no data, no answer
+    assert r.status_code == 409 and r.json()["code"] == "no_data"
+    assert "Navro'z" not in r.content.decode()
 
 
 @pytest.mark.django_db
