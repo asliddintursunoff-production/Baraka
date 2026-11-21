@@ -85,6 +85,9 @@ class Command(BaseCommand):
         for b in Business.objects.filter(seed_tag=SEED_TAG):
             invalidate(b.pk)
             refresh_forecast(b)
+        from apps.insights.alerts import evaluate_alerts
+
+        evaluate_alerts(main)
 
         with tenant_context(main):
             f = refresh_forecast(main).result

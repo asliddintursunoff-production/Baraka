@@ -15,7 +15,9 @@ import json
 import logging
 import signal
 import time
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
@@ -55,6 +57,28 @@ def sync_all() -> dict[str, int]:
     return {"businesses": done, "failed": failed}
 
 
+def briefs_all() -> dict[str, int]:
+    """08:00 brief for every business with members (templates only, no LLM)."""
+    from django.db import connections
+
+    from apps.insights.alerts import daily_brief, evaluate_alerts
+    from apps.tenancy.models import Business, Membership
+
+    done = failed = 0
+    for business in Business.objects.filter(
+        pk__in=Membership.objects.values_list("business_id", flat=True)
+    ):
+        try:
+            evaluate_alerts(business)
+            daily_brief(business)
+            done += 1
+        except Exception as exc:
+            failed += 1
+            log.exception("daily brief failed for business %s: %s", business.pk, exc)
+    connections.close_all()
+    return {"businesses": done, "failed": failed}
+
+
 def _log(event: str, **fields: Any) -> None:
     log.info(json.dumps({"event": event, **fields}, ensure_ascii=False, default=str))
 
@@ -70,9 +94,19 @@ class Command(BaseCommand):
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, stop.set)
-        _log("scheduler_started", sync_interval_min=cfg.SYNC_INTERVAL_MIN, jobs=["sync_all"])
+        _log(
+            "scheduler_started",
+            sync_interval_min=cfg.SYNC_INTERVAL_MIN,
+            jobs=["sync_all", "daily_brief"],
+        )
         next_sync = 0.0
+        last_brief: date | None = None
         while not stop.is_set():
+            local = datetime.now(ZoneInfo("Asia/Tashkent"))
+            if local.time() >= cfg.DAILY_BRIEF_AT and last_brief != local.date():
+                result = await sync_to_async(briefs_all, thread_sensitive=False)()
+                _log("daily_brief", **result)
+                last_brief = local.date()
             now = time.monotonic()
             if now >= next_sync:
                 t0 = time.perf_counter()

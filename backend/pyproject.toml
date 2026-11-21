@@ -24,6 +24,7 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "RUF012"]  # RUF012: Django Meta
 "apps/ai/prompts.py" = ["E501"]  # prompt prose
 "apps/ai/management/commands/voice_spike.py" = ["E501"]  # spike question data
 "apps/insights/advice.py" = ["E501"]  # Uzbek text templates
+"apps/insights/alerts.py" = ["E501"]  # Uzbek alert templates
 "apps/ai/tools.py" = ["E501"]  # Uzbek tool texts
 "apps/ai/chat.py" = ["E501"]  # Uzbek system prompt
 "apps/ai/guard.py" = ["E501"]

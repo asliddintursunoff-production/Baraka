@@ -109,3 +109,7 @@ LIVE_MAX_SESSION_S = 300  # one Live session lasts 5 min at most
 LIVE_RESERVE_S = 60  # billed at mint (tokens may go unused), corrected by /live/finish
 LIVE_IDLE_CLOSE_S = 30
 BUDGET_MESSAGE_LIVE = "Bugungi ovoz limiti tugadi"
+
+# --- Alerts + brief (M6): templates only, never an LLM -----------------------------------
+ALERT_HORIZON_DAYS = 30
+DAILY_BRIEF_AT = time(8, 0)  # Asia/Tashkent

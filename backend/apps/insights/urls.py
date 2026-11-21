@@ -10,4 +10,5 @@ urlpatterns = [
     path("simulate", api.SimulateView.as_view()),
     path("calendar", api.CalendarView.as_view()),
     path("obligations", ObligationCreateView.as_view()),
+    path("alerts", api.AlertsView.as_view()),
 ]

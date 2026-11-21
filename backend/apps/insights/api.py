@@ -522,3 +522,29 @@ class CalendarView(BusinessAPIView):
                 "selected": selected.isoformat(),
             }
         )
+
+
+class AlertsView(BusinessAPIView):
+    """GET: open alerts + today's brief for the bell; POST: mark them seen."""
+
+    def get(self, request: Request) -> Response:
+        rows = Alert.objects.exclude(status=Alert.Status.DISMISSED).order_by("-created_at")[:20]
+        return Response(
+            {
+                "alerts": [
+                    {
+                        "id": a.pk,
+                        "kind": a.kind,
+                        "severity": a.severity,
+                        "text": a.text_uz,
+                        "date": uz.format_date(a.date) if a.date else "",
+                        "new": a.status == Alert.Status.NEW,
+                    }
+                    for a in rows
+                ]
+            }
+        )
+
+    def post(self, request: Request) -> Response:
+        n = Alert.objects.filter(status=Alert.Status.NEW).update(status=Alert.Status.SEEN)
+        return Response({"ok": True, "seen": n})

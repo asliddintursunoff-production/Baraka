@@ -322,6 +322,9 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - 19:35 M4: /live page (orb, captions, cards, text fallback), token prefetch on hover + background refresh (P3), `say` in tool results (P1), 300 ms silence confirmed (P2, 0/9 cut off), auto-close 30 s idle / hidden tab / leave / 5 min, 429 "Bugungi ovoz limiti tugadi".
 - Decision: when `confirm_plan` arrives before the turn's "ha" transcription, the client waits up to 600 ms for it.
 - Decision: the in-browser fake-mic e2e was blocked by the tool permission check, so the voice page is on the manual checklist; the Live API path itself is covered by `smoke-ai`.
+- 19:36 M6: `apps/insights/alerts.py`, 3 template rules (negative on a critical payment day, below the safe minimum, salary + loan in one week), dedupe by `business:kind:date` with in-place updates, stale alerts auto-dismissed. Evaluated after every sync that changes data and at seed. 08:00 brief from templates in `run_scheduler`. Bell popover via `GET/POST /api/alerts`.
+- Decision: the dashboard banner and "Nima qilish kerak" already came from the engine (M2), so no change there.
+- Decision: the brief is stored as an `Alert(kind="brief")` and shows in the bell; no Telegram/e-mail.
 
 ## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).

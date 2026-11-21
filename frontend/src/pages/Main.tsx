@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Check, Lightbulb, Mic, RefreshCw, Sparkles, TriangleAlert, Users, X } from "lucide-react";
+import { Check, Lightbulb, Mic, RefreshCw, Sparkles, TriangleAlert, Users, X } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ActionSteps } from "@/components/ActionSteps";
+import { AlertsBell } from "@/components/AlertsBell";
 import { AppShell } from "@/components/AppShell";
 import { RichText } from "@/components/RichText";
 import { HorizonToggle, type Horizon } from "@/components/HorizonToggle";
@@ -84,18 +85,7 @@ export default function MainPage() {
             <RefreshCw size={16} strokeWidth={2.2} aria-hidden="true" />
             {d.sync.label}
           </Link>
-          <button
-            type="button"
-            aria-label={`Bildirishnomalar, ${d.alerts.new} ta yangi`}
-            className="relative flex h-11 w-11 items-center justify-center rounded-inner border border-border bg-surface text-text-2"
-          >
-            <Bell size={20} aria-hidden="true" />
-            {d.alerts.new > 0 && (
-              <span className="absolute right-[6px] top-[6px] flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] bg-danger text-[11px] font-bold text-white">
-                {d.alerts.new}
-              </span>
-            )}
-          </button>
+          <AlertsBell count={d.alerts.new} />
         </div>
       </header>
 
