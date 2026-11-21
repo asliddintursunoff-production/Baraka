@@ -1,193 +1,164 @@
-# Deploy qo'llanmasi: Railway (backend + baza) + Vercel (frontend)
+# Deploy: GitHub → Railway (baza + backend + scheduler) va Vercel (frontend)
 
-## 1. Arxitektura
+Hammasi GitHub'dan: `main` ga push qilinsa, Railway va Vercel o'zi qayta deploy qiladi. SSH yoki CLI kerak emas.
 
 ```
-Brauzer ──► Vercel (React SPA, frontend/)
-              │  /api/*  va  /app-config.js  ──rewrite──►  Railway "web" (Django API, Dockerfile)
-              │                                               │
-              │                                               ├─► Railway "Postgres + pgvector"
-              │                                               └─► Google Gemini, Google OAuth/Drive/Sheets
-              └─ Live ovoz: brauzer to'g'ridan-to'g'ri Gemini Live'ga (backend bergan vaqtinchalik token bilan)
-
-Railway "scheduler" (xuddi shu Docker image): har 15 daqiqada Sheets sinxron, 08:00 xulosa
+Brauzer ─► Vercel (frontend/, React SPA)
+              │  /api/*, /app-config.js  ──rewrite──►  Railway "web"  (Dockerfile: Django API)
+              │                                            │  private network
+              │                                            ▼
+              │                                        Railway "pgvector"  (Docker image pgvector/pgvector:pg16 + Volume)
+              │                                            ▲
+              └─ Live ovoz: brauzer → Gemini Live           Railway "scheduler" (xuddi shu repo, run_scheduler)
 ```
 
-- **Frontend (Vercel):** faqat statik fayllar. API so'rovlari Vercel'ning `rewrites` orqali Railway'ga proksi qilinadi. Shuning uchun brauzer uchun hammasi **bitta domen**: cookie, CSRF va Google OAuth qo'shimcha sozlamasiz ishlaydi, CORS kerak emas.
-- **Backend (Railway):** ildizdagi `Dockerfile`. U React build'ni ham o'z ichiga oladi, shuning uchun Railway domeni o'zi ham to'liq ilova sifatida ishlaydi (Vercel'siz zaxira variant, 7-bo'limga qarang).
-- **Bazalar:** faqat bitta **PostgreSQL 16 + pgvector**. Redis, Celery, alohida vektor bazasi **kerak emas**: navbatlar va kesh Postgres va jarayon ichida.
+Railway'da **3 ta servis** bo'ladi, Vercel'da **1 ta project**. Redis yoki boshqa baza kerak emas.
 
-## 2. Railway: qaysi servislar kerak
+---
 
-| Servis | Nima | Qanday yaratiladi |
-|---|---|---|
-| **Postgres (pgvector)** | Yagona baza | `+ New → Template` → **"pgvector"** deb qidiring → Deploy. Oddiy "PostgreSQL" ham ishlaydi, faqat unda `vector` kengaytmasi bo'lishi shart (birinchi migratsiya `CREATE EXTENSION vector` qiladi). |
-| **web** | Django API (+ SPA) | `+ New → GitHub Repo → Baraka`. Config-as-code: `railway.json` |
-| **scheduler** | Fon vazifalari (LLM chaqirmaydi) | Yana `+ New → GitHub Repo → Baraka`. Config-as-code: `railway.scheduler.json` |
+## Servis 1: `pgvector` (baza, Docker image)
 
-## 3. Railway: qadamma-qadam
+Railway'ning oddiy Postgres'ida `vector` kengaytmasi yo'q, shuning uchun bazani rasmiy pgvector image'idan ko'taramiz.
 
-1. **Project:** railway.com → *New Project* → *Deploy from GitHub repo* → `asliddintursunoff-production/Baraka` → *main*.
-   Bu birinchi servis **web** bo'ladi. Settings → *Service name*: `web`.
-2. **Baza:** project ichida `+ New` → *Template* → **pgvector** → *Deploy*. Nomi masalan `Postgres`.
-3. **web sozlamalari** (Settings):
-   - *Source → Root Directory*: bo'sh qoldiring (repo ildizi).
-   - *Config-as-code → Railway Config File*: `railway.json`. Builder Dockerfile, start `/app/docker/start-web.sh`, health check `/api/health`.
-   - *Networking → Generate Domain*, masalan `baraka-web.up.railway.app`. Port: `8000`; Railway `PORT` beradi, skript uni ishlatadi.
-   - Start skript har deploy'da `migrate` qiladi, keyin gunicorn + uvicorn ishga tushadi.
-4. **Variables:** *Shared Variables* (project → Settings → Shared Variables) ga yozing va ikkala servisga ulang:
+**Yaratish:** project → `+ New` → **Docker Image** → `pgvector/pgvector:pg16` → Deploy.
 
-   | O'zgaruvchi | Qiymat |
-   |---|---|
-   | `APP_NAME` | `BizPilot AI` (yoki istalgan nom) |
-   | `APP_URL` | foydalanuvchi ochadigan manzil: **Vercel domeni**, masalan `https://baraka.vercel.app` (oxirida `/` yo'q). Vercel hali bo'lmasa, vaqtincha Railway domeni. |
-   | `DEBUG` | `false` |
-   | `DJANGO_SECRET_KEY` | uzun tasodifiy satr (`python -c "import secrets;print(secrets.token_urlsafe(64))"`). Ikkala servisda **bir xil**: refresh token'lar shu kalit bilan shifrlanadi. |
-   | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (baza servisiga havola; nomi boshqacha bo'lsa o'shani yozing) |
-   | `GEMINI_API_KEY` | Gemini kaliti (billing yoqilgan) |
-   | `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth Web client ID |
-   | `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
-   | `GOOGLE_PICKER_API_KEY` | Picker API kaliti |
+**Settings:**
 
-   `DEBUG=false` = **demo profil**: chat `gemini-3.8-flash` va zaxira modellar bilan ishlaydi. AI xarajati `AiUsage` jadvalida hisoblanadi: limit kuniga $0.50, jami $4.00.
-5. **scheduler servisi:** `+ New → GitHub Repo → Baraka` → Settings:
-   - *Service name*: `scheduler`.
-   - *Config-as-code*: `railway.scheduler.json` (start `python manage.py run_scheduler`, HTTP health check yo'q).
-   - Domen kerak emas. Variables: o'sha shared variables.
-6. **Deploy** tugagach tekshiring: `https://<web-domen>/api/health?deep=1` → `{"ok": true, "app": "...", "db": true}`.
-7. **Demo ma'lumot (bir marta, ixtiyoriy):** Railway CLI bilan:
-   ```bash
-   npm i -g @railway/cli
-   railway login
-   railway link            # Baraka project'ni tanlang
-   railway ssh --service web
-   python manage.py seed_demo --reset
-   ```
-   Bu `demo@demo.uz / demo12345` hisobini va 6 ta demo kafe statistikasini yaratadi. Yangi ro'yxatdan o'tgan foydalanuvchi "Demo kafe bilan sinab ko'rish" tugmasi bilan o'zining alohida demo biznesini oladi, bunga seed shart emas.
+| Sozlama | Qiymat |
+|---|---|
+| Service name | `pgvector` (pastdagi `${{pgvector.…}}` havolalar shu nomga bog'langan) |
+| Volume | servis ustida o'ng tugma → **Attach Volume** → Mount path: `/var/lib/postgresql/data` |
+| Networking | Public domain **kerak emas**. Baza faqat private network'da (`pgvector.railway.internal:5432`) |
+| Restart policy | Always |
 
-## 4. Vercel: frontend
+**Variables:**
 
-1. **Avval** `frontend/vercel.json` ichidagi `YOUR-BACKEND.up.railway.app` ni 3-qadamdagi Railway web domeniga almashtiring (2 joyda), commit qiling va push qiling:
-   ```json
-   { "source": "/api/:path*", "destination": "https://baraka-web.up.railway.app/api/:path*" }
-   ```
-2. vercel.com → *Add New… → Project* → `Baraka` repo → *Import*:
-   - **Root Directory: `frontend`** (muhim)
-   - Framework Preset: *Vite* (o'zi aniqlaydi)
-   - Build Command: `npm run build`, Output Directory: `dist`
-   - Environment variables: **kerak emas**. Ilova nomi va narxlar backend'dan `/app-config.js` orqali keladi.
-3. *Deploy*. Domen, masalan `https://baraka.vercel.app`.
-4. Railway'da `APP_URL` ni shu Vercel domeniga o'zgartiring (shared variable) → ikkala servis qayta deploy bo'ladi.
+| Nomi | Qiymat |
+|---|---|
+| `POSTGRES_USER` | `bizpilot` |
+| `POSTGRES_PASSWORD` | kuchli parol, **faqat harf va raqam** (URL ichida ishlatiladi), masalan `python3 -c "import secrets;print(secrets.token_hex(24))"` |
+| `POSTGRES_DB` | `bizpilot` |
+| `PGDATA` | `/var/lib/postgresql/data/pgdata` (volume ildizida `lost+found` bor, shuning uchun ichki papka) |
 
-## 5. Google Cloud (OAuth + Picker)
+`CREATE EXTENSION vector` ni birinchi migratsiya o'zi bajaradi.
 
-Console → *Google Auth Platform* va *Credentials*:
-- **OAuth client → Authorized JavaScript origins:** `https://baraka.vercel.app`
-- **Authorized redirect URIs:** `https://baraka.vercel.app/api/integrations/google/callback`. Har doim `APP_URL` + `/api/integrations/google/callback`, harfma-harf bir xil.
-- **Picker API key → HTTP referrers:** `https://baraka.vercel.app/*`
-- **Audience → Test users:** sinovchilarning Gmail'lari (ilova *Testing* holatida bo'lsa).
-- Local ishlash uchun `http://localhost:8000` yozuvlarini ham qoldiring.
+---
 
-## 6. Tekshirish ro'yxati
+## Servis 2: `web` (Django API, GitHub'dan)
 
-- [ ] `https://<web-domen>/api/health?deep=1` → `db: true`
-- [ ] `https://<vercel-domen>/` → Landing ochiladi, `/pricing` ishlaydi
-- [ ] Ro'yxatdan o'tish → Biznes profili → Jadval ulash bosqichi
-- [ ] "Demo kafe bilan sinab ko'rish" → `/dashboard` ochiladi, chap pastda "Demo" belgisi
-- [ ] "Google bilan ulash" → Google kirish → Picker → jadval → ustunlar → "Birinchi tahlil" → dashboard
-- [ ] AI CFO chat: "25 mln jihoz olsam?" → kartalar va javob
-- [ ] `/live`: mikrofon ruxsati → ovozli javob
+**Yaratish:** `+ New` → **GitHub Repo** → `asliddintursunoff-production/Baraka`.
 
-## 7. Muammolar va yechimlar
+**Settings:**
 
-| Belgi | Sabab | Yechim |
-|---|---|---|
-| `400 Bad Request` (DisallowedHost) | Domen ruxsat etilmagan | `APP_URL` to'g'ri ekanini tekshiring. `*.up.railway.app` avtomatik ruxsat etilgan. O'z domeningiz bo'lsa, `APP_URL` shu domen bo'lsin. |
-| `403 CSRF` login'da | `APP_URL` brauzerdagi manzil bilan bir xil emas | `APP_URL` = aynan foydalanuvchi ochadigan domen (`https://`, oxirida `/` yo'q) |
-| Google: `redirect_uri_mismatch` | Redirect URI Console'da boshqacha | 5-bo'limdagi URI'ni aynan `APP_URL` bilan yozing |
-| Migratsiya xatosi: `extension "vector" is not available` | Baza pgvector'siz | Bazani **pgvector** template'dan yarating va `DATABASE_URL` ni yangilang |
-| Chat javobi oxirida bir martada chiqadi (stream yo'q) | Proksi SSE'ni buferlaydi | Zaxira variant: Vercel'siz, Railway domenini to'g'ridan-to'g'ri ishlating (`APP_URL` = Railway domeni, Google sozlamalarida ham). Docker image SPA'ni ham beradi. |
-| `AI hozir band` | Gemini 429 / kvota | Billing yoqilganini tekshiring. Limit tugasa chat shablon javob beradi, ovoz "Bugungi ovoz limiti tugadi" deydi. |
-| Live ovoz ulanmaydi | Mikrofon ruxsati yoki HTTPS | Faqat HTTPS'da ishlaydi (Vercel/Railway HTTPS beradi) |
+| Sozlama | Qiymat |
+|---|---|
+| Service name | `web` |
+| Source → Branch | `main` |
+| Source → Root Directory | bo'sh (repo ildizi) |
+| Config-as-code → Railway config file | `railway.json` (Builder: Dockerfile, Start: `/app/docker/start-web.sh`, Healthcheck: `/api/health`, timeout 120 s) |
+| Watch Paths (ixtiyoriy) | `backend/**`, `frontend/**`, `docker/**`, `Dockerfile`, `railway.json`. Faqat hujjat o'zgarsa qayta deploy bo'lmaydi. |
+| Networking | **Generate Domain** → Target port: `8000` → masalan `baraka-web.up.railway.app` |
 
-## 8. Lokal ishga tushirish (Docker)
+Har deploy'da start skript `migrate` qiladi, `SEED_DEMO=1` bo'lsa demo ma'lumotni bir marta yaratadi, keyin gunicorn + uvicorn ishga tushadi.
+
+**Variables:**
+
+| Nomi | Qiymat |
+|---|---|
+| `APP_NAME` | `BizPilot AI` |
+| `APP_URL` | foydalanuvchi ochadigan manzil: **Vercel domeni**, masalan `https://baraka.vercel.app` (oxirida `/` yo'q). Vercel tayyor bo'lguncha: `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `DEBUG` | `false` |
+| `DJANGO_SECRET_KEY` | uzun tasodifiy satr: `python3 -c "import secrets;print(secrets.token_urlsafe(64))"`. **scheduler'da ham aynan shu** (Google token'lar shu kalit bilan shifrlanadi) |
+| `DATABASE_URL` | `postgres://${{pgvector.POSTGRES_USER}}:${{pgvector.POSTGRES_PASSWORD}}@${{pgvector.RAILWAY_PRIVATE_DOMAIN}}:5432/${{pgvector.POSTGRES_DB}}` |
+| `GEMINI_API_KEY` | Gemini kaliti (billing yoqilgan) |
+| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth web client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_PICKER_API_KEY` | Google Picker API kaliti |
+| `PORT` | `8000` (domen target port'i bilan bir xil) |
+| `SEED_DEMO` | ixtiyoriy: `1` bo'lsa `demo@demo.uz / demo12345` va 6 ta demo kafe yaratiladi, faqat ular hali yo'q bo'lsa. Kerak bo'lmasa qo'shmang. |
+| `WEB_CONCURRENCY` | ixtiyoriy, gunicorn worker soni (standart `2`) |
+
+**Tekshirish:** `https://<web-domen>/api/health?deep=1` → `{"ok": true, "app": "...", "db": true}`
+
+---
+
+## Servis 3: `scheduler` (fon vazifalari, GitHub'dan)
+
+Har 15 daqiqada Google Sheets sinxron va har kuni 08:00 xulosa (shablon, LLM chaqirmaydi). Ilova usiz ham ishlaydi, faqat avtomatik yangilash bo'lmaydi.
+
+**Yaratish:** yana `+ New` → **GitHub Repo** → xuddi shu `Baraka`.
+
+**Settings:**
+
+| Sozlama | Qiymat |
+|---|---|
+| Service name | `scheduler` |
+| Source → Branch | `main` |
+| Config-as-code → Railway config file | **`railway.scheduler.json`** (Start: `python manage.py run_scheduler`, healthcheck yo'q). Buni o'zgartirmasangiz, scheduler ham web serverni ishga tushiradi. |
+| Networking | domen **kerak emas** |
+| Watch Paths (ixtiyoriy) | `backend/**`, `Dockerfile`, `railway.scheduler.json` |
+
+**Variables:** `APP_NAME`, `APP_URL`, `DEBUG`, `DJANGO_SECRET_KEY` (web bilan bir xil), `DATABASE_URL` (web bilan bir xil formula), `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`. `GEMINI_API_KEY` va `GOOGLE_PICKER_API_KEY` kerak emas.
+
+Qulay yo'l: bu qiymatlarni project → Settings → **Shared Variables** ga yozib, ikkala servisga ulang.
+
+---
+
+## Vercel: frontend
+
+1. **Avval repoda** `frontend/vercel.json` ichidagi `YOUR-BACKEND.up.railway.app` ni `web` domeniga almashtiring (2 joy), commit va push qiling.
+2. vercel.com → **Add New → Project** → `Baraka` → Import:
+
+| Sozlama | Qiymat |
+|---|---|
+| Root Directory | **`frontend`** |
+| Framework Preset | Vite |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm ci` |
+| Node.js Version | 22.x (Settings → General) |
+| Environment Variables | **kerak emas**: nom va narxlar backend'dan `/app-config.js` orqali keladi |
+
+3. Deploy → domen (masalan `https://baraka.vercel.app`) → Railway'da `APP_URL` ni shu domenga o'zgartiring (web va scheduler).
+
+---
+
+## Google Cloud Console (`APP_URL` = Vercel domeni)
+
+- OAuth client → **Authorized JavaScript origins:** `https://baraka.vercel.app`
+- **Authorized redirect URIs:** `https://baraka.vercel.app/api/integrations/google/callback`
+- Picker API key → **HTTP referrers:** `https://baraka.vercel.app/*`
+- Audience → **Test users:** sinovchilar Gmail'lari (Testing holatida)
+- Lokal ishlash uchun `http://localhost:8000` yozuvlarini ham qoldiring.
+
+---
+
+## Tartib (birinchi marta)
+
+1. Railway: `pgvector` (image + volume + 4 ta variable).
+2. Railway: `web` (GitHub, variables, domen) → `/api/health?deep=1` tekshiring.
+3. Railway: `scheduler` (GitHub, `railway.scheduler.json`).
+4. Repoda `frontend/vercel.json` ga web domenini yozing → push.
+5. Vercel project (Root `frontend`) → domen.
+6. Railway `APP_URL` = Vercel domeni; Google Console'ni yangilang.
+
+Keyin har `git push origin main` → Railway (web, scheduler) va Vercel avtomatik qayta deploy qiladi.
+
+## Muammolar
+
+| Belgi | Yechim |
+|---|---|
+| `web` loglarida `could not translate host name "pgvector.railway.internal"` | Baza servisining nomi `pgvector` emas. `DATABASE_URL` dagi `${{pgvector.…}}` ni haqiqiy servis nomiga moslang. |
+| `password authentication failed` | Parolda maxsus belgi bor: faqat harf va raqamdan iborat parol qo'ying, so'ng `pgvector` volume'ini tozalab qayta yarating (parol faqat birinchi ishga tushishda yoziladi). |
+| `400 Bad Request` | `APP_URL` noto'g'ri. `*.up.railway.app` avtomatik ruxsat etilgan. |
+| `403 CSRF` login'da | `APP_URL` brauzerdagi manzil bilan aynan bir xil bo'lsin (`https://`, oxirida `/` yo'q) |
+| Google `redirect_uri_mismatch` | Redirect URI = `APP_URL` + `/api/integrations/google/callback` |
+| Healthcheck yiqiladi | `PORT=8000` va domen target port'i `8000` ekanini tekshiring. Loglarda migratsiya xatosi yo'qligini ko'ring. |
+| Chat javobi oqim emas, birdaniga chiqadi | Vercel proksisi buferlayapti. Vercel'siz Railway domenini ishlating (`APP_URL` = Railway domeni): Docker image frontend'ni ham beradi. |
+
+## Lokal (Docker)
 
 ```bash
-cp .env.example .env          # qiymatlarni to'ldiring (.env hech qachon git'ga tushmaydi)
-docker compose up --build     # db + web + scheduler → http://localhost:8000
-# yoki: make up / make down
-docker compose exec web python manage.py seed_demo --reset   # demo ma'lumot (ixtiyoriy)
+cp .env.example .env        # to'ldiring; .env hech qachon git'ga tushmaydi
+docker compose up --build   # db (pgvector) + web + scheduler → http://localhost:8000
 ```
-Hot reload bilan ishlash: `make install && make db && make dev` → http://localhost:5173.
-
-## 9. Xavfsizlik
-
-- `.env` `.gitignore` da. Barcha kalitlar faqat Railway Variables'da.
-- GitHub token, Gemini va OAuth kalitlarini chat, issue yoki commit'ga yozmang. Tasodifan ko'rinib qolsa, darhol bekor qilib yangisini yarating.
-- Google refresh token'lar bazada `DJANGO_SECRET_KEY` dan olingan kalit bilan shifrlangan. Shu kalitni almashtirsangiz, foydalanuvchilar Google'ni qayta ulashi kerak bo'ladi.
-
-## 10. GitHub'siz: shu kompyuterdagi papkadan Railway CLI bilan
-
-`railway up` joriy papkani (`.gitignore` hisobga olinadi, `.env` yuklanmaydi) Railway'ga yuklaydi va `Dockerfile` bilan build qiladi. Bu variantda frontend ham shu servisda bo'ladi (Vercel shart emas): `APP_URL` = Railway domeni.
-
-```bash
-# 0) CLI
-npm i -g @railway/cli && railway --version
-railway login                       # brauzer ochiladi (yoki: railway login --browserless)
-
-# 1) Sinalgan versiyaga o'ting (railway up papkadagi fayllarni yuklaydi, branch'ni emas)
-cd ~/Desktop/FinBaraka
-git checkout main
-
-# 2) Project
-railway init                        # yangi project, nomi: Baraka (mavjud bo'lsa: railway link)
-```
-
-3) **Baza:** railway.com → project → `+ New` → *Template* → **pgvector** → *Deploy*. Servis nomini `Postgres` qoldiring.
-
-```bash
-# 4) web servisi va domen
-railway add --service web           # bo'sh servis yaratadi
-railway domain --service web        # masalan https://web-production-xxxx.up.railway.app — yozib oling
-```
-
-5) **Variables:** dashboard → `web` → *Variables* → *Raw Editor* ga quyidagini joylang. Kalitlarni terminalga yozmang, shell history'da qolib ketadi.
-```
-APP_NAME=BizPilot AI
-APP_URL=https://web-production-xxxx.up.railway.app
-DEBUG=false
-DJANGO_SECRET_KEY=<python -c "import secrets;print(secrets.token_urlsafe(64))">
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-GEMINI_API_KEY=<.env dagi qiymat>
-GOOGLE_OAUTH_CLIENT_ID=<.env dagi qiymat>
-GOOGLE_OAUTH_CLIENT_SECRET=<.env dagi qiymat>
-GOOGLE_PICKER_API_KEY=<.env dagi qiymat>
-```
-
-```bash
-# 6) Deploy (root'dagi railway.json avtomatik ishlaydi: Dockerfile, migrate, health check)
-railway up --service web            # build loglari terminalda
-railway logs --service web          # ishga tushish loglari
-curl https://web-production-xxxx.up.railway.app/api/health?deep=1   # {"ok": true, ..., "db": true}
-
-# 7) Demo ma'lumot (ixtiyoriy, bir marta)
-railway ssh --service web
-python manage.py seed_demo --reset   # demo@demo.uz / demo12345
-exit
-```
-
-8) **Scheduler (ixtiyoriy):** 15 daqiqalik sinxron va 08:00 xulosa uchun. Ilova usiz ham ishlaydi; "Hozir yangilash" tugmasi qo'lda sinxron qiladi.
-```bash
-railway add --service scheduler
-```
-Dashboard → `scheduler` → *Settings → Config-as-code* → `railway.scheduler.json`. *Variables* ga `web` dagi qiymatlarni joylang (yoki Shared Variables). Keyin:
-```bash
-railway up --service scheduler
-```
-
-9) **Google Console:**
-   - JS origin: `https://web-production-xxxx.up.railway.app`
-   - Redirect URI: `https://web-production-xxxx.up.railway.app/api/integrations/google/callback`
-   - Picker API key referrer: `https://web-production-xxxx.up.railway.app/*`
-
-10) **Yangilash:** kodni o'zgartirgandan keyin `railway up --service web` (va scheduler).

@@ -62,10 +62,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--reset", action="store_true", help="delete previous demo data first")
         parser.add_argument("--export", metavar="FILE.xlsx", help="also export Navro'z as .xlsx")
+        parser.add_argument(
+            "--if-empty", action="store_true", help="seed only when no demo data exists (deploys)"
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         today = datetime.now(ZoneInfo("Asia/Tashkent")).date()
         if Business.objects.filter(seed_tag=SEED_TAG).exists():
+            if opts.get("if_empty"):
+                self.stdout.write("Demo data already exists; nothing to do.")
+                return
             if not opts["reset"] and opts.get("export"):
                 from apps.finance.demo_export import export_xlsx
 
