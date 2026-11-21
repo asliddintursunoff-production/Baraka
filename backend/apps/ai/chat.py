@@ -19,6 +19,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from typing import Any, TypeVar
 
 from asgiref.sync import sync_to_async
@@ -90,6 +91,7 @@ MD_RULES = """Javob formati — markdown (JSON emas), o'zbek tilida:
 - Keyin faqat savolga kerakli bo'limlar, "### " sarlavha bilan: ### Nima uchun (2–4 band, raqamlar tool'dan); ### Kelajakda nima bo'ladi; ### Variantlar (jadval bo'lishi mumkin); ### Tavsiyam (bitta aniq tavsiya); ### Reja (ko'pi bilan 5 ta raqamlangan qadam: sana yoki muddat + aniq harakat + summa); ### Menga kerak (faqat ma'lumot yetishmasa, aniq savol).
 - Biznes holati yoki umumiy tahlil so'ralsa yana: ### Pul manbai, ### Yashirin xavf, ### Yakuniy baho.
 - Tool natijasidagi "md" matni tayyor jadval va raqamlar: undan foydalan, jadvallarni qisqartirib bo'lsa ham ko'rsat. Mahsulot, taom, xodim nomlarini aniq yoz; "boshqa xarajatlar" deb umumlashtirma.
+- Tool natijasida yo'q sana yoki sonni yozma (masalan "2-noyabrgacha buyurtma bering" — bunday sana yo'q bo'lsa, "shu hafta" de). Jami, farq yoki o'rtachani o'zing hisoblama; tool'da "combined_total" kabi tayyor jami bo'lsa, faqat o'shani ishlat.
 - Oddiy savolga qisqa javob (3–8 qator); hisobot yoki tahlil so'ralsa to'liq.
 - Eng oxirgi qator: "CHIPS: savol 1 | savol 2 | savol 3" — shu javobga bog'liq keyingi 3 ta savol."""
 ADVISOR_SCHEMA = {
@@ -443,6 +445,15 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
                     continue
                 speculative[_args_key(name, dict(args))] = result
                 routed_blocks += result.get("ui_blocks", [])
+            totals = [
+                Decimal(r["facts"]["total_raw"])
+                for r in turn.results.values()
+                if isinstance(r.get("facts"), dict) and r["facts"].get("total_raw")
+            ]
+            if len(totals) > 1:  # "un va kartoshkaga": the sum comes from code, not the LLM
+                turn.results["combined_total"] = {
+                    "facts": {"combined_total": uz.format_mln(sum(totals, Decimal(0)))}
+                }
             if routed_blocks:
                 turn.blocks_sent_ms = turn.ms()
                 yield sse("blocks", {"blocks": routed_blocks, "replace": True, "speculative": True})
