@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { AppShell } from "@/components/AppShell";
@@ -14,7 +15,7 @@ import {
   SyncStatusCard,
 } from "@/components/sources/SourcesParts";
 import { ErrorState, PageSkeleton } from "@/components/States";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import type { SourcesPage } from "@/lib/sourcesTypes";
 import { type QualityPayload, ReconPanel } from "@/components/Reconciliation";
 
@@ -92,6 +93,37 @@ export default function SourcesPageView() {
       )}
 
       {d.connected && <DisconnectGoogle email={d.email} />}
+      <WipeData />
     </AppShell>
+  );
+}
+
+function WipeData() {
+  const [busy, setBusy] = useState(false);
+  async function wipe() {
+    const v = window.prompt(
+      "Barcha ma'lumotlar (fayllar, tranzaksiyalar, prognoz, chat, AI bilimi) butunlay o'chiriladi. Tasdiqlash uchun O'CHIRISH deb yozing:",
+    );
+    if (!v) return;
+    setBusy(true);
+    try {
+      await apiPost("/api/business/wipe", { confirm: v });
+      window.location.assign("/sources");
+    } catch {
+      window.alert("O'chirilmadi: O'CHIRISH so'zini to'g'ri yozing.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-card border border-[#FDA29B] bg-[#FEF3F2] px-5 py-4">
+      <div className="flex flex-col">
+        <span className="font-semibold text-[#B42318]">Barcha ma&apos;lumotlarni o&apos;chirish</span>
+        <span className="text-13 text-text-3">Manbalar, tranzaksiyalar, prognoz, chatlar va yuklangan fayllar. Qaytarib bo&apos;lmaydi.</span>
+      </div>
+      <button type="button" disabled={busy} onClick={() => void wipe()} className="rounded-card bg-[#D92D20] px-4 py-2 font-semibold text-white disabled:opacity-60">
+        {busy ? "O'chirilmoqda…" : "Hammasini o'chirish"}
+      </button>
+    </section>
   );
 }

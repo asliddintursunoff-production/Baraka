@@ -8,7 +8,6 @@ import type { Answer, AnswerVerdict } from "@/lib/chatTypes";
 import { cn } from "@/lib/utils";
 
 import { AssumptionChips, type Recomputed } from "./AssumptionChips";
-import { ListenButton } from "./ListenButton";
 import type { AnswerActions } from "./useAnswerActions";
 
 const VERDICT: Record<AnswerVerdict, { bg: string; color: string; Icon: typeof Check }> = {
@@ -55,7 +54,7 @@ interface Props {
   actions: AnswerActions;
 }
 
-export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
+export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
   const v = VERDICT[answer.verdict] ?? VERDICT.info;
   const advisor = answer.advisor ?? null;
   /** Result of re-running a tool from an edited assumption (replaces blocks + assumptions). */
@@ -206,7 +205,6 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
 
       {(answer.speech || explain.length > 0) && (
         <div className="flex flex-wrap items-center gap-[14px] border-t border-border-subtle bg-surface-muted-2 px-[22px] py-3">
-          {answer.speech && <ListenButton messageId={messageId} />}
           {explain.length > 0 && (
             <details className="min-w-0 flex-[1_1_260px]">
               <summary className="flex min-h-tap cursor-pointer items-center text-14 font-semibold text-text-3">

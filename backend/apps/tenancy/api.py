@@ -218,3 +218,85 @@ class DemoStartView(APIView):
         b = demo_business_for(request.user)
         request.session[SESSION_KEY] = b.pk
         return Response(me_payload(request.user, b))
+
+
+class WipeDataView(BusinessAPIView):
+    """POST /api/business/wipe {"confirm": "O'CHIRISH"}: delete ALL data of the current business
+    (sources, ledger, forecasts, chats, knowledge, uploaded files). Keeps the account, the business,
+    the Google login, the audit log and AI spend records (budget)."""
+
+    def post(self, request: Request) -> Response:
+        import shutil
+
+        from django.apps import apps as django_apps
+        from django.conf import settings
+        from django.db import transaction
+
+        from apps.tenancy.context import tenant_context
+
+        if str(
+            (request.data if isinstance(request.data, dict) else {}).get("confirm", "")
+        ).strip().upper() not in (
+            "O'CHIRISH",
+            "OCHIRISH",
+            "O‘CHIRISH",
+        ):
+            return Response(
+                {"error": "confirm", "message": "Tasdiqlash uchun O'CHIRISH deb yozing."},
+                status=400,
+            )
+        b = self.business
+        keep = {
+            "tenancy.Membership",
+            "integrations.GoogleCredential",
+            "actions.AuditLog",
+            "telemetry.AiUsage",
+        }
+        order = [
+            "ai.Message",
+            "ai.Conversation",
+            "actions.ActionPlan",
+            "insights.Alert",
+            "insights.ForecastSnapshot",
+            "knowledge.MemoryItem",
+            "knowledge.RuleCandidate",
+            "knowledge.BusinessRule",
+            "knowledge.ForecastParams",
+            "knowledge.ForecastAccuracy",
+            "finance.Transaction",
+            "finance.Obligation",
+            "finance.CashAccount",
+            "finance.Debt",
+            "ingestion.RawRow",
+            "ingestion.DataIssue",
+            "ingestion.SyncRun",
+            "ingestion.SheetMapping",
+            "finance.Counterparty",
+            "integrations.DataSource",
+            "telemetry.LatencyEvent",
+        ]
+        deleted = 0
+        with tenant_context(b), transaction.atomic():
+            labels = order + [
+                m._meta.label
+                for m in django_apps.get_models()
+                if m._meta.label not in order
+                and m._meta.label not in keep
+                and any(
+                    f.is_relation and f.related_model is Business and f.name == "business"
+                    for f in m._meta.fields
+                )
+            ]
+            for label in labels:
+                model = django_apps.get_model(label)
+                deleted += model._base_manager.filter(business=b).delete()[0]
+        shutil.rmtree(settings.BASE_DIR / "var" / "files" / str(b.pk), ignore_errors=True)
+        from apps.insights.forecasting import invalidate
+
+        invalidate(b.pk)
+        from apps.actions.audit import audit
+
+        audit(f"user:{request.user.pk}", "wipe_data", args={"rows": deleted})
+        return Response(
+            {"ok": True, "deleted": deleted, "message": "Barcha ma'lumotlar o'chirildi."}
+        )
