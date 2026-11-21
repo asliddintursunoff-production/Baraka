@@ -13,3 +13,6 @@ backend/staticfiles
 *.xlsx
 design
 docs
+backend/spike_out
+visual_out
+backend/fixtures

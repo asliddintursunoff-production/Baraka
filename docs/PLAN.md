@@ -331,6 +331,7 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - 19:49 M8: `make latency` (`latency_report`: page APIs in-process, recorded chat/voice events, AiUsage cost table), `railway.json` + `railway.scheduler.json`, README deploy + AI budget sections, demo path run end to end in the browser (chat: cards 44 ms, answer 2.8 s → "Ha" → reminder → correction → "Eslab qol" → banner includes Agro Go'sht), `seed_demo --reset` + `demo_navroz.xlsx` exported, `make test` green (pytest 904, vitest 31, ruff, mypy, tsc, eslint).
 - Decision: oauthlib env flags moved from `integrations/google.py` to `settings.py` (apps must not touch `os.environ`).
 - Decision: Railway runs `migrate` inside `start-web.sh` (one web replica), so no pre-deploy command is needed.
+- 20:12 Decision: removed `pandas` from requirements (never imported; 12 MB download timed out on the slow network); pip in the Dockerfile uses `--retries 10 --timeout 120`; `.dockerignore` excludes spike audio, screenshots and test fixtures.
 
 ## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).

@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app/backend
 COPY backend/requirements.txt ./
-RUN pip install -r requirements.txt
+RUN pip install --retries 10 --timeout 120 -r requirements.txt
 COPY backend/ ./
 COPY docker/ /app/docker/
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
