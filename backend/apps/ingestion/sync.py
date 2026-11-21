@@ -193,11 +193,16 @@ def sync_source(
             ing.workbook_sheets = list(wb.sheets)
             mappings = {m.sheet_title: m for m in SheetMapping.objects.filter(source=source)}
             stale: list[str] = []
+            from .mapping import heuristic_sheet, is_finmodel_family
+
+            hps = {sh.title: heuristic_sheet(sh) for sh in wb.sheets}
+            family = is_finmodel_family(list(hps.values()))
             for sheet in wb.sheets:
                 m = mappings.get(sheet.title)
-                from .mapping import heuristic_sheet
-
-                hp = heuristic_sheet(sheet)
+                hp = hps[sheet.title]
+                if family and not (hp and hp.kind.startswith("finmodel")):
+                    purge_sheet(source, sheet.title)  # analysis-only tab of a financial model
+                    continue
                 if hp and hp.kind == "ignore" and hp.kind_confidence >= 0.95:
                     purge_sheet(source, sheet.title)  # report / accrual tab: never ingested
                     continue

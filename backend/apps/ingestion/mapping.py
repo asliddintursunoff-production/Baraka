@@ -38,6 +38,9 @@ FIELDS = (
     "status",
     "note",
     "ignore",
+    "revenue",
+    "info",
+    "computed",
 )
 KINDS = (
     "transactions_in",
@@ -65,6 +68,9 @@ FIELD_LABELS = {
     "status": "Holati ustuni uchun maydon",
     "note": "Izoh",
     "ignore": "E'tiborsiz qoldirish",
+    "revenue": "Kunlik tushum (savdo, agregator bilan)",
+    "info": "O'qiladi (tahlil uchun)",
+    "computed": "Formula ustun (tekshiruv uchun)",
 }
 KIND_LABELS = {
     "transactions_in": "Kirim (savdo)",
@@ -79,7 +85,7 @@ KIND_LABELS = {
     "finmodel_smena": "Smena — kunlik savdo tushumi",
     "finmodel_purchases": "Kirim — darhol to'langan xaridlar",
     "finmodel_accounts": "Pul hisoblari — boshlang'ich qoldiq",
-    "ignore": "E'tiborsiz",
+    "ignore": "Tahlil uchun o'qiladi (kassaga qo'shilmaydi)",
 }
 CONFIRM_BELOW = cfg.MAPPING_CONFIDENCE_THRESHOLD
 
@@ -106,6 +112,8 @@ class SheetProposal:
 
     def payload(self, *, kind_label: str | None = None) -> dict[str, Any]:
         sure = sum(1 for c in self.columns if c.confidence >= CONFIRM_BELOW)
+        n_calc = sum(1 for c in self.columns if c.field == "computed" or c.question == "formula")
+        n_in = len(self.columns) - n_calc
         amount_label = {
             "transactions_in": "Summa · kirim",
             "transactions_out": "Summa · chiqim",
@@ -117,7 +125,12 @@ class SheetProposal:
             "header_row": self.header_row,
             "kind": self.kind,
             "kind_label": kind_label or KIND_LABELS.get(self.kind, self.kind),
-            "recognized": f"{len(self.columns)} ustundan {sure} tasi aniq tanildi",
+            "recognized": (
+                f"{n_in} ustundan {n_in} tasi tanildi"
+                + (f" · {n_calc} ta formula ustun" if n_calc else "")
+                if any(c.field in ("info", "computed", "revenue") for c in self.columns)
+                else f"{len(self.columns)} ustundan {sure} tasi aniq tanildi"
+            ),
             "columns": [
                 {
                     "index": c.index,
@@ -129,7 +142,8 @@ class SheetProposal:
                     else FIELD_LABELS.get(c.field, c.field),
                     "confidence": round(c.confidence, 2),
                     "status": "sure" if c.confidence >= CONFIRM_BELOW else "confirm",
-                    "question": c.question,
+                    "question": None if c.question == "formula" else c.question,
+                    "computed": c.field == "computed" or c.question == "formula",
                 }
                 for c in self.columns
             ],
@@ -294,10 +308,24 @@ def merge(p: SheetProposal, llm: dict[str, Any] | None) -> SheetProposal:
     return p
 
 
+def is_finmodel_family(props: list[Any]) -> bool:
+    kinds = {p.kind for p in props if p}
+    return "finmodel_kassa" in kinds or "finmodel_smena" in kinds
+
+
 async def propose_workbook(wb: WorkbookData, *, use_llm: bool = True) -> list[SheetProposal]:
     props = [
         heuristic_sheet(s) or SheetProposal(s.title, 1, "", 0, "ignore", 0.5) for s in wb.sheets
     ]
+    if is_finmodel_family(props):
+        # financial-model workbook: only its ledger tabs feed cash; extra tabs (Energiya,
+        # Soatlik savdo, Investitsiyalar...) duplicate Kassa/Smena and are read for analysis only
+        for p in props:
+            if not p.kind.startswith("finmodel") and p.kind != "ignore":
+                p.kind, p.kind_confidence = "ignore", 0.95
+                for c in p.columns:
+                    c.field, c.confidence, c.question = "info", 1.0, None
+        return props
     if not use_llm or not any(p.columns for p in props):
         return props
     if all(

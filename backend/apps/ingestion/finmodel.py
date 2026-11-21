@@ -150,6 +150,35 @@ def detect(sheet: SheetData) -> Detected | None:
     return None
 
 
+def info_proposal(sheet: SheetData) -> SheetProposal:
+    """Analysis-only tab (Sotuv, Ish haqi, Energiya...): every column listed, not added to cash."""
+    from apps.workbook.reader import detect_sheet
+
+    from .mapping import ColumnProposal, SheetProposal
+
+    t = detect_sheet(sheet.title, sheet.rows)
+    if not t.header_row:
+        return SheetProposal(sheet.title, 1, "", len(t.rows), "ignore", 0.95)
+    header = sheet.rows[t.header_row - 1]
+    keys = _keys(header)
+    izoh = next((j for j, k in enumerate(keys) if k.startswith("izoh")), None)
+    cols = []
+    for c in t.columns:
+        if c.name.startswith("col_"):
+            continue
+        j = c.index
+        sample = next(
+            (str(r[j - t.first_col])[:40] for r in t.rows if r[j - t.first_col] not in (None, "")),
+            "",
+        )
+        cols.append(
+            ColumnProposal(
+                j, c.name, sample, "computed" if izoh is not None and j > izoh else "info", 1.0
+            )
+        )
+    return SheetProposal(sheet.title, t.header_row, "", len(t.rows), "ignore", 0.95, cols)
+
+
 def proposal(sheet: SheetData) -> SheetProposal | None:
     from .mapping import ColumnProposal, SheetProposal
 
@@ -157,7 +186,7 @@ def proposal(sheet: SheetData) -> SheetProposal | None:
     if d is None:
         return None
     if d.kind == "ignore":
-        return SheetProposal(sheet.title, 1, "", 0, "ignore", 0.95)
+        return info_proposal(sheet)
     header = sheet.rows[d.header_row]
     data = [r for r in sheet.rows[d.header_row + 1 :] if any(c not in (None, "") for c in r)]
     fields = {
@@ -178,12 +207,32 @@ def proposal(sheet: SheetData) -> SheetProposal | None:
         ACCOUNTS: (("hisob nomi", "note"), ("boshl", "amount")),
     }[d.kind]
     cols = []
+    used: set[int] = set()
     for start, field_name in fields:
         i = _col(header, start)
         if i is None:
             continue
+        used.add(i)
         sample = next((str(r[i])[:40] for r in data if i < len(r) and r[i] not in (None, "")), "")
         cols.append(ColumnProposal(i, str(header[i]), sample, field_name, 1.0))
+    # every other column too: input columns (up to "Izoh") are read; the rest are formulas
+    keys = _keys(header)
+    izoh = next((j for j, k in enumerate(keys) if k.startswith("izoh")), None)
+    for j, v in enumerate(header):
+        if j in used or v in (None, ""):
+            continue
+        sample = next((str(r[j])[:40] for r in data if j < len(r) and r[j] not in (None, "")), "")
+        computed = izoh is not None and j > izoh
+        if d.kind == SMENA and keys[j].startswith("z hisobot"):
+            fld = "revenue"
+        else:
+            fld = "computed" if computed else "info"
+        cols.append(ColumnProposal(j, str(v), sample, fld, 1.0))
+    if izoh is not None:
+        for c in cols:
+            if c.index > izoh and c.field not in ("computed",):
+                c.question = "formula"  # derived column used as a check / ledger amount
+    cols.sort(key=lambda c: c.index)
     return SheetProposal(
         sheet.title,
         d.header_row + 1,
