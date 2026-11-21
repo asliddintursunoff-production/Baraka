@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand, CommandError
 from google import genai
 from google.genai import types
 
-from apps.ai import spike
+from apps.ai import budget, spike
 from apps.ai.gemini import client, is_retryable, scrub
 from apps.ai.live import live_config, mint_token
 from config import app_settings as cfg
@@ -74,6 +74,7 @@ class Command(BaseCommand):
                 r = c.models.generate_content(
                     model=model, contents="Faqat bitta so'z bilan javob ber: salom", config=conf
                 )
+                budget.record("check", model, usage=r.usage_metadata)
                 ok(
                     f"{role:<9} {model}",
                     f"{(time.perf_counter() - t0) * 1000:.0f} ms, {r.text!r:.40}",
@@ -109,6 +110,7 @@ class Command(BaseCommand):
                     },
                 ),
             )
+            budget.record("check", cfg.AI_MODELS["chat"], usage=r.usage_metadata)
             ok("chat tools+json", "function calling and response_json_schema accepted together")
         except Exception as exc:
             if is_retryable(exc):
@@ -127,6 +129,11 @@ class Command(BaseCommand):
                 config=types.EmbedContentConfig(
                     output_dimensionality=cfg.EMBEDDING_DIM, task_type="RETRIEVAL_DOCUMENT"
                 ),
+            )
+            budget.record(
+                "embedding",
+                cfg.AI_MODELS["embedding"],
+                usage=types.GenerateContentResponseUsageMetadata(prompt_token_count=12),
             )
             values = (er.embeddings or [types.ContentEmbedding()])[0].values or []
             if len(values) != cfg.EMBEDDING_DIM:
@@ -186,6 +193,9 @@ class Command(BaseCommand):
                     transcript.append(sc.output_transcription.text)
                 if sc and sc.turn_complete:
                     break
+        await asyncio.to_thread(
+            budget.record, "live", tok.model, seconds=max(1, round(time.perf_counter() - t1))
+        )
         if not first_audio:
             raise RuntimeError("Live session returned no audio")
         return (

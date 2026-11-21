@@ -1,0 +1,12 @@
+{
+  "title": "Transactions",
+  "rows": [
+    ["Date", "Type", "Amount", "Category", "Note"],
+    ["2026-11-14", "income", 5800000, "sales", ""],
+    ["2026-11-14", "expense", 741000, "vegetables", "Chorsu"],
+    ["2026-11-15", "+", 6200000, "sales", ""],
+    ["2026-11-15", "-", "1,200,000", "electricity", "Svet"],
+    ["Nov 16, 2026", "Kirim", "4,350,000.00", "sales", ""],
+    ["Nov 16, 2026", "Chiqim", "-350000", "vegetables", "minus typed by habit"]
+  ]
+}

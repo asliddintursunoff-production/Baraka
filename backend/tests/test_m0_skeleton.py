@@ -33,14 +33,14 @@ def test_pgvector_extension_enabled():
         assert cur.fetchone() == (1,)
 
 
-def test_env_example_has_exactly_the_8_keys():
+def test_env_example_has_exactly_the_allowed_keys():
     keys = [
         line.split("=", 1)[0]
         for line in (REPO / ".env.example").read_text().splitlines()
         if line.strip() and not line.startswith("#")
     ]
     assert keys == list(settings_module().ENV_KEYS)
-    assert len(keys) == 8
+    assert len(keys) == 9  # spec's 8 + GOOGLE_PICKER_API_KEY (user decision, M5)
 
 
 def settings_module():

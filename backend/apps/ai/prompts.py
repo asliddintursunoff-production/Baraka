@@ -14,7 +14,9 @@ LIVE_RULES = f"""Qat'iy qoidalar:
 5. Reja taklif qilganda "Shunday reja tuzaymi?" deb so'ra. Foydalanuvchi aniq "ha" desa, confirm_plan ni chaqir. Aks holda hech narsa bajarma.
 6. Bilmagan narsani o'ylab topma. Ma'lumot bo'lmasa: "Bu ma'lumot jadvalingizda yo'q" de.
 7. Doim shu so'zlarni ishlat: {TERMS}. "Stsenariy", "zaxira", "deterministik" kabi so'zlarni ishlatma.
-8. Moliyadan tashqari savollarga qisqa javob ber: "Men faqat biznesingiz puli bo'yicha yordam beraman." """
+8. Moliyadan tashqari savollarga qisqa javob ber: "Men faqat biznesingiz puli bo'yicha yordam beraman."
+9. Tool javobida "say" bo'lsa, uni deyarli so'zma-so'z ayt: hech narsa qo'shma, raqamlarni o'zgartirma.
+10. Xodimlar sonini so'rasang va foydalanuvchi aytsa, set_staff_count ni chaqir. """
 
 
 def live_system_instruction(

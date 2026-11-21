@@ -10,6 +10,8 @@ import Placeholder from "./pages/Placeholder";
 const ForecastPage = lazy(() => import("./pages/Forecast"));
 const CalendarPage = lazy(() => import("./pages/Calendar"));
 const ChatPage = lazy(() => import("./pages/Chat"));
+const SourcesPage = lazy(() => import("./pages/Sources"));
+const ConnectPage = lazy(() => import("./pages/Connect"));
 const DevVoice = lazy(() => import("./pages/dev/DevVoice"));
 
 function Lazy({ children }: { children: ReactNode }) {
@@ -29,8 +31,8 @@ export const router = createBrowserRouter([
   { path: "/calendar", element: authed(<CalendarPage />) },
   { path: "/chat", element: authed(<ChatPage />) },
   { path: "/knowledge", element: authed(<Placeholder active="knowledge" title="AI bilimi" />) },
-  { path: "/sources", element: authed(<Placeholder active="sources" title="Ma'lumotlar" />) },
-  { path: "/onboarding/connect", element: authed(<Placeholder active="sources" title="Google Sheets ulash" />) },
+  { path: "/sources", element: authed(<SourcesPage />) },
+  { path: "/onboarding/connect", element: authed(<ConnectPage />) },
   { path: "/live", element: authed(<Placeholder active="chat" title="Jonli suhbat" />) },
   { path: "/dev/voice", element: <Lazy><DevVoice /></Lazy> },
   { path: "*", element: authed(<Placeholder active="main" title="Sahifa topilmadi" />) },

@@ -94,7 +94,7 @@ RULE_SCHEMA = {
 def llm_rule(text: str) -> dict[str, Any] | None:
     from google.genai import types
 
-    from apps.ai.gemini import client
+    from apps.ai import budget
     from config import app_settings as cfg
 
     known = list(Counterparty.objects.values_list("name", flat=True)[:40])
@@ -104,7 +104,8 @@ def llm_rule(text: str) -> dict[str, Any] | None:
         f"Ma'lum kontragentlar: {', '.join(known)}\nMatn: {text}"
     )
     try:
-        r = client().models.generate_content(
+        r = budget.generate_sync(
+            "light",
             model=cfg.AI_MODELS["light"],
             contents=prompt,
             config=types.GenerateContentConfig(

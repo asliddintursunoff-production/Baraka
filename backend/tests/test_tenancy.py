@@ -60,9 +60,9 @@ def _make_rows(biz):
     from apps.actions.models import ActionPlan, AuditLog
     from apps.ai.models import Conversation, Message
     from apps.finance.models import CashAccount, Counterparty, Obligation, Transaction
-    from apps.ingestion.models import DataIssue, RawRow, SheetMapping
+    from apps.ingestion.models import DataIssue, RawRow, SheetMapping, SyncRun
     from apps.insights.models import Alert, ForecastSnapshot
-    from apps.integrations.models import DataSource
+    from apps.integrations.models import DataSource, GoogleCredential
     from apps.knowledge.models import BusinessRule, ForecastAccuracy, MemoryItem, RuleCandidate
 
     with tenant_context(biz):
@@ -82,6 +82,10 @@ def _make_rows(biz):
             business=biz, source=src, sheet_title="Kirim", row_index=1, row_hash=biz.name
         )
         DataIssue.objects.create(business=biz, raw_row=raw, kind="empty_amount", message_uz="x")
+        SyncRun.objects.create(business=biz, source=src)
+        GoogleCredential.objects.create(
+            business=biz, encrypted_refresh_token="enc", email=f"{biz.name}@x.uz"
+        )
         ForecastSnapshot.objects.create(
             business=biz,
             horizon_days=1,
@@ -106,8 +110,8 @@ def _make_rows(biz):
 
 APP_MODELS = {
     "finance": ["Transaction", "Obligation", "Counterparty", "CashAccount"],
-    "integrations": ["DataSource"],
-    "ingestion": ["SheetMapping", "RawRow", "DataIssue"],
+    "integrations": ["DataSource", "GoogleCredential"],
+    "ingestion": ["SheetMapping", "RawRow", "DataIssue", "SyncRun"],
     "insights": ["ForecastSnapshot", "Alert"],
     "knowledge": ["BusinessRule", "RuleCandidate", "ForecastAccuracy"],
     "ai": ["Conversation", "Message"],

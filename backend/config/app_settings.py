@@ -41,9 +41,9 @@ CHAT_MAX_TOOL_ROUNDS = 3
 # --- Live voice ---------------------------------------------------------------------
 LIVE_TOKEN_USES = 1
 LIVE_TOKEN_TTL_MIN = 30  # session messages rejected after this
-LIVE_NEW_SESSION_WINDOW_S = 60  # a new session must be opened within this window
+LIVE_NEW_SESSION_WINDOW_S = 600  # P3: a prefetched token stays usable for 10 min
 LIVE_VOICE_NAME = "Kore"
-LIVE_SILENCE_DURATION_MS = 500  # end-of-speech silence for server VAD (docs: 500-800)
+LIVE_SILENCE_DURATION_MS = 300  # P2 (approved): 300 ms; back to 500 if >1/10 real questions get cut
 LIVE_PREFIX_PADDING_MS = 100
 LIVE_TRANSCRIPTION_LANGUAGE_HINTS = ["uz"]
 LIVE_INPUT_RATE = 16_000
@@ -63,6 +63,14 @@ SPEND_LIMIT_ROUNDING = Decimal("1000000")  # round down to 1 mln
 INSTALLMENT_MONTHS = 3
 P10_P90_Z = 1.2816  # standard-normal quantile for P10/P90
 
+# --- Google (M5) ----------------------------------------------------------------------
+GOOGLE_SCOPES = ("openid", "email", "https://www.googleapis.com/auth/drive.file")
+GOOGLE_CALLBACK_PATH = "/api/integrations/google/callback"
+OAUTH_STATE_TTL_S = 600
+SHEETS_MIME = "application/vnd.google-apps.spreadsheet"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+GOOGLE_BACKOFF_ATTEMPTS = 4
+
 # --- Ingestion / scheduler ----------------------------------------------------------
 SYNC_INTERVAL_MIN = 15
 MAPPING_CONFIDENCE_THRESHOLD = 0.8
@@ -78,3 +86,26 @@ MEMORY_TOP_K = 6
 
 # --- Tool envelope ------------------------------------------------------------------
 TOOL_RESPONSE_MAX_BYTES = 2048
+
+# --- AI budget (final mode, PLAN §0) ----------------------------------------------------
+# dev = DEBUG=true: chat on the cheapest model only; demo = DEBUG=false: full fallback chain.
+AI_PROFILES: dict[str, tuple[str, ...]] = {
+    "dev": ("gemini-3.5-flash-lite",),
+    "demo": CHAT_MODEL_CHAIN,
+}
+AI_DAILY_BUDGET_USD = Decimal("0.50")
+AI_TOTAL_BUDGET_USD = Decimal("4.00")
+# Estimated USD per 1M tokens (input, output); Live per minute of session. Estimates only.
+AI_PRICES_PER_M_TOKENS: dict[str, tuple[Decimal, Decimal]] = {
+    "gemini-3.8-flash": (Decimal("0.50"), Decimal("3.00")),
+    "gemini-3.6-flash": (Decimal("0.30"), Decimal("2.50")),
+    "gemini-3.5-flash-lite": (Decimal("0.10"), Decimal("0.40")),
+    "gemini-3.8-flash-tts": (Decimal("0.50"), Decimal("10.00")),
+    "gemini-embedding-001": (Decimal("0.15"), Decimal("0")),
+}
+AI_LIVE_USD_PER_MIN = Decimal("0.025")
+AI_DEFAULT_PRICE_PER_M = (Decimal("0.50"), Decimal("3.00"))
+LIVE_MAX_SESSION_S = 300  # one Live session lasts 5 min at most
+LIVE_RESERVE_S = 60  # billed at mint (tokens may go unused), corrected by /live/finish
+LIVE_IDLE_CLOSE_S = 30
+BUDGET_MESSAGE_LIVE = "Bugungi ovoz limiti tugadi"

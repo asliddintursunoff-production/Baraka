@@ -4,9 +4,12 @@
  * - On `prepare()`: mic permission, token fetch and AudioWorklet loading run in parallel,
  *   then the WebSocket is opened, so the session is ready before the user speaks.
  * - Mic: AudioWorklet -> 16 kHz PCM16, 20 ms frames, streamed continuously.
- * - Playback: 24 kHz ring-buffer worklet, starts on the first chunk; cleared on `interrupted`.
+ * - Playback: 24 kHz ring-buffer worklet, starts on the first chunk; cleared on `interrupted`
+ *   and on `stopPlayback()`.
  * - Tool calls: POST to the backend (same origin, session cookie), render the ui_blocks right
- *   away, then `sendToolResponse`.
+ *   away, then `sendToolResponse` (without `ui_blocks` / `answer`).
+ * - Reconnect: when the server closes an established session, a new token (`getToken`) is
+ *   taken and the session is resumed with the last resumption handle.
  * Audio never passes through Django; Django only mints the token and runs tools.
  */
 import {
@@ -17,7 +20,7 @@ import {
   type Session,
 } from "@google/genai";
 
-import { apiPost } from "@/lib/api";
+import { ApiError, apiPost } from "@/lib/api";
 
 import { base64ToBuffer, bufferToBase64 } from "./pcm";
 
@@ -56,9 +59,25 @@ export interface VoiceClientOptions {
   onToolResult: (name: string, args: Record<string, unknown>, result: ToolResult) => Promise<void>;
   onMetric: (m: Metric) => void;
   onSpeaking?: (speaking: boolean) => void;
+  /** Token source for `prepare()` (when no token promise is passed) and for reconnects.
+   * Default: POST `tokenUrl`. */
+  getToken?: () => Promise<TokenResponse>;
+  /** Add `_user_utterance` (latest user input) and `_channel: "voice"` to every tool body. */
+  annotateToolCalls?: boolean;
+  /** Keep the session (text in, voice out) when the microphone is unavailable. Default false:
+   * `prepare()` rejects. */
+  micOptional?: boolean;
+  onMicError?: (err: unknown) => void;
+  /** A tool call arrived (before the HTTP request). */
+  onToolCall?: (name: string, args: Record<string, unknown>) => void;
+  /** Mic voice activity (frame RMS, with a short hangover). */
+  onUserSpeaking?: (speaking: boolean) => void;
+  /** A model turn ended (`turnComplete` or `interrupted`); `turn` is the finished turn. */
+  onTurnComplete?: (turn: number, interrupted: boolean) => void;
 }
 
 const VOICE_RMS = 0.02; // frame RMS above this counts as speech (for speech_end timing)
+const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
 
 export class VoiceClient {
   private opts: VoiceClientOptions;
@@ -80,41 +99,86 @@ export class VoiceClient {
   private turn = 0;
   private closedByUser = false;
 
+  // latest user input (for `_user_utterance`), keyed by turn so late chunks still append
+  private utterance = "";
+  private utteranceTurn = -1;
+  private userVoice = false;
+  /** `stopPlayback()` was pressed: drop the rest of this model turn's audio. */
+  private muteTurn = false;
+
   constructor(opts: VoiceClientOptions) {
     this.opts = opts;
   }
 
-  /** Parallel: mic + token + worklets; then connect. Resolves when the session is ready. */
+  /** Parallel: mic + token + worklets; then connect. Resolves when the session is ready
+   * (or quietly when `stop()` was called meanwhile). */
   async prepare(tOpen = performance.now(), prefetchedToken?: Promise<TokenResponse>): Promise<void> {
     this.tOpen = tOpen;
     this.closedByUser = false;
     this.opts.onStatus("preparing");
-    const tokenP = prefetchedToken ?? this.fetchToken();
-    const micP = navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-    });
-    this.micCtx = new AudioContext();
-    this.playCtx = new AudioContext({ sampleRate: 24000 });
-    const workletsP = Promise.all([
-      this.micCtx.audioWorklet.addModule("/worklets/mic-processor.js"),
-      this.playCtx.audioWorklet.addModule("/worklets/pcm-player.js"),
-    ]);
-    const [token, stream] = await Promise.all([tokenP, micP, workletsP]);
-    this.stream = stream;
-    this.metric("token_ready", performance.now() - this.tOpen, { mint_ms: token.mint_ms });
-    this.setupPlayer();
-    this.setupMic(stream);
-    await this.connect(token);
+    let micP: Promise<MediaStream | null> | undefined;
+    try {
+      const tokenP = prefetchedToken ?? this.nextToken();
+      micP = this.openMic();
+      this.micCtx = new AudioContext();
+      this.playCtx = new AudioContext({ sampleRate: 24000 });
+      const workletsP = Promise.all([
+        this.micCtx.audioWorklet.addModule("/worklets/mic-processor.js"),
+        this.playCtx.audioWorklet.addModule("/worklets/pcm-player.js"),
+      ]);
+      const [token, stream] = await Promise.all([tokenP, micP, workletsP]);
+      if (this.closedByUser) return;
+      this.metric("token_ready", performance.now() - this.tOpen, { mint_ms: token.mint_ms, mic: !!stream });
+      this.setupPlayer();
+      if (stream) this.setupMic(stream);
+      await this.connect(token, false);
+    } catch (err) {
+      if (this.closedByUser) return;
+      this.releaseMedia();
+      // The token can fail while the permission prompt is still open: release a late stream.
+      void micP?.then(
+        (s) => s?.getTracks().forEach((t) => t.stop()),
+        () => undefined,
+      );
+      this.opts.onStatus("error", errorText(err));
+      throw err;
+    }
   }
 
   fetchToken(): Promise<TokenResponse> {
     return apiPost<TokenResponse>(this.opts.tokenUrl, { behavior: this.opts.behavior });
   }
 
-  private async connect(token: TokenResponse): Promise<void> {
-    this.opts.onStatus("connecting");
+  private nextToken(): Promise<TokenResponse> {
+    return this.opts.getToken ? this.opts.getToken() : this.fetchToken();
+  }
+
+  /** getUserMedia; the stream is stored at once so `stop()` can always release it. */
+  private async openMic(): Promise<MediaStream | null> {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Mikrofon mavjud emas");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+      if (this.closedByUser) {
+        stream.getTracks().forEach((t) => t.stop());
+        return null;
+      }
+      this.stream = stream;
+      return stream;
+    } catch (err) {
+      if (!this.opts.micOptional) throw err;
+      this.metric("mic_unavailable", 0, { error: err instanceof Error ? err.name : String(err) });
+      this.opts.onMicError?.(err);
+      return null;
+    }
+  }
+
+  private async connect(token: TokenResponse, isReconnect: boolean): Promise<void> {
+    this.opts.onStatus("connecting", isReconnect ? "qayta ulanmoqda" : undefined);
     const ai = new GoogleGenAI({ apiKey: token.token, httpOptions: { apiVersion: "v1beta" } });
     const tConnect = performance.now();
+    const tStart = isReconnect ? tConnect : this.tOpen;
     let resolveReady: () => void = () => {};
     let rejectReady: (e: Error) => void = () => {};
     const readyP = new Promise<void>((res, rej) => {
@@ -122,7 +186,7 @@ export class VoiceClient {
       rejectReady = rej;
     });
     this.ready = false;
-    this.session = await ai.live.connect({
+    const session = await ai.live.connect({
       model: token.model,
       config: {
         responseModalities: [Modality.AUDIO],
@@ -133,7 +197,7 @@ export class VoiceClient {
         onmessage: (m: LiveServerMessage) => {
           if (m.setupComplete && !this.ready) {
             this.ready = true;
-            this.metric("session_ready", performance.now() - this.tOpen, {
+            this.metric(isReconnect ? "reconnect_ready" : "session_ready", performance.now() - tStart, {
               connect_ms: Math.round(performance.now() - tConnect),
             });
             this.opts.onStatus("ready");
@@ -142,18 +206,20 @@ export class VoiceClient {
           void this.onMessage(m);
         },
         onerror: (e: ErrorEvent) => {
-          this.opts.onStatus("error", e.message);
+          if (this.closedByUser) return;
+          // Before setup: prepare()/reconnect() report it. After: onclose reconnects.
           rejectReady(new Error(e.message || "Live xatosi"));
+          this.metric("ws_error", 0, { message: e.message, ready: this.ready });
         },
         onclose: (e: CloseEvent) => {
           const wasReady = this.ready;
           this.ready = false;
           this.session = null;
-          if (!wasReady) {
-            rejectReady(new Error(e.reason || "Live yopildi"));
-            this.opts.onStatus("error", e.reason || "ulanib bo'lmadi");
-          } else if (this.closedByUser) {
-            this.opts.onStatus("closed");
+          if (this.closedByUser) {
+            rejectReady(new Error("closed"));
+          } else if (!wasReady) {
+            // prepare()/reconnect() report the failure.
+            rejectReady(new Error(e.reason || "ulanib bo'lmadi"));
           } else {
             // Server closed an established session (goAway / ~10 min limit): new token, resume.
             this.opts.onStatus("connecting", e.reason || "qayta ulanmoqda");
@@ -162,15 +228,26 @@ export class VoiceClient {
         },
       },
     });
-    await readyP;
+    if (this.closedByUser) {
+      session.close();
+      return;
+    }
+    this.session = session;
+    try {
+      await readyP;
+    } catch (err) {
+      if (this.closedByUser) return;
+      throw err;
+    }
   }
 
   private async reconnect(): Promise<void> {
     try {
-      const token = await this.fetchToken();
-      await this.connect(token);
+      const token = await this.nextToken();
+      if (this.closedByUser) return;
+      await this.connect(token, true);
     } catch (err) {
-      this.opts.onStatus("error", err instanceof Error ? err.message : String(err));
+      if (!this.closedByUser) this.opts.onStatus("error", errorText(err));
     }
   }
 
@@ -191,9 +268,17 @@ export class VoiceClient {
       processorOptions: { frameMs: 20 },
     });
     this.mic.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
+      const now = performance.now();
       if (e.data.rms > VOICE_RMS) {
-        this.lastVoiceAt = performance.now();
+        this.lastVoiceAt = now;
         this.userSpokeSinceModel = true;
+        if (!this.userVoice) {
+          this.userVoice = true;
+          this.opts.onUserSpeaking?.(true);
+        }
+      } else if (this.userVoice && now - this.lastVoiceAt > VOICE_HANGOVER_MS) {
+        this.userVoice = false;
+        this.opts.onUserSpeaking?.(false);
       }
       if (!this.session || !this.ready) return;
       this.session.sendRealtimeInput({
@@ -237,14 +322,26 @@ export class VoiceClient {
           this.metric("tool_response_to_first_audio", now - this.toolRespondedAt, { turn: this.turn });
           this.toolRespondedAt = 0;
         }
+        if (this.muteTurn) continue;
         const buf = base64ToBuffer(data);
         this.player?.port.postMessage({ type: "push", data: buf }, [buf]);
       }
-      if (sc.inputTranscription?.text) this.opts.onCaption("user", sc.inputTranscription.text, this.turn);
+      const heard = sc.inputTranscription?.text;
+      if (heard) {
+        if (this.utteranceTurn !== this.turn) {
+          this.utterance = "";
+          this.utteranceTurn = this.turn;
+        }
+        this.utterance += heard;
+        this.opts.onCaption("user", heard, this.turn);
+      }
       if (sc.outputTranscription?.text) this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
       if (sc.turnComplete || sc.interrupted) {
+        const done = this.turn;
         this.modelAudioThisTurn = false;
+        this.muteTurn = false;
         this.turn += 1;
+        this.opts.onTurnComplete?.(done, !!sc.interrupted);
       }
     }
 
@@ -252,18 +349,30 @@ export class VoiceClient {
       const name = call.name ?? "";
       const args = (call.args ?? {}) as Record<string, unknown>;
       const t0 = performance.now();
+      this.opts.onToolCall?.(name, args);
+      const body = this.opts.annotateToolCalls
+        ? { ...args, _user_utterance: this.utterance.trim(), _channel: "voice" }
+        : args;
       let result: ToolResult;
       try {
-        result = await apiPost<ToolResult>(this.opts.toolUrl(name), args, { keepalive: true });
+        result = await apiPost<ToolResult>(this.opts.toolUrl(name), body, { keepalive: true });
       } catch (err) {
-        result = { ok: false, error: "tool_failed", detail: String(err) };
+        // A 4xx body ({ok:false, error:"bad_args", detail}) tells the model what was wrong.
+        result =
+          err instanceof ApiError && err.body && typeof err.body === "object"
+            ? { ok: false, ...(err.body as Record<string, unknown>) }
+            : { ok: false, error: "tool_failed", detail: String(err) };
       }
       const tFetched = performance.now();
-      this.metric("tool_http", tFetched - t0, { tool: name });
-      await this.opts.onToolResult(name, args, result);
+      this.metric("tool_http", tFetched - t0, { tool: name, ok: result.ok !== false });
+      try {
+        await this.opts.onToolResult(name, args, result);
+      } catch {
+        /* a rendering problem must not block the model's answer */
+      }
       this.metric("tool_response_to_card", performance.now() - tFetched, { tool: name });
-      // Strip ui_blocks: the model only needs facts/speech; keeps the payload small.
-      const { ui_blocks: _blocks, ...forModel } = result;
+      // The model only needs facts/speech/say: no UI blocks, no long answer templates.
+      const { ui_blocks: _blocks, answer: _answer, ...forModel } = result;
       this.session?.sendToolResponse({
         functionResponses: [
           {
@@ -289,16 +398,62 @@ export class VoiceClient {
   sendText(text: string): void {
     this.userSpokeSinceModel = true;
     this.lastVoiceAt = performance.now();
+    if (this.utteranceTurn !== this.turn) this.utterance = "";
+    this.utterance = this.utterance ? `${this.utterance} ${text}` : text;
+    this.utteranceTurn = this.turn;
     this.session?.sendRealtimeInput({ text });
+  }
+
+  /** True when a session is open (text can be sent). */
+  get connected(): boolean {
+    return this.session !== null && this.ready;
+  }
+
+  /** "To'xtatish": silence the AI now. The rest of the current model turn is dropped too,
+   * so playback does not restart with the next chunk. */
+  stopPlayback(): void {
+    if (this.modelAudioThisTurn) this.muteTurn = true;
+    this.player?.port.postMessage({ type: "clear" });
+  }
+
+  /** Browsers start an AudioContext suspended without a user gesture (e.g. a page reload). */
+  get audioSuspended(): boolean {
+    return [this.micCtx, this.playCtx].some((c) => c?.state === "suspended");
+  }
+
+  /** Call from a user gesture (click / key press) when `audioSuspended` is true. */
+  async resumeAudio(): Promise<void> {
+    await Promise.allSettled([this.micCtx?.resume(), this.playCtx?.resume()]);
+  }
+
+  private releaseMedia(): void {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    const ctxs = [this.micCtx, this.playCtx];
+    this.micCtx = this.playCtx = null;
+    this.player = this.mic = null;
+    for (const c of ctxs) c?.close().catch(() => undefined);
   }
 
   async stop(): Promise<void> {
     this.closedByUser = true;
     this.session?.close();
     this.session = null;
+    this.ready = false;
     this.stream?.getTracks().forEach((t) => t.stop());
-    await Promise.allSettled([this.micCtx?.close(), this.playCtx?.close()]);
+    this.stream = null;
+    const ctxs = [this.micCtx, this.playCtx];
     this.micCtx = this.playCtx = null;
+    this.player = this.mic = null;
+    await Promise.allSettled(ctxs.map((c) => c?.close()));
     this.opts.onStatus("closed");
   }
+}
+
+function errorText(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { message?: unknown } | null;
+    if (body && typeof body.message === "string") return body.message;
+  }
+  return err instanceof Error ? err.message : String(err);
 }

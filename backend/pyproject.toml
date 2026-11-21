@@ -33,6 +33,10 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "RUF012"]  # RUF012: Django Meta
 "apps/finance/demo.py" = ["S311", "E501"]  # deterministic demo data, not crypto
 "apps/finance/demo_export.py" = ["S311", "E501"]
 "apps/finance/management/commands/seed_demo.py" = ["E501"]
+"apps/ai/live_api.py" = ["E501"]  # Uzbek context text
+"apps/ai/management/commands/*.py" = ["E501"]  # report lines
+"apps/ingestion/*.py" = ["E501"]  # Uzbek issue messages
+"apps/integrations/api.py" = ["E501"]  # Uzbek error messages
 
 [tool.mypy]
 python_version = "3.12"

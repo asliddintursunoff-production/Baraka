@@ -18,6 +18,7 @@ ENV_KEYS = (
     "GEMINI_API_KEY",
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_PICKER_API_KEY",  # 9th var, added by the user for the Drive Picker (M5)
 )
 
 
@@ -78,6 +79,7 @@ if not SECRET_KEY:
 GEMINI_API_KEY = _env("GEMINI_API_KEY")
 GOOGLE_OAUTH_CLIENT_ID = _env("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = _env("GOOGLE_OAUTH_CLIENT_SECRET")
+GOOGLE_PICKER_API_KEY = _env("GOOGLE_PICKER_API_KEY")
 
 _app_host = urlparse(APP_URL).hostname or "localhost"
 ALLOWED_HOSTS = [_app_host]

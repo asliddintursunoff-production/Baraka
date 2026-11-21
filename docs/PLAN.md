@@ -5,6 +5,18 @@ Source of truth: `docs/BUILD_PROMPT.md` (spec), `design/DESIGN.md` + `design/pag
 
 ---
 
+## 0. Final mode (started 2026-11-21 19:15 +05, deadline 21:45; AI budget $5)
+- The AI always answers in Uzbek only (Latin script): chat, voice and alerts.
+- All pytest/vitest tests mock Gemini. Real calls only in `make check-ai` and `make smoke-ai` (≤ 5 chat calls + 1 Live session of ~20 s).
+- `AI_PROFILE` in `app_settings`: `dev` → chat on gemini-3.5-flash-lite; `demo` → gemini-3.8-flash with the fallback chain. `DEBUG=false` means `demo`. No new env vars.
+- Every LLM, Live and embedding call is logged in `AiUsage` (tokens or minutes + estimated cost). `AI_DAILY_BUDGET_USD = 0.50`, `AI_TOTAL_BUDGET_USD = 4.00`. Over the limit: chat → template answers (tool result + prepared text); Live disabled with "Bugungi ovoz limiti tugadi"; a warning is logged.
+- Live: close the session and stop the mic after 30 s of silence, when the tab is hidden or the user leaves the page; one session is 5 min at most.
+- Alerts and the 08:00 brief come from templates only; the scheduler never calls an LLM. Embeddings are cached by `text_hash`.
+- Timebox: a task more than 10 min over is cut to its simplest working version; the rest goes to **Deferred** (§8). No refactoring, extra features, pixel polishing or broad tests. Critical tests only: golden, tenancy, normalization, OAuth, budget guard.
+- Docker only for db; one image build at the very end. On Gemini errors, switch to the fallback immediately.
+- Small decisions are logged as one line in §7; one-line report and a commit after each task.
+- Cut order if late: M7 segment stats → M6 08:00 brief → M7 Knowledge page → M4 silence test. Never cut the demo path: login → dashboard (real banner) → Google connect + sheet → "25 mln jihoz olsam?" (chat + voice) → decision + cards → "Ha" → plan approved → correction → "Eslab qol" → forecast updated.
+
 ## 0. Pre-flight findings (already verified)
 
 | Check | Result |
@@ -277,3 +289,30 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
   - the psycopg pool is off in tests;
   - the approved purchase plan's "execution" is an in-app reminder.
 - **Open:** chat send → answer is 2.5 s p50 only on a paid tier; on the free tier, 3.8-flash 429 + 3.6-flash timeout cost ~5 s before flash-lite answers.
+
+### M5 — Google Sheets via Drive Picker (done 2026-11-21)
+- **Done:**
+  - OAuth (`openid email drive.file`, PKCE, single-use session state, Fernet-encrypted refresh token per business, `invalid_grant` → `reauth_required`);
+  - Picker config (short-lived access token only);
+  - `SourceReader` (Google Sheets / Drive .xlsx / fake);
+  - header detection + heuristics + one LLM mapping call (confidence < 0.8 → confirm);
+  - row-hash diff ingestion with DataIssues;
+  - confirm and "Hozir yangilash" streamed as SSE;
+  - 15-min scheduler sync with modifiedTime skip, advisory locks and backoff;
+  - Connect and Sources pages.
+- **Tests:** OAuth mocked (state CSRF, single-use, open redirect, denial), picker-config never exposes the refresh token, invalid_grant, demo export reproduces the seed forecast (low point within 100k so'm), modifiedTime skip, add/delete row diff, issue resolution, tenant isolation, xlsx dates/numbers.
+- **Decisions (one line each):**
+  - openpyxl is a runtime dependency (Drive .xlsx reading), not dev-only;
+  - new sheet kind `cash_balance`: the opening cash comes from a "Kassa" sheet, else one onboarding question;
+  - 9th env var `GOOGLE_PICKER_API_KEY` (the Picker needs a browser API key);
+  - a planned payment found in two sheets (e.g. Chiqim "Muddat" and the NBU kredit schedule) counts once: same due date, amount and category;
+  - payroll and loan sheets regenerate their future obligations on every sync (the sheet is the truth);
+  - first confirm replaces the seeded demo data (`replace_seed_data`), and later syncs are diffs;
+  - the demo export's Kassa row is **yesterday's** end-of-day balance, so today's rows (and any row the owner adds) roll forward and move the forecast;
+  - sync log entries carry a `tone` (success/muted/error) for colour.
+- **Verified live:** the OAuth start URL is accepted by Google (no redirect_uri_mismatch). The Picker and the real Sheets read are the user's manual acceptance test.
+
+## 8. Deferred
+- 19:22 Budget guard: `AiUsage` logs every chat/light/mapping/TTS/STT/Live/check call with an estimated cost (prices in `app_settings`, estimates). Live mint reserves 60 s and `/live/finish` sets the real seconds. `make check-ai` and `make smoke-ai` pass with the new key (smoke $0.0021).
+- Decision: embeddings are not called at runtime in the MVP (memory uses recency), so there is no `text_hash` cache yet; one is added if M7 embeds.
+- Decision: P2 silence test (10 Q, 600 ms mid-sentence pause, silence 300 ms, free tier before the key change): 0/9 cut off, 1 session error → 300 ms stays.

@@ -3,7 +3,7 @@ SHELL := /bin/bash
 PY := $(CURDIR)/backend/.venv/bin/python
 MANAGE := cd backend && $(PY) manage.py
 
-.PHONY: install db up down dev migrate test test-backend test-frontend lint seed latency check-ai voice-spike build
+.PHONY: install db up down dev migrate test test-backend test-frontend lint seed latency check-ai smoke-ai voice-spike build
 
 install:            ## create venv + install backend and frontend deps
 	test -x $(PY) || python3.12 -m venv backend/.venv
@@ -51,6 +51,9 @@ latency:            ## p50/p95 per channel/event (M8)
 
 check-ai:           ## verify every Gemini model ID + Live/embedding with the real key
 	$(MANAGE) check_ai
+
+smoke-ai:           ## the only paid smoke test: 5 chat calls + 1 Live session (~20 s)
+	cd backend && $(PY) manage.py smoke_ai
 
 voice-spike:        ## automated Uzbek Live test (10 questions); results in backend/spike_out/
 	$(MANAGE) voice_spike --behavior blocking

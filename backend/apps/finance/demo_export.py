@@ -55,6 +55,15 @@ def _impossible_date(today: date) -> str:
     return f"30.02.{today.year}"
 
 
+def closing_cash_yesterday(biz: DemoBusiness) -> Decimal:
+    """Yesterday's end-of-day cash: today's close minus today's net actuals."""
+    net = sum(
+        (t.amount if t.direction == "in" else -t.amount for t in biz.txns if t.date == biz.today),
+        Decimal(0),
+    )
+    return biz.closing_cash_today - net
+
+
 def export_xlsx(biz: DemoBusiness, path: str | Path) -> Path:
     from openpyxl import Workbook
     from openpyxl.styles import Font
@@ -69,10 +78,11 @@ def export_xlsx(biz: DemoBusiness, path: str | Path) -> Path:
     ws.append([f"{biz.name} — kassa qoldig'i"])
     ws.append([])
     ws.append(["Sana", "Qoldiq (so'm)", "Izoh"])
+    # yesterday's end-of-day count: today's rows (and any the owner adds) roll forward
     ws.append(
         [
-            biz.today.strftime("%d.%m.%Y"),
-            _amount_text(biz.closing_cash_today, 0),
+            (biz.today - timedelta(days=1)).strftime("%d.%m.%Y"),
+            _amount_text(closing_cash_yesterday(biz), 0),
             "Kun oxiridagi qoldiq (naqd + bank)",
         ]
     )
@@ -97,23 +107,23 @@ def export_xlsx(biz: DemoBusiness, path: str | Path) -> Path:
     ws = wb.create_sheet("Chiqim")
     ws.append(["Sana", "Summa (so'm)", "Nima uchun", "Kimga", "Muddat", "Naqd/karta", "Holati"])
     expenses: list[DemoTxn] = [t for t in biz.txns if t.direction == "out"]
+    last_row: list[object] = []
     for t in expenses:
         what = (
             t.note
             if t.note and t.category in {"payroll", "loan", "rent", "tax", "supplier", "kommunal"}
             else t.category
         )
-        ws.append(
-            [
-                _date_text(t.date, rng.choice((0, 0, 0, 1, 2))),
-                _amount_text(t.amount, rng.choice((0, 0, 1, 2, 3))),
-                what,
-                t.counterparty,
-                "",
-                "Naqd" if t.method == "naqd" else "Uzcard" if t.method == "karta" else "Bank",
-                "to'landi",
-            ]
-        )
+        last_row = [
+            _date_text(t.date, rng.choice((0, 0, 0, 1, 2))),
+            _amount_text(t.amount, rng.choice((0, 0, 1, 2, 3))),
+            what,
+            t.counterparty,
+            "",
+            "Naqd" if t.method == "naqd" else "Uzcard" if t.method == "karta" else "Bank",
+            "to'landi",
+        ]
+        ws.append(last_row)
     for o in biz.obligations:
         if o.status != "planned":
             continue
@@ -129,18 +139,7 @@ def export_xlsx(biz: DemoBusiness, path: str | Path) -> Path:
             ]
         )
     # deliberately broken extra rows (flagged as DataIssue in M5, never counted twice)
-    first = expenses[-1]
-    ws.append(
-        [
-            first.date.strftime("%d.%m.%Y"),
-            _amount_text(first.amount, 0),
-            first.category,
-            first.counterparty,
-            "",
-            "Naqd",
-            "to'landi",
-        ]
-    )  # duplicate of a real row
+    ws.append(list(last_row))  # the last real row pasted twice
     ws.append([biz.today.strftime("%d.%m.%Y"), "", "xo'jalik", "", "", "Naqd", "to'landi"])
     ws.append(
         [

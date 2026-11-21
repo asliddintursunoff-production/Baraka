@@ -11,3 +11,4 @@ cryptography==50.0.2
 gunicorn==27.0.1
 uvicorn[standard]==0.54.0
 whitenoise==6.12.0
+openpyxl==3.1.5  # .xlsx files picked from Drive (M5) + seed_demo --export

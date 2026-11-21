@@ -24,6 +24,14 @@ AI CFO MVP for small Uzbek businesses (hackathon). The product name comes from t
 - `backend/apps/ai/`: `gemini.py` (client with bounded retries, `scrub()`), `live.py` (Live config + token mint), `uz_format.py` (all Uzbek display/speech text), `prompts.py`, `spike.py` + `dev_views.py` (M0 spike, DEBUG only).
 - `frontend/src/live/voiceClient.ts`: browser Live client (worklets in `frontend/public/worklets/`).
 
+## Final mode (2026-11-21, budget $5): see PLAN §0
+- The AI answers only in Uzbek (Latin): chat, voice, alerts.
+- Tests always mock Gemini; real calls only in `make check-ai` / `make smoke-ai`.
+- `AI_PROFILE` (dev: 3.5-flash-lite chat; demo = `DEBUG=false`: 3.8-flash + fallback chain). Every AI call is logged in `AiUsage`; daily $0.50 / total $4.00 limits → template answers, Live off ("Bugungi ovoz limiti tugadi").
+- Live closes after 30 s of silence, a hidden tab or leaving the page; 5 min max per session.
+- Alerts and the 08:00 brief are templates; the scheduler never calls an LLM. Embeddings are cached by `text_hash`.
+- Docker only for db during work; one image build at the end.
+
 ## Non-negotiables (from the spec)
 - Numbers come only from `apps/engine`. The LLM never does arithmetic or invents amounts or dates.
 - Money is `Decimal` / `NUMERIC(18,2)`, never `float` (the engine may use numpy int64 tiyin internally).

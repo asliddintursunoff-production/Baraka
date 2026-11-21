@@ -1,0 +1,10 @@
+{
+  "title": "Ta'minotchilar",
+  "rows": [
+    ["Kontragent", "Telefon", "To'lov kuni", "Odatdagi summa", "Izoh"],
+    ["\"Agro Go‘sht\" MChJ", "+998 90 123 45 67", "har oy 25", "22 000 000", "Go'sht, oyiga bir marta hisob-kitob"],
+    ["Chorsu bozori", "", "har kuni", "", "Sabzavot, naqd"],
+    ["Non sexi", "+998 93 555 12 12", "har kuni", "", ""],
+    ["Hududgaz", "", "25-sana", "", "Gaz"]
+  ]
+}

@@ -27,7 +27,7 @@ from django.core.management.base import BaseCommand, CommandParser
 from google import genai
 from google.genai import types
 
-from apps.ai import spike, uz_format
+from apps.ai import budget, spike, uz_format
 from apps.ai.gemini import client, scrub
 from apps.ai.live import live_config, mint_token
 from apps.ai.prompts import live_system_instruction
@@ -108,6 +108,32 @@ class TurnResult:
     audio_s: float = 0
     expect_hits: dict[str, bool] = field(default_factory=dict)
     cyrillic_in_answer: bool = False
+    pause_ms: int = 0
+    pause_at_s: float | None = None
+    cut_off: bool = False  # the model answered (audio or tool call) before the user finished
+
+
+def insert_pause(audio: np.ndarray, pause_ms: int, seed: int) -> tuple[np.ndarray, float]:
+    """Insert a mid-sentence "thinking" pause at the quietest word gap in the middle third."""
+    frames = len(audio) // FRAME_SAMPLES
+    rms = np.array(
+        [
+            np.sqrt(
+                np.mean(audio[i * FRAME_SAMPLES : (i + 1) * FRAME_SAMPLES].astype(np.float64) ** 2)
+            )
+            for i in range(frames)
+        ]
+    )
+    voiced = np.flatnonzero(rms > 500)
+    lo, hi = voiced[0], voiced[-1]
+    a, b = lo + (hi - lo) // 3, lo + 2 * (hi - lo) // 3
+    window = np.convolve(rms, np.ones(5) / 5, mode="same")
+    cut = int(a + np.argmin(window[a:b]))
+    noise = (np.random.default_rng(seed).standard_normal(IN_RATE * pause_ms // 1000) * 30).astype(
+        np.int16
+    )
+    at = cut * FRAME_SAMPLES
+    return np.concatenate([audio[:at], noise, audio[at:]]), at / IN_RATE
 
 
 def _lowpass_resample_24k_to_16k(pcm24: np.ndarray) -> np.ndarray:
@@ -150,6 +176,9 @@ class Command(BaseCommand):
             help="answer: tool returns a ready-made speech.answer sentence (measurement only)",
         )
         parser.add_argument("--silence-ms", type=int, default=cfg.LIVE_SILENCE_DURATION_MS)
+        parser.add_argument(
+            "--pause-ms", type=int, default=0, help="insert a mid-sentence thinking pause (P2 test)"
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         OUT.mkdir(exist_ok=True)
@@ -160,6 +189,9 @@ class Command(BaseCommand):
             mode += f"_{opts['variant']}"
         if opts["silence_ms"] != cfg.LIVE_SILENCE_DURATION_MS:
             mode += f"_sil{opts['silence_ms']}"
+        if opts["pause_ms"]:
+            mode += f"_pause{opts['pause_ms']}"
+        self.pause_ms: int = opts["pause_ms"]
         self.variant: str = opts["variant"]
         self.silence_ms: int = opts["silence_ms"]
         picks = [int(i) for i in opts["only"].split(",") if i.strip()] or list(range(1, 11))
@@ -171,6 +203,9 @@ class Command(BaseCommand):
             self.stdout.write(f"[{mode}] Q{i}: {item['q']}")
             try:
                 audio = self._question_audio(i, item["q"])
+                pause_at = None
+                if self.pause_ms:
+                    audio, pause_at = insert_pause(audio, self.pause_ms, seed=i)
                 res = asyncio.run(
                     asyncio.wait_for(
                         self._run_turn(i, item, audio, opts["behavior"], opts["scheduling"], mode),
@@ -179,10 +214,12 @@ class Command(BaseCommand):
                 )
             except Exception as exc:
                 res = TurnResult(idx=i, question=item["q"], mode=mode, error=scrub(repr(exc))[:300])
+            res.pause_ms, res.pause_at_s = self.pause_ms, pause_at
             results.append(res)
             self.stdout.write(
                 f"   ok={res.ok} ready={res.session_ready_ms:.0f} first_audio={res.speech_end_to_first_audio_ms} "
-                f"tool={res.tool_called} answer_audio={res.speech_end_to_answer_audio_ms} err={res.error[:80]}"
+                f"tool={res.tool_called} answer_audio={res.speech_end_to_answer_audio_ms} "
+                f"cut_off={res.cut_off} interrupted={res.interrupted} err={res.error[:80]}"
             )
             self.stdout.write(f"   heard: {res.heard}")
             self.stdout.write(f"   said : {res.said}")
@@ -317,6 +354,8 @@ class Command(BaseCommand):
                                 res.interrupted += 1
                             for part in (sc.model_turn.parts if sc.model_turn else None) or []:
                                 if part.inline_data and part.inline_data.data:
+                                    if state["speech_end"] is None:
+                                        res.cut_off = True
                                     if state["speech_end"] and state["first_audio"] is None:
                                         state["first_audio"] = now
                                     if state["tool_resp"] and state["answer_audio"] is None:
@@ -333,6 +372,8 @@ class Command(BaseCommand):
                                     state["done"] = True
                         if msg.tool_call:
                             for call in msg.tool_call.function_calls or []:
+                                if state["speech_end"] is None:
+                                    res.cut_off = True
                                 state["tool_call"] = state["tool_call"] or now
                                 res.tool_called = True
                                 res.tool_args = dict(call.args or {})
@@ -361,6 +402,9 @@ class Command(BaseCommand):
                 state["done"] = True
                 await asyncio.gather(send_task, return_exceptions=True)
 
+        await asyncio.to_thread(
+            budget.record, "live", tok.model, seconds=max(1, round(time.perf_counter() - t_conn))
+        )
         se = state["speech_end"]
         if se and state["first_audio"]:
             res.speech_end_to_first_audio_ms = (state["first_audio"] - se) * 1000

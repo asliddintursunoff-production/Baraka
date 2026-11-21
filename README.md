@@ -20,7 +20,8 @@ Copy `.env.example` to `.env` and fill it in. These 8 variables are the only one
 | `DJANGO_SECRET_KEY` | long random string; also the source of the token-encryption key (HKDF) |
 | `DATABASE_URL` | `postgres://user:pass@host:port/db` |
 | `GEMINI_API_KEY` | Gemini API key (backend only, never sent to the browser) |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client for Sheets (needed from M5) |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth web client (Drive Picker + Sheets) |
+| `GOOGLE_PICKER_API_KEY` | API key for the Google Picker (browser) |
 
 ## Run everything in Docker
 ```bash
@@ -41,6 +42,33 @@ make check-ai  # verifies every Gemini model ID, embeddings and a Live session w
 ## Voice spike (M0)
 - `http://localhost:5173/dev/voice` (DEBUG only) opens a Live session with an ephemeral token. Speak Uzbek. There is one fake tool, `evaluate_purchase`, with a fixed answer.
 - `make voice-spike` runs 10 synthesized Uzbek questions against the Live model. Results and audio go to `backend/spike_out/`.
+
+## Google Cloud setup (Sheets via Drive Picker)
+The app asks for only `openid`, `email` and `https://www.googleapis.com/auth/drive.file`. With `drive.file` it can open **only the files the user picks** in the Google Picker, and it can read both native Google Sheets and `.xlsx` files on Drive. These are non-sensitive scopes, so no Google security review is needed.
+
+1. **Project:** create one at <https://console.cloud.google.com> and note its project **number**: the digits at the start of the OAuth client ID, also used as the Picker `appId`.
+2. **APIs** (APIs & Services → Library): enable **Google Drive API**, **Google Sheets API** and **Google Picker API**.
+3. **Google Auth Platform → Branding:** app name (same as `APP_NAME`), support email, logo (optional). Add the app domain later, when going public.
+4. **Audience:** User type **External**, publishing status **Testing**. Add every tester's Gmail under **Test users**. Until verification, users see "Google hasn't verified this app": click *Continue*.
+5. **Data access (scopes):** add `openid`, `.../auth/userinfo.email` and `.../auth/drive.file`. Nothing else.
+6. **Clients → Create client → Web application.**
+   - Authorized JavaScript origins: `http://localhost:8000`, `http://localhost:5173` (dev) and `https://<your-railway-domain>`.
+   - Authorized redirect URIs: `http://localhost:8000/api/integrations/google/callback` and `https://<your-railway-domain>/api/integrations/google/callback`. The redirect is always `APP_URL` + `/api/integrations/google/callback`, so `APP_URL` must match exactly.
+   - Put the client ID and secret into `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
+7. **Credentials → Create API key** for the Picker → `GOOGLE_PICKER_API_KEY`.
+   - Restrict it to the **Google Picker API**.
+   - Add HTTP referrers `http://localhost:8000/*`, `http://localhost:5173/*` and `https://<your-railway-domain>/*`.
+8. **Use it:** log in → `/onboarding/connect` → "Google bilan ulash" → pick the spreadsheet(s) → check the columns → "Tasdiqlash va tahlilni boshlash".
+
+Demo file: `make seed` then `backend/.venv/bin/python backend/manage.py seed_demo --reset --export demo_navroz.xlsx`. Upload `demo_navroz.xlsx` to Drive. You can leave it as `.xlsx` or open it with Google Sheets ("Save as Google Sheets"); both work. Then pick it in the Picker.
+
+**Going public later** (leaving Testing mode):
+- a verified domain;
+- a public home page and a privacy policy URL on that domain (Branding page);
+- the app's terms of service (optional);
+- "Publish app" on the Audience page.
+
+`drive.file` is not a sensitive scope, so verification is a brand review only (days, not weeks). While in Testing, refresh tokens expire after 7 days; the app then shows "Qayta ulash".
 
 ## Deploy (Railway)
 Step-by-step instructions are added in M8.

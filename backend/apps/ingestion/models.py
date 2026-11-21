@@ -15,6 +15,7 @@ class SheetMapping(TenantScopedModel):
         PAYROLL = "payroll", "Ish haqi"
         LOAN = "loan_schedule", "Kredit"
         COUNTERPARTIES = "counterparties", "Kontragentlar"
+        CASH = "cash_balance", "Kassa qoldig'i"  # added: where the opening balance lives
         IGNORE = "ignore", "E'tiborsiz"
 
     source = models.ForeignKey("integrations.DataSource", on_delete=models.CASCADE)
@@ -72,3 +73,19 @@ class DataIssue(TenantScopedModel):
 
     class Meta:
         indexes = [models.Index(fields=["business", "status"], name="issue_business_status")]
+
+
+class SyncRun(TenantScopedModel):
+    """One sync of one source: the "Oxirgi yangilanishlar" log on the Sources page."""
+
+    source = models.ForeignKey("integrations.DataSource", on_delete=models.CASCADE)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=16, default="running")  # running|ok|skipped|error
+    rows_added = models.PositiveIntegerField(default=0)
+    rows_deleted = models.PositiveIntegerField(default=0)
+    message = models.CharField(max_length=300, blank=True)
+    trigger = models.CharField(max_length=16, default="schedule")  # schedule|manual|confirm
+
+    class Meta:
+        indexes = [models.Index(fields=["business", "-started_at"], name="syncrun_business_time")]

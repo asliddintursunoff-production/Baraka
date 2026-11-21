@@ -1,0 +1,18 @@
+{
+  "title": "Chiqim",
+  "rows": [
+    ["Sana", "Summa (so'm)", "Nima uchun", "Kimga", "Muddat", "Naqd/karta", "Holati"],
+    ["14.11.2026", "741 000", "sabzavot", "Chorsu bozori", "", "Naqd", "to'landi"],
+    ["2026-11-14", 371000, "non va un", "Non sexi", "", "Naqd", "to'landi"],
+    [46341, "618,000", "ichimliklar", "Coca-Cola ichimliklari", "", "Uzcard", "to'landi"],
+    ["15 noyabr 2026", "4,35 mln", "go'sht", "Agro Goʻsht", "", "Bank", "to'landi"],
+    ["16/11/2026", "370 000", "gaz", "Hududgaz", "", "Uzcard", "to'landi"],
+    ["16-noyabr", "(120 000)", "qaytarildi", "Non sexi", "", "Naqd", "to'landi"],
+    ["17 ноября 2026", "338 000 сўм", "non va un", "Non sexi", "", "Naqd", "to'landi"],
+    [46343.0, 15000000, "Ijara", "Ijara beruvchi", "", "Bank", "to'landi"],
+    ["31.11.2026", "350 000", "sabzavot", "Chorsu bozori", "", "Naqd", "to'landi"],
+    ["", "8 000 000", "Soliq", "Soliq qo'mitasi", "15.12.2026", "Bank", "kutilyapti"],
+    ["", "22 000 000", "Ta'minotchi · Agro Go'sht", "Agro Go'sht", 46381, "Bank", "kutilyapti (kechiksa bo'ladi)"],
+    ["21.11.2026", "", "xo'jalik", "", "", "Naqd", "to'landi"]
+  ]
+}

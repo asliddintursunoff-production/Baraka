@@ -33,9 +33,10 @@ from apps.tenancy.api import BusinessAPIView
 from apps.tenancy.context import tenant_context
 from config import app_settings as cfg
 
+from . import budget
 from . import uz_format as uz
 from .chat import CHIPS, Turn, stream_turn, warm_brief
-from .gemini import client, scrub
+from .gemini import scrub
 from .models import Conversation, Message
 from .tools import TOOLS, ToolArgError, ToolContext, run_tool
 
@@ -209,7 +210,8 @@ def _pcm_to_wav(pcm: bytes, rate: int = 24000) -> bytes:
 
 
 def tts_wav(text: str) -> bytes:
-    r = client().models.generate_content(
+    r = budget.generate_sync(
+        "tts",
         model=cfg.TTS_MODEL,
         contents=f"O'zbek tilida, sokin va aniq o'qing: {text}",
         config=types.GenerateContentConfig(
@@ -265,7 +267,8 @@ def transcribe(request: HttpRequest) -> JsonResponse:
         )
     mime = (request.content_type or "audio/webm").split(";")[0]
     try:
-        r = client().models.generate_content(
+        r = budget.generate_sync(
+            "stt",
             model=cfg.AI_MODELS["light"],
             contents=[
                 types.Part.from_bytes(data=audio, mime_type=mime),

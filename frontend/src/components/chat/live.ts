@@ -1,12 +1,9 @@
-import { apiGet } from "@/lib/api";
+import { prefetchLiveToken } from "@/live/tokenCache";
 
-const PREFETCH_EVERY_MS = 10_000;
-let lastPrefetch = 0;
-
-/** Warm up the live session on hover/focus of a "Jonli" link (fire and forget, M4). */
+/**
+ * Warm up the live session on hover/focus of a "Jonli" link (fire and forget, P3). The token
+ * cache deduplicates repeated calls and refreshes the token in the background.
+ */
 export function prefetchLive(): void {
-  const now = Date.now();
-  if (now - lastPrefetch < PREFETCH_EVERY_MS) return;
-  lastPrefetch = now;
-  apiGet("/api/live/session/prefetch").catch(() => undefined);
+  void prefetchLiveToken();
 }

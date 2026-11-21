@@ -17,12 +17,42 @@ import signal
 import time
 from typing import Any
 
+from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
 
 from config import app_settings as cfg
 
 log = logging.getLogger("scheduler")
 TICK_S = 30
+
+
+def sync_all() -> dict[str, int]:
+    """Every business with confirmed auto-sync sources; one failure never stops the others."""
+    from django.db import connections
+
+    from apps.ingestion.sync import sync_business
+    from apps.integrations.models import DataSource
+    from apps.tenancy.models import Business
+
+    done = failed = 0
+    ids = set(
+        DataSource.unscoped.filter(confirmed=True, auto_sync=True)
+        .exclude(status__in=[DataSource.Status.PAUSED, DataSource.Status.REAUTH])
+        .values_list("business_id", flat=True)
+    )
+    for business in Business.objects.filter(pk__in=ids):
+        try:
+            s = sync_business(business, trigger="schedule", force=False, progress=lambda t, p: None)
+            done += 1
+            if s.rows_added or s.rows_deleted:
+                _log(
+                    "sync_changed", business=business.pk, added=s.rows_added, deleted=s.rows_deleted
+                )
+        except Exception as exc:  # one business never blocks the rest
+            failed += 1
+            log.exception("sync_all failed for business %s: %s", business.pk, exc)
+    connections.close_all()
+    return {"businesses": done, "failed": failed}
 
 
 def _log(event: str, **fields: Any) -> None:
@@ -40,11 +70,15 @@ class Command(BaseCommand):
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, stop.set)
-        _log("scheduler_started", sync_interval_min=cfg.SYNC_INTERVAL_MIN, jobs=[])
+        _log("scheduler_started", sync_interval_min=cfg.SYNC_INTERVAL_MIN, jobs=["sync_all"])
+        next_sync = 0.0
         while not stop.is_set():
-            t0 = time.perf_counter()
-            # Jobs are added in M5-M7.
-            _log("tick", ms=round((time.perf_counter() - t0) * 1000, 1))
+            now = time.monotonic()
+            if now >= next_sync:
+                t0 = time.perf_counter()
+                result = await sync_to_async(sync_all, thread_sensitive=False)()
+                _log("sync_all", ms=round((time.perf_counter() - t0) * 1000, 1), **result)
+                next_sync = now + cfg.SYNC_INTERVAL_MIN * 60
             try:
                 await asyncio.wait_for(stop.wait(), timeout=TICK_S)
             except TimeoutError:

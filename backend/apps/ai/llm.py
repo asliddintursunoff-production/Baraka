@@ -91,9 +91,16 @@ async def generate(
     contents: list[types.Content],
     config: types.GenerateContentConfig,
     *,
-    chain: tuple[str, ...] = cfg.CHAT_MODEL_CHAIN,
+    chain: tuple[str, ...] | None = None,
     deadline_s: float = cfg.CHAT_ATTEMPT_DEADLINE_S,
+    kind: str = "chat",
 ) -> LlmResult:
+    from asgiref.sync import sync_to_async
+
+    from . import budget
+
+    await sync_to_async(budget.check)(kind)  # over the limit -> BudgetExceeded -> template
+    chain = chain or budget.chat_chain()
     attempts: list[dict[str, Any]] = []
     client = chain_client()
     for model in chain:
@@ -135,5 +142,6 @@ async def generate(
         ms = (time.perf_counter() - t0) * 1000
         breaker.success(model)
         attempts.append({"model": model, "ok": True, "ms": round(ms)})
+        await sync_to_async(budget.record)(kind, model, usage=resp.usage_metadata)
         return LlmResult(resp, model, ms, attempts)
     raise AllModelsFailed(f"no model answered: {attempts}")
