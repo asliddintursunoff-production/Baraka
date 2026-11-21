@@ -112,9 +112,11 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
         start = today - timedelta(days=HISTORY_DAYS - 1)
         grouped = (
             Transaction.objects.filter(txn_date__gte=start, txn_date__lte=today, is_actual=True)
+            # not daily sales: owner/loan money, and aggregator payouts (scheduled separately below)
             .exclude(
-                direction="in", category__in=("financing", "capex", "dividend", "avans")
-            )  # not sales
+                direction="in",
+                category__in=("financing", "capex", "dividend", "avans", "agregator"),
+            )
             .values("txn_date", "direction", "category", "counterparty__name")
             .annotate(total=Sum("amount"))
         )
@@ -148,6 +150,14 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
             .select_related("counterparty")
             .order_by("due_date", "id")
         ]
+
+        from apps.ingestion.finmodel import aggregator_payouts
+
+        inflows = (
+            aggregator_payouts(today)
+            if Transaction.objects.filter(category="agregator").exists()
+            else []
+        )
 
         p = ForecastParams.objects.first()
         factors = tuple(
@@ -184,6 +194,7 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
         safe_min=business.safe_min,
         staff_count=business.staff_count,
         last_payroll_amount=last_payroll,
+        scheduled_inflows=inflows,
     )
     return inp, cash is not None
 
@@ -203,12 +214,47 @@ def _snapshot_daily(result: ForecastResult) -> list[dict[str, Any]]:
     ]
 
 
+STORY_DAYS = 60  # one story: banner, chips, charts, steps, chat and Live use this horizon
+
+
+def story_view(result: ForecastResult) -> ForecastResult:
+    """The hardest day, balance and verdict within STORY_DAYS (one story on every surface);
+    a worse day later in the horizon is kept apart in `beyond` (shown on its own line)."""
+    import dataclasses
+
+    from apps.engine.forecast import compute_verdict
+    from apps.engine.money import from_tiyin, to_tiyin
+
+    n = min(STORY_DAYS + 1, len(result.close))
+    close = result.close[:n]
+    i = int(close.argmin())
+    shortage = [k for k in range(n) if close[k] < 0]
+    verdict = (
+        None
+        if result.insufficient_data
+        else compute_verdict(close, result.critical_mask[:n], to_tiyin(result.safe_min))
+    )
+    beyond = None
+    if len(result.close) > n:
+        j = int(result.close[n:].argmin()) + n
+        if result.close[j] < close[i]:
+            beyond = (result.today + timedelta(days=j), from_tiyin(int(result.close[j])))
+    return dataclasses.replace(
+        result,
+        min_date=result.today + timedelta(days=i),
+        min_balance=from_tiyin(int(close[i])),
+        first_shortage_date=(result.today + timedelta(days=shortage[0])) if shortage else None,
+        verdict=verdict,
+        beyond=beyond,
+    )
+
+
 def refresh_forecast(business: Business) -> CachedForecast:
     """Recompute from the business tables; store a snapshot if the inputs changed."""
     inp, has_cash = build_engine_input(business)
     h = inputs_hash(inp)
     with timing.measure("engine"):
-        result = forecast(inp, HORIZON_DAYS)
+        result = story_view(forecast(inp, HORIZON_DAYS))
     with tenant_context(business):
         latest = (
             ForecastSnapshot.objects.order_by("-created_at").values("id", "inputs_hash").first()
@@ -273,7 +319,7 @@ def get_forecast(business: Business) -> CachedForecast:
         return refresh_forecast(business)
     inp = input_from_dict(data)
     with timing.measure("engine"):
-        result = forecast(inp, HORIZON_DAYS)
+        result = story_view(forecast(inp, HORIZON_DAYS))
     cached = CachedForecast(
         business.pk,
         inp.today,

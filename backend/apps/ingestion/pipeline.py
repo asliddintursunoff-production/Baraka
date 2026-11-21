@@ -620,7 +620,9 @@ def dedupe_planned() -> None:
             seen.add(key)
 
 
-def estimate_variable_cost_ratio(business: Business, today: date) -> Decimal | None:
+def variable_cost_ratio(today: date) -> Decimal | None:
+    """Variable cash costs / daily-sales receipts over the last 8 weeks with data (<= today).
+    Aggregator payouts are scheduled separately, so they are not in the denominator."""
     start = today - timedelta(days=55)
     last = (
         Transaction.objects.filter(txn_date__lte=today)
@@ -631,13 +633,21 @@ def estimate_variable_cost_ratio(business: Business, today: date) -> Decimal | N
     if last and (today - last).days > 3:  # stale data: measure the last 8 weeks that have data
         today, start = last, last - timedelta(days=55)
     agg = Transaction.objects.filter(txn_date__gte=start, txn_date__lte=today).aggregate(
-        inflow=Sum("amount", filter=Q(direction="in") & ~Q(category__in=NON_OPERATING)),
+        inflow=Sum(
+            "amount", filter=Q(direction="in") & ~Q(category__in=(*NON_OPERATING, "agregator"))
+        ),
         var=Sum("amount", filter=Q(direction="out") & ~Q(category__in=NOT_VARIABLE)),
     )
     inflow, var = agg["inflow"] or Decimal(0), agg["var"] or Decimal(0)
     if inflow <= 0:
         return None
-    ratio = min(Decimal("0.9"), (var / inflow).quantize(Decimal("0.0001")))
+    return min(Decimal("0.9"), (var / inflow).quantize(Decimal("0.0001")))
+
+
+def estimate_variable_cost_ratio(business: Business, today: date) -> Decimal | None:
+    ratio = variable_cost_ratio(today)
+    if ratio is None:
+        return None
     params, _ = ForecastParams.objects.get_or_create(
         business=business, defaults={"weekday_factors": [1.0] * 7}
     )

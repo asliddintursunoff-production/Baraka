@@ -107,6 +107,7 @@ export default function MainPage() {
             <p className="m-0 text-16 leading-normal text-[#D0D5DD]">
               {d.banner.reason} <strong className="text-white">{d.banner.instruction}</strong>
             </p>
+            {d.banner.beyond && <p className="m-0 text-14 leading-normal text-[#FEC84B]">{d.banner.beyond}</p>}
           </div>
           <div className="flex flex-wrap gap-[10px]">
             <Link

@@ -126,6 +126,10 @@ def forecast(inp: EngineInput, horizon_days: int) -> ForecastResult:
             critical[i] = True
         in_window.append(p)
 
+    # scheduled receipts (aggregator payouts...) are cash in on their own dates, no variable cost
+    for d_in, amount in inp.scheduled_inflows:
+        if today < d_in <= end:
+            revenue[(d_in - today).days] += to_tiyin(amount)
     net = revenue - variable - payments
     close = to_tiyin(inp.opening_balance) + np.cumsum(net)
     band = np.rint(Z_P10_P90 * np.sqrt(np.cumsum(var_net))).astype(np.int64)

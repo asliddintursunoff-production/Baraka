@@ -13,6 +13,7 @@ export interface Me {
   onboarding_step?: OnboardingStep;
   data_status?: DataStatus;
   history_days?: number;
+  freshness?: { as_of?: string; stale?: boolean; missing_days?: number; text?: string; banner?: string } | null;
 }
 
 export interface SeriesPoint {
@@ -70,7 +71,7 @@ export interface Dashboard {
   today: { iso: string; label: string };
   sync: { connected: boolean; ok: boolean; label: string };
   alerts: { new: number };
-  banner: { label: string; headline: string; reason: string; instruction: string };
+  banner: { label: string; headline: string; reason: string; instruction: string; beyond?: string };
   kpis: Kpi[];
   forecast: ForecastBlock;
   steps: Step[];

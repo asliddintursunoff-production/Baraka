@@ -101,6 +101,23 @@ def onboarding_step(b: Business | None) -> str:
     return "done"
 
 
+def stale_banner(q: dict[str, Any]) -> str:
+    """ "Ma'lumot 21 kun eski (oxirgisi 31-oktyabr 2026). Noyabr hisobotlarini kiriting…" (> 3 days)."""
+    from datetime import date
+
+    from apps.ai import uz_format as uz
+
+    if not q.get("stale") or int(q.get("missing_days") or 0) <= 3 or not q.get("last_date"):
+        return ""
+    last = date.fromisoformat(q["last_date"])
+    gap_from = date.fromisoformat(q["missing_from"])
+    month = uz.MONTHS[gap_from.month - 1].capitalize()
+    return (
+        f"Ma'lumot {q['missing_days']} kun eski (oxirgisi {uz.format_date(last)} {last.year}). "
+        f"{month} hisobotlarini kiriting — prognoz aniqroq bo'ladi."
+    )
+
+
 def require_data(b: Business) -> None:
     st = data_status(b)
     if st == "no_data":
@@ -116,10 +133,13 @@ def status_payload(b: Business | None) -> dict[str, Any]:
         "onboarding_step": onboarding_step(b),
         "data_status": st,
         "history_days": history_days(b) if b is not None and st != "no_data" else 0,
-        "freshness": {
-            k: q.get(k)
-            for k in ("as_of", "stale", "missing_from", "missing_to", "missing_days", "text")
-        }
+        "freshness": (
+            {
+                k: q.get(k)
+                for k in ("as_of", "stale", "missing_from", "missing_to", "missing_days", "text")
+            }
+            | {"banner": stale_banner(q)}
+        )
         if q.get("as_of")
         else None,
     }

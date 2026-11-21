@@ -18,6 +18,8 @@ from the last three months of Kassa history, because such workbooks have no paym
 from __future__ import annotations
 
 import calendar
+import itertools
+import re
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
@@ -208,7 +210,9 @@ def _date(v: Any, today: date) -> date | None:
 def kassa_category(modda: str, turi: str, faoliyat: str, kontragent: str) -> str:
     m, f, k = text_key(modda), text_key(faoliyat), text_key(kontragent)
     if text_key(turi).startswith("kirim"):
-        return "financing" if f.startswith(("moliyaviy", "investitsion")) else "savdo"
+        if f.startswith(("moliyaviy", "investitsion")):
+            return "financing"
+        return "agregator" if "agregator" in m else "savdo"
     if "ijara" in k and "hisoblangan" in m:
         return "rent"
     for needle, cat in MODDA_CATEGORY:
@@ -462,17 +466,21 @@ def _month_add(d: date, k: int) -> date:
     return date(d.year + y, m + 1, 1)
 
 
-def project_recurring(ing: Ingestor) -> None:
-    """Fixed payments seen in >= 2 of the last 3 months -> planned obligations ahead."""
-    last = Transaction.objects.filter(is_actual=True).aggregate(m=Max("txn_date"))["m"]
+def planned_payments(
+    as_of: date, source_id: int | None = None, horizon_days: int = 125
+) -> list[dict[str, Any]]:
+    """Fixed payments seen in >= 2 of the last 3 months before `as_of` (cash payment rows only),
+    plus the loan schedule from its terms -> planned payments in (as_of, as_of + horizon]."""
+    last = Transaction.objects.filter(is_actual=True, txn_date__lte=as_of).aggregate(
+        m=Max("txn_date")
+    )["m"]
     if last is None:
-        return
-    # the last complete month (the current one counts if the data reaches its last week)
+        return []
     end_month = last.replace(day=1) if last.day >= 25 else _month_add(last.replace(day=1), -1)
     months = [_month_add(end_month, -k) for k in range(LOOKBACK_MONTHS)]
     lo, hi = months[-1], _month_add(end_month, 1) - timedelta(days=1)
     rows = Transaction.objects.filter(
-        direction="out", category__in=FIXED, txn_date__gte=lo, txn_date__lte=hi
+        direction="out", category__in=FIXED, txn_date__gte=lo, txn_date__lte=min(hi, as_of)
     ).values("category", "counterparty_id", "counterparty__name", "txn_date", "amount")
     groups: dict[tuple[str, int | None], dict[date, list[tuple[int, Decimal]]]] = defaultdict(
         lambda: defaultdict(list)
@@ -482,80 +490,142 @@ def project_recurring(ing: Ingestor) -> None:
         key = (r["category"], r["counterparty_id"] if r["category"] in ("rent", "loan") else None)
         groups[key][r["txn_date"].replace(day=1)].append((r["txn_date"].day, r["amount"]))
         names[key] = r["counterparty__name"] or ""
-    # stale data: payments due since the last actual day are part of the forecast (estimates)
-    today = min(ing.today, last)
-    horizon = today + timedelta(days=125)
-    loan = loan_info(ing.source.pk)
+    start = min(as_of, last)
+    horizon = start + timedelta(days=horizon_days)
+    loan = loan_info(source_id, as_of) if source_id else None
+    out: list[dict[str, Any]] = []
+    for key, per_month in groups.items():
+        if len(per_month) < 2:
+            continue
+        cat, cp_id = key
+        if cat == "loan" and loan:
+            continue  # scheduled from the loan terms below
+        amount = Decimal(
+            statistics.median([sum((a for _, a in v), Decimal(0)) for v in per_month.values()])
+        ).quantize(Decimal(1))
+        weighted = sorted(
+            d for v in per_month.values() for d, a in v for _ in range(max(1, int(a // 1_000_000)))
+        )
+        day = weighted[len(weighted) // 2] if weighted else 1
+        title = FIXED_LABEL[cat] + (f" · {names[key]}" if cp_id and names.get(key) else "")
+        m = start.replace(day=1)
+        for _ in range(horizon_days // 28 + 2):
+            due = m.replace(day=min(day, calendar.monthrange(m.year, m.month)[1]))
+            if start < due <= horizon:
+                out.append(
+                    {
+                        "title": title[:160],
+                        "amount": amount,
+                        "due_date": due,
+                        "category": cat,
+                        "counterparty_id": cp_id,
+                        "counterparty": names.get(key, "") if cp_id else "",
+                        "priority": "critical" if cat in CRITICAL else "deferrable",
+                        "recurrence": {"pattern": "monthly", "day": day},
+                    }
+                )
+            m = _month_add(m, 1)
+    if loan and Decimal(loan["balance"]) > 0:
+        balance = Decimal(loan["balance"])
+        principal = Decimal(loan["principal_monthly"] or 0)
+        grace_end = None
+        if loan.get("grace_months") and not principal:
+            first = date.fromisoformat(loan["first_date"])
+            grace_end = _month_add(first.replace(day=1), int(loan["grace_months"]))
+            if loan.get("term_months"):
+                principal = (
+                    balance / max(1, int(loan["term_months"]) - int(loan["grace_months"]))
+                ).quantize(Decimal(1000))
+        rate = Decimal(loan["rate_pct"] or 0) / 1200
+        last_interest = Decimal(loan["last_interest"] or 0)
+        m = start.replace(day=1)
+        for _ in range(horizon_days // 28 + 2):
+            due = m.replace(day=min(loan["pay_day"], calendar.monthrange(m.year, m.month)[1]))
+            if start < due <= horizon and balance > 0:
+                interest = (balance * rate).quantize(Decimal(1)) if rate else last_interest
+                pay = (
+                    min(principal, balance)
+                    if (grace_end is None or due >= grace_end)
+                    else Decimal(0)
+                )
+                out.append(
+                    {
+                        "title": f"Kredit to'lovi · {loan['lender']}"[:160],
+                        "amount": pay + interest,
+                        "due_date": due,
+                        "category": "loan",
+                        "counterparty_id": None,
+                        "counterparty": loan["lender"],
+                        "priority": "critical",
+                        "recurrence": {
+                            "pattern": "loan",
+                            "principal": str(pay),
+                            "interest": str(interest),
+                        },
+                    }
+                )
+                balance -= pay
+            m = _month_add(m, 1)
+    return out
+
+
+def aggregator_payouts(as_of: date, horizon_days: int = 125) -> list[tuple[date, Decimal]]:
+    """Aggregator money arrives on its own cadence: per payer, the median payout and the median
+    gap between payouts over the last 3 months, projected forward from the last payout."""
+    rows = list(
+        Transaction.objects.filter(
+            direction="in",
+            category="agregator",
+            txn_date__lte=as_of,
+            txn_date__gt=as_of - timedelta(days=95),
+        )
+        .values("counterparty_id", "txn_date", "amount")
+        .order_by("txn_date")
+    )
+    by_payer: dict[int | None, list[tuple[date, Decimal]]] = defaultdict(list)
+    for r in rows:
+        by_payer[r["counterparty_id"]].append((r["txn_date"], r["amount"]))
+    out: list[tuple[date, Decimal]] = []
+    end = as_of + timedelta(days=horizon_days)
+    for payouts in by_payer.values():
+        if not payouts:
+            continue
+        amount = Decimal(statistics.median([a for _, a in payouts])).quantize(Decimal(1))
+        gaps = [
+            (b[0] - a[0]).days for a, b in itertools.pairwise(payouts) if (b[0] - a[0]).days > 0
+        ]
+        gap = int(statistics.median(gaps)) if gaps else 30
+        d = payouts[-1][0] + timedelta(days=gap)
+        while d <= end:
+            if d > as_of:
+                out.append((d, amount))
+            d += timedelta(days=gap)
+    return sorted(out)
+
+
+def project_recurring(ing: Ingestor) -> None:
+    """Persist planned payments projected from the last actual day (the forecast's day 0)."""
+    last = Transaction.objects.filter(is_actual=True).aggregate(m=Max("txn_date"))["m"]
+    if last is None:
+        return
+    specs = planned_payments(min(ing.today, last), ing.source.pk)
 
     def make() -> list[Obligation]:
-        out: list[Obligation] = []
-        for key, per_month in groups.items():
-            if len(per_month) < 2:
-                continue
-            cat, cp_id = key
-            if cat == "loan" and loan:
-                continue  # scheduled from the loan terms below
-            amount = Decimal(
-                statistics.median([sum((a for _, a in v), Decimal(0)) for v in per_month.values()])
-            ).quantize(Decimal(1))
-            weighted = sorted(
-                d
-                for v in per_month.values()
-                for d, a in v
-                for _ in range(max(1, int(a // 1_000_000)))
+        return [
+            Obligation(
+                business=ing.business,
+                title=x["title"],
+                amount=x["amount"],
+                due_date=x["due_date"],
+                category=x["category"],
+                counterparty_id=x["counterparty_id"],
+                status="planned",
+                source="sheet",
+                priority=x["priority"],
+                recurrence=x["recurrence"],
             )
-            day = weighted[len(weighted) // 2] if weighted else 1
-            title = FIXED_LABEL[cat] + (f" · {names[key]}" if cp_id and names.get(key) else "")
-            m = today.replace(day=1)
-            for _ in range(PROJECT_MONTHS + 1):
-                due = m.replace(day=min(day, calendar.monthrange(m.year, m.month)[1]))
-                if today < due <= horizon:
-                    out.append(
-                        Obligation(
-                            business=ing.business,
-                            title=title[:160],
-                            amount=amount,
-                            due_date=due,
-                            category=cat,
-                            counterparty_id=cp_id,
-                            status="planned",
-                            source="sheet",
-                            priority=("critical" if cat in CRITICAL else "deferrable"),
-                            recurrence={"pattern": "monthly", "day": day},
-                        )
-                    )
-                m = _month_add(m, 1)
-        if loan and Decimal(loan["balance"]) > 0:
-            balance = Decimal(loan["balance"])
-            principal = Decimal(loan["principal_monthly"] or 0)
-            rate = Decimal(loan["rate_pct"] or 0) / 1200
-            last_interest = Decimal(loan["last_interest"] or 0)
-            m = today.replace(day=1)
-            for _ in range(PROJECT_MONTHS + 1):
-                due = m.replace(day=min(loan["pay_day"], calendar.monthrange(m.year, m.month)[1]))
-                if today < due <= horizon and balance > 0:
-                    interest = (balance * rate).quantize(Decimal(1)) if rate else last_interest
-                    pay = min(principal, balance)
-                    out.append(
-                        Obligation(
-                            business=ing.business,
-                            title=f"Kredit to'lovi · {loan['lender']}"[:160],
-                            amount=pay + interest,
-                            due_date=due,
-                            category="loan",
-                            status="planned",
-                            source="sheet",
-                            priority="critical",
-                            recurrence={
-                                "pattern": "loan",
-                                "principal": str(pay),
-                                "interest": str(interest),
-                            },
-                        )
-                    )
-                    balance -= pay
-                m = _month_add(m, 1)
-        return out
+            for x in specs
+        ]
 
     ing._regenerate("Kassa · takroriy to'lovlar", make)
 
@@ -569,12 +639,10 @@ def _num(v: Any) -> Decimal:
     return parse_amount(v) or Decimal(0)
 
 
-def loan_info(source_id: int) -> dict[str, Any] | None:
-    """Bank loan from Kassa rows: received / repaid / interest, terms parsed from the note."""
-    import re
-
+def loan_info(source_id: int, as_of: date | None = None) -> dict[str, Any] | None:
+    """Bank loan from Kassa rows (up to `as_of`): received / repaid / interest, terms from the note."""
     rows = list(
-        Transaction.objects.filter(raw_row__source_id=source_id)
+        Transaction.objects.filter(raw_row__source_id=source_id, txn_date__lte=as_of or date.max)
         .filter(Q(note__istartswith="Kredit") | Q(category="loan"))
         .values("txn_date", "direction", "amount", "note", "counterparty__name")
         .order_by("txn_date")
@@ -777,4 +845,209 @@ def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str,
         "balances": balances,
         "recon": recon,
         "has_reports": any(reported.values()),
+        "reports": report_tables(sheets),
+        "journals": journal_breakdowns(sheets, today),
+    }
+
+
+# --- report tables and journal breakdowns for the CFO analysis modules -------------------------
+def report_tables(sheets: list[SheetData]) -> dict[str, Any]:
+    """Every labelled row with month columns from the P&L, plan-vs-fact and balance sheets,
+    plus KPI targets from the dashboard sheet. Values by month ISO: {label: {month: str}}."""
+
+    def rows_by_month(sh: SheetData | None, sections: bool = False) -> dict[str, dict[str, str]]:
+        if sh is None:
+            return {}
+        out: dict[str, dict[str, str]] = {}
+        section = ""
+        cols: dict[int, date] = {}
+        for row in sh.rows:
+            mc = None
+            if sum(1 for v in row if isinstance(v, str) and _month_cols([row])) >= 1:
+                mc = _month_cols([row])
+            if mc:
+                cols = mc[1]
+                continue
+            texts = [
+                (j, text_key(v)) for j, v in enumerate(row[:4]) if isinstance(v, str) and v.strip()
+            ]
+            if not texts:
+                continue
+            _j0, label = texts[0]
+            if sections and label in ("reja", "fakt"):
+                section = label
+                continue
+            if not cols or not any(j < len(row) and isinstance(row[j], int | float) for j in cols):
+                continue
+            key = f"{section}:{label}" if sections and section else label
+            out.setdefault(
+                key, {m.isoformat(): str(_num(row[j])) for j, m in cols.items() if j < len(row)}
+            )
+        return out
+
+    targets: dict[str, str] = {}
+    dash = _sheet(sheets, "bosh sahifa")
+    if dash is not None:
+        h = _find_header(dash.rows, "ko'rsatkich")
+        if h is not None:
+            header = dash.rows[h]
+            it = _col(header, "maqsad")
+            for row in dash.rows[h + 1 : h + 40]:
+                label = next((text_key(v) for v in row[:3] if isinstance(v, str) and v.strip()), "")
+                is_month = re.match(r"^(" + "|".join(MONTH_ABBR) + r")\w*\s+\d{4}$", label)
+                if (
+                    label
+                    and not is_month
+                    and it is not None
+                    and it < len(row)
+                    and isinstance(row[it], int | float)
+                ):
+                    targets[label] = str(_num(row[it]))
+    return {
+        "pl": rows_by_month(_sheet(sheets, "foyda")),
+        "plan_fact": rows_by_month(_sheet(sheets, "reja fakt", "reja-fakt"), sections=True),
+        "balans": rows_by_month(_sheet(sheets, "balans")),
+        "kpi_targets": targets,
+    }
+
+
+def journal_breakdowns(sheets: list[SheetData], today: date) -> dict[str, Any]:
+    """Cash flows by activity, Kassa outflows by item, Smena checks and weekday Z-totals."""
+    acts: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    items: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    checks: dict[str, Decimal] = defaultdict(Decimal)
+    days: dict[str, set[date]] = defaultdict(set)
+    z_by_day: dict[date, Decimal] = {}
+    wd_checks: dict[date, Decimal] = {}
+    kassa, smena, kirim = _sheet(sheets, "kassa"), _sheet(sheets, "smena"), _sheet(sheets, "kirim")
+    if kassa is not None and (hk := _find_header(kassa.rows, "sana", "turi", "modda")) is not None:
+        hd = kassa.rows[hk]
+        c = {
+            k: _col(hd, *v)
+            for k, v in {
+                "d": ("sana",),
+                "t": ("turi",),
+                "m": ("modda",),
+                "s": ("summa so'm",),
+                "f": ("faoliyat",),
+                "q": ("qabul so'm",),
+            }.items()
+        }
+
+        def g(row: list[Any], k: str) -> Any:
+            i = c.get(k)
+            return row[i] if i is not None and i < len(row) else None
+
+        for row in kassa.rows[hk + 1 :]:
+            d = _date(g(row, "d"), today)
+            if d is None:
+                continue
+            m = d.replace(day=1).isoformat()
+            signed = _num(g(row, "s"))
+            if text_key(g(row, "t") or "").startswith("o'tkazma"):
+                diff = _num(g(row, "q")) + signed
+                if diff:  # fee / exchange difference: real money, kept apart from the activities
+                    acts[m]["other"] += diff
+                continue
+            f = text_key(g(row, "f") or "")
+            act = (
+                "investing"
+                if f.startswith("investitsion")
+                else "financing"
+                if f.startswith("moliyaviy")
+                else "operating"
+            )
+            acts[m][act] += signed
+            modda = str(g(row, "m") or "boshqa")
+            if signed < 0:
+                items[m][modda] += -signed
+            for key, word in (
+                ("owner_in", "ta'sischi"),
+                ("loan_in", "olindi"),
+                ("loan_repaid", "qaytarildi"),
+                ("interest", "kredit foizi"),
+                ("dividend", "dividend"),
+            ):
+                if word in text_key(modda):
+                    acts[m][key] += signed
+    if smena is not None and (hs := _find_header(smena.rows, "sana", "to'lovlar jami")) is not None:
+        hd = smena.rows[hs]
+        ids, ic, iz, it_, ip, ik = (
+            _col(hd, "sana"),
+            _col(hd, "cheklar"),
+            _col(hd, "z hisobot"),
+            _col(hd, "to'lovlar jami"),
+            _col(hd, "naqd pos"),
+            _col(hd, "naqd kassaga"),
+        )
+        for row in smena.rows[hs + 1 :]:
+            d = _date(row[ids] if ids is not None and ids < len(row) else None, today)
+            if d is None:
+                continue
+            m = d.replace(day=1).isoformat()
+
+            def v(i: int | None, r: list[Any] = row) -> Decimal:
+                return _num(r[i]) if i is not None and i < len(r) else Decimal(0)
+
+            acts[m]["operating"] += (
+                v(it_)
+                - v(ip)
+                + (
+                    v(ik)
+                    if ik is not None and ik < len(row) and row[ik] not in (None, "")
+                    else v(ip)
+                )
+            )
+            checks[m] += v(ic)
+            wd_checks[d] = v(ic)
+            days[m].add(d)
+            z_by_day[d] = z_by_day.get(d, Decimal(0)) + v(iz)
+    if (
+        kirim is not None
+        and (hp := _find_header(kirim.rows, "sana", "darhol to'langan")) is not None
+    ):
+        hd = kirim.rows[hp]
+        idd, ipf, ipd = _col(hd, "sana"), _col(hd, "darhol to'langan"), _col(hd, "to'lov so'm")
+        for row in kirim.rows[hp + 1 :]:
+            d = _date(row[idd] if idd is not None and idd < len(row) else None, today)
+            if d is None or ipf is None or ipf >= len(row) or row[ipf] in (None, ""):
+                continue
+            acts[d.replace(day=1).isoformat()]["operating"] -= _num(
+                row[ipd] if ipd is not None and ipd < len(row) else 0
+            )
+    # weekday averages of the Z-report over the last 3 months with data
+    weekday: dict[int, str] = {}
+    weekday_checks: dict[int, str] = {}
+    if z_by_day:
+        last = max(z_by_day)
+        start = _month_add(last.replace(day=1), -2)
+        per: dict[int, list[Decimal]] = defaultdict(list)
+        for d, z in z_by_day.items():
+            if start <= d <= last:
+                per[d.weekday()].append(z)
+        weekday = {
+            w: str((sum(v, Decimal(0)) / len(v)).quantize(Decimal(1))) for w, v in per.items() if v
+        }
+        per_c: dict[int, list[Decimal]] = defaultdict(list)
+        for d, n in wd_checks.items():
+            if start <= d <= last:
+                per_c[d.weekday()].append(n)
+        weekday_checks = {
+            w: str((sum(v, Decimal(0)) / len(v)).quantize(Decimal("0.1")))
+            for w, v in per_c.items()
+            if v
+        }
+    return {
+        "activities": {m: {k: str(v) for k, v in f.items()} for m, f in sorted(acts.items())},
+        "outflow_items": {
+            m: {k: str(v) for k, v in sorted(f.items(), key=lambda kv: -kv[1])}
+            for m, f in sorted(items.items())
+        },
+        "checks": {m: str(v) for m, v in sorted(checks.items())},
+        "smena_days": {m: len(v) for m, v in sorted(days.items())},
+        "weekday_z": weekday,
+        "weekday_checks": weekday_checks,
+        "last_dates": {
+            "smena": max(z_by_day).isoformat() if z_by_day else None,
+        },
     }

@@ -117,12 +117,15 @@ class EngineInput:
     safe_min: Decimal = Decimal("10000000")
     staff_count: int | None = None  # for "new_staff" changes (average salary)
     last_payroll_amount: Decimal | None = None  # last paid payroll total (from history)
+    # receipts known by date, outside daily sales (e.g. aggregator payouts on their cadence)
+    scheduled_inflows: Sequence[tuple[Date, Decimal]] = ()
 
     def __post_init__(self) -> None:
         # Freeze sequences so a cached input can never be mutated by a caller.
         object.__setattr__(self, "history", tuple(self.history))
         object.__setattr__(self, "obligations", tuple(self.obligations))
         object.__setattr__(self, "rules", tuple(self.rules))
+        object.__setattr__(self, "scheduled_inflows", tuple(self.scheduled_inflows))
 
 
 @dataclass(frozen=True)
@@ -207,6 +210,8 @@ class ForecastResult:
     segment_weight: float
     variable_cost_ratio: Decimal
     deferrals: tuple[Deferral, ...] = ()  # only for a `risky` result with a shortage
+    # set by the app's story view: a worse day beyond the visible horizon (date, balance)
+    beyond: tuple[Date, Decimal] | None = None
 
     @property
     def end(self) -> Date:

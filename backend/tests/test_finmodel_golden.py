@@ -204,3 +204,21 @@ def test_unreconciled_data_blocks_forecasts_and_advice(namuna, client):
         content_type="application/json",
     )
     assert r.status_code == 409 and "mos kelmayapti" in r.json()["message"]
+
+
+def test_backtest_sep_and_oct_within_5_percent(namuna):
+    b, src = namuna
+    bt = b.data_quality.get("backtest")
+    assert bt and [r["target"] for r in bt] == ["2026-09-30", "2026-10-31"], bt
+    for r in bt:
+        assert r["ok"] and Decimal(r["error_pct"]) <= 5, r
+    rec = {(r["month"], r["metric"]): r for r in src.summary["recon"]}
+    print("\nRECON")
+    for m in range(1, 11):
+        key = f"2026-{m:02d}-01"
+        cells = []
+        for metric in ("cash_end", "revenue", "payroll_accrued"):
+            r = rec.get((key, metric))
+            cells.append(f"{metric}={mln(r['computed'])}/{mln(r['reported'])}/{'OK' if r['ok'] else 'XX'}" if r else f"{metric}=-")
+        print(key, " ".join(cells))
+    print("BACKTEST", [(r["as_of"], r["target"], str(mln(r["predicted"])), str(mln(r["actual"])), r["error_pct"]) for r in bt])

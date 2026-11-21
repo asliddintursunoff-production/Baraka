@@ -16,6 +16,11 @@ export function AppShell({ active, children }: { active: NavKey; children: React
     <div className="flex min-h-screen flex-wrap bg-bg font-sans text-ink">
       <AppSidebar active={active} locked={status === "no_data" || status === "needs_review"} />
       <main className="box-border flex min-w-0 flex-[999_1_560px] flex-col gap-6 px-4 pb-12 pt-7 md:px-9">
+        {me.data?.freshness?.banner && (
+          <div role="status" className="rounded-inner border border-[#FEDF89] bg-warning-bg px-4 py-3 text-14 font-semibold text-warning">
+            {me.data.freshness.banner}
+          </div>
+        )}
         {locked ? status === "needs_review" ? <ReviewGate /> : <Gate state="nodata" /> : children}
       </main>
     </div>

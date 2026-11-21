@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, Sum
 
 from apps.ai import uz_format as uz
 from apps.finance.models import CashAccount, Obligation, Transaction
@@ -139,6 +139,43 @@ def checks(business: Business, today: date) -> dict[str, Any]:
             "duplicates",
             f"{dup} ta to'lov bir xil sana va summa bilan ikki xil varaqda bor — ikki marta hisoblanayotgan bo'lishi mumkin.",
         )
+    # A5: obligations vs their own history and vs the usual monthly cash out
+    last3 = full[-3:]
+    avg_out = (
+        (sum((monthly[m]["expenses"] for m in last3), Decimal(0)) / len(last3))
+        if last3
+        else Decimal(0)
+    )
+    due = list(
+        Obligation.objects.filter(
+            status="planned", due_date__gt=last, due_date__lte=last + timedelta(days=30)
+        ).values("title", "category", "amount")
+    )
+    due_total = sum((o["amount"] for o in due), Decimal(0))
+    if avg_out > 0 and due_total > avg_out * Decimal("1.5"):
+        flag(
+            "obligations_total",
+            f"Keyingi 30 kundagi to'lovlar ({uz.format_mln(due_total)}) odatdagi oylik chiqimdan ({uz.format_mln(avg_out)}) 1,5 barobar ko'p — ehtimol hisoblangan summalar to'lov deb olingan.",
+        )
+    since = last3[0] if last3 else first
+    for o in due:
+        hist = sum(
+            (
+                r["amount"]
+                for r in rows
+                if r["direction"] == "out"
+                and r["category"] == o["category"]
+                and r["txn_date"] >= since
+            ),
+            Decimal(0),
+        )
+        med = hist / max(1, len(last3))
+        if med > 0 and o["amount"] > med * 2:
+            flag(
+                "obligation_vs_history",
+                f"\"{o['title']}\" ({uz.format_mln(o['amount'])}) o'zining oylik o'rtachasidan ({uz.format_mln(med)}) 2 barobardan katta.",
+            )
+            break
     recon = [
         r | {"label": METRIC_UZ.get(r["metric"], r["metric"])}
         for s in summaries
@@ -159,13 +196,48 @@ def checks(business: Business, today: date) -> dict[str, Any]:
 
 
 def forecast_check(business: Business, q: dict[str, Any]) -> None:
-    """Check 4 (needs the forecast): cash falling below -3x monthly revenue."""
+    """Checks that need the forecast: cash below -3x monthly revenue, inflow below half the
+    weekday baseline, and the backtest (A6) for workbooks with their own reports."""
     from apps.insights.forecasting import get_forecast
 
     rev = Decimal(q.get("monthly_revenue") or 0)
     if rev <= 0 or q.get("status") == "no_data":
         return
-    low = get_forecast(business).result.min_balance
+    base = get_forecast(business).result
+    low = base.min_balance
+    with tenant_context(business):
+        if any(s.summary.get("has_reports") for s in DataSource.objects.exclude(summary={})):
+            from apps.insights.backtest import run as backtest
+
+            q["backtest"] = backtest(business)
+        last = date.fromisoformat(q["last_date"])
+        hist = Transaction.objects.filter(
+            direction="in",
+            is_actual=True,
+            txn_date__gt=last - timedelta(days=56),
+            txn_date__lte=last,
+        ).exclude(category__in=(*NON_OPERATING, "agregator")).aggregate(s=Sum("amount"))[
+            "s"
+        ] or Decimal(0)
+    baseline = hist / 56
+    model_daily = sum(base.weekday_revenue, Decimal(0)) / 7
+    if baseline > 0 and model_daily < baseline / 2:
+        q["flags"].append(
+            {
+                "code": "inflow_low",
+                "text": f"Prognozdagi kunlik tushum ({uz.format_mln(model_daily)}) odatdagidan ({uz.format_mln(baseline)}) ikki barobar kam — ma'lumotda bo'shliq yoki xato bor.",
+            }
+        )
+        q["status"] = "needs_review"
+    for b in q.get("backtest", []):
+        if not b["ok"]:
+            q["flags"].append(
+                {
+                    "code": "backtest",
+                    "text": f"Prognoz modeli {uz.format_date(date.fromisoformat(b['target']))} uchun kassani {b['error_pct']}% xato bilan bashorat qildi (ruxsat 5%) — prognozni hozircha ko'rsatmayman.",
+                }
+            )
+            q["status"] = "needs_review"
     if low < -rev * 3:
         q["flags"].append(
             {

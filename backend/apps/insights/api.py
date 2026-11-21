@@ -313,7 +313,16 @@ class DashboardView(BusinessAPIView):
                 "today": {"iso": today.isoformat(), "label": uz.format_date_long(today)},
                 "sync": _sync_status(b.pk),
                 "alerts": {"new": Alert.objects.filter(status="new").count()},
-                "banner": {"label": f"Bugungi maslahat · {snap_time}", **advice.banner(base)},
+                "banner": {
+                    "label": f"Bugungi maslahat · keyingi 60 kun · {snap_time}",
+                    **advice.banner(base),
+                    "beyond": (
+                        f"60 kundan keyin: {uz.format_date(base.beyond[0])} {base.beyond[0].year} kuni kassa "
+                        f"{uz.format_mln(base.beyond[1])} gacha tushadi."
+                        if base.beyond
+                        else ""
+                    ),
+                },
                 "kpis": _kpis(
                     base, base.today, today
                 ),  # as of the last actual day when data is stale

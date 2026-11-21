@@ -39,6 +39,11 @@ def input_to_dict(inp: EngineInput) -> dict[str, Any]:
         if inp.last_payroll_amount is not None
         else None,
         "history": [[h.date.isoformat(), _money(h.inflow), _money(h.outflow)] for h in inp.history],
+        **(
+            {"scheduled_inflows": [[d.isoformat(), _money(a)] for d, a in inp.scheduled_inflows]}
+            if inp.scheduled_inflows
+            else {}
+        ),
         "obligations": [
             {
                 "title": o.title,
@@ -90,6 +95,9 @@ def input_from_dict(data: dict[str, Any]) -> EngineInput:
         history=[
             DailyActual(date=date.fromisoformat(d), inflow=Decimal(i), outflow=Decimal(o))
             for d, i, o in data["history"]
+        ],
+        scheduled_inflows=[
+            (date.fromisoformat(d), Decimal(a)) for d, a in data.get("scheduled_inflows", [])
         ],
         obligations=[
             ObligationIn(
