@@ -1,0 +1,43 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests", "apps"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+filterwarnings = ["ignore:No directory at:UserWarning"]
+markers = [
+    "live_api: calls the real Gemini API (deselected by default; run with -m live_api)",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "DJ", "RUF"]
+ignore = ["S101", "RUF001", "RUF002", "RUF003", "RUF012"]  # RUF012: Django Meta attrs
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B", "E501"]
+"apps/ai/prompts.py" = ["E501"]  # prompt prose
+"apps/ai/management/commands/voice_spike.py" = ["E501"]  # spike question data
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+strict = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+exclude = ["migrations/", "\\.venv/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false
+
+[tool.django-stubs]
+django_settings_module = "config.settings"

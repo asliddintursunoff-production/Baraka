@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>BizPilot AI — Bosh sahifa</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8;font-family:Inter,system-ui,sans-serif;color:#101828}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+.nav a{color:#344054;text-decoration:none}
+.nav a:hover{color:#101828;background:#F2F4F7}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #101828">
+
+  <!-- SIDEBAR -->
+  <nav class="nav" aria-label="Asosiy menyu" style="flex: 1 1 240px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E4E7EC; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 24px">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1D4ED8"></rect><path d="M9 21l5-6 4 3 5-7" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 19px">BizPilot AI</span>
+    </div>
+    <a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #EFF4FF; color: #1D4ED8; font-weight: 600; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Bosh sahifa</a>
+    <a href="Chat.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>AI CFO</a>
+    <a href="Forecast.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8"></path><path d="M14 8h6v6"></path></svg>Prognoz</a>
+    <a href="Calendar.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>To'lovlar kalendari</a>
+    <a href="Knowledge.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3z"></path><path d="M9 21h6"></path></svg>AI bilimi</a>
+    <a href="Sources.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg>Ma'lumotlar</a>
+    <div style="flex-grow: 1; min-height: 24px"></div>
+    <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 12px; color: #5D6679; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase">Biznes</span>
+      <button type="button" style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; border: 0; background: #F5F6F8; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; font-weight: 600; color: #101828; cursor: pointer">Navro'z Kafe · Toshkent
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    </div>
+  </nav>
+
+  <!-- CONTENT -->
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 36px 48px; display: flex; flex-direction: column; gap: 24px">
+
+    <!-- top bar -->
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">Xayrli kun, Abdusamad</h1>
+        <span style="font-size: 15px; color: #475467">21-noyabr, shanba · Barcha raqamlar Financial Engine tomonidan hisoblangan</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <span style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; background: #ECFDF3; color: #067647; border-radius: 999px; font-size: 14px; font-weight: 600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"></path></svg>Google Sheets · 4 daqiqa oldin sinxronlandi</span>
+        <button type="button" aria-label="Bildirishnomalar, 2 ta yangi" style="position: relative; width: 44px; height: 44px; border-radius: 12px; border: 1px solid #E4E7EC; background: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #344054">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4"></path></svg>
+          <span style="position: absolute; top: 6px; right: 6px; min-width: 18px; height: 18px; border-radius: 9px; background: #B42318; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- AI proactive decision banner -->
+    <section aria-label="AI xulosasi" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center; background: #101828; color: #FFFFFF; border-radius: 16px; padding: 22px 24px">
+      <div style="width: 48px; height: 48px; border-radius: 12px; background: #1D4ED8; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"></path></svg>
+      </div>
+      <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 13px; font-weight: 600; color: #B2CCFF; letter-spacing: 0.04em; text-transform: uppercase">Bugungi maslahat · 08:00</span>
+        <p style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; font-weight: 700; line-height: 1.3">Pulingiz yetadi. Faqat 10-dekabrga ehtiyot bo'ling.</p>
+        <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #D0D5DD">O'sha kuni oylik va kredit bir kunga tushgan. Shuning uchun <strong style="color: #FFFFFF">10-dekabrgacha 8 million so'mdan katta xarid qilmang.</strong></p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+        <a href="Chat.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 10px; background: #FFFFFF; color: #101828; font-weight: 600; font-size: 15px; text-decoration: none">AI bilan muhokama</a>
+        <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid #475467; background: transparent; color: #FFFFFF; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer">Tushunarli</button>
+      </div>
+    </section>
+
+    <!-- KPI row -->
+    <section aria-label="Asosiy ko'rsatkichlar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px">
+      <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 14px; color: #475467; font-weight: 500">Hozir qo'lingizdagi pul</span>
+        <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">48,2 <span style="font-size: 17px; color: #475467; font-weight: 600">mln so'm</span></span>
+        <span style="font-size: 13px; color: #5D6679">Naqd + bank hisobi</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 14px; color: #475467; font-weight: 500">30 kunda kirgan pul</span>
+        <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">196,4 <span style="font-size: 17px; color: #475467; font-weight: 600">mln</span></span>
+        <span style="font-size: 13px; color: #B54708; font-weight: 600">▼ 3,3% oktyabrga nisbatan</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 14px; color: #475467; font-weight: 500">30 kunda chiqqan pul</span>
+        <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">178,0 <span style="font-size: 17px; color: #475467; font-weight: 600">mln</span></span>
+        <span style="font-size: 13px; color: #067647; font-weight: 600">18,4 mln ortib qoldi</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 14px; color: #475467; font-weight: 500">30 kunda to'lashingiz shart</span>
+        <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">108,5 <span style="font-size: 17px; color: #475467; font-weight: 600">mln</span></span>
+        <span style="font-size: 13px; color: #5D6679">5 ta to'lov · eng yaqini 25-noyabr</span>
+      </div>
+    </section>
+
+    <!-- Forecast + alerts -->
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch">
+      <section aria-label="Kassa prognozi" style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+              <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Keyingi 60 kun</h2>
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #ECFDF3; color: #067647; font-size: 13px; font-weight: 700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Pul yetadi</span>
+            </div>
+            <span style="font-size: 15px; color: #344054">Eng qiyin kun — <strong>10-dekabr</strong>: kassada 18,8 mln qoladi.</span>
+          </div>
+          <div role="group" aria-label="Prognoz muddati" style="display: flex; background: #F2F4F7; border-radius: 10px; padding: 4px; gap: 2px">
+            <button type="button" style="min-width: 52px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">7 kun</button>
+            <button type="button" style="min-width: 52px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">30 kun</button>
+            <button type="button" aria-pressed="true" style="min-width: 52px; min-height: 36px; border: 0; border-radius: 8px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(16,24,40,.1); font: inherit; font-size: 14px; font-weight: 700; color: #101828; cursor: pointer">60 kun</button>
+            <button type="button" style="min-width: 52px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">90 kun</button>
+          </div>
+        </div>
+        <svg viewBox="0 0 830 300" role="img" aria-label="60 kunlik kassa prognozi: 48,2 mln dan boshlanadi, 10-dekabrda 18,8 mln gacha tushadi, 19-yanvarda 56 mln" style="width: 100%; height: auto; display: block">
+          <g transform="translate(56,16)">
+            <rect x="0" y="186.7" width="760" height="53.3" fill="#FEF3F2"></rect>
+            <text x="8" y="230" font-size="12" fill="#B42318" font-weight="600">Pul yetmaydigan zona</text>
+            <g stroke="#EAECF0" stroke-width="1">
+              <line x1="0" y1="26.7" x2="760" y2="26.7"></line><line x1="0" y1="80" x2="760" y2="80"></line><line x1="0" y1="133.3" x2="760" y2="133.3"></line><line x1="0" y1="240" x2="760" y2="240"></line>
+            </g>
+            <line x1="0" y1="186.7" x2="760" y2="186.7" stroke="#98A2B3" stroke-width="1"></line>
+            <g font-size="12" fill="#5D6679" text-anchor="end">
+              <text x="-10" y="30.7">60 mln</text><text x="-10" y="84">40 mln</text><text x="-10" y="137.3">20 mln</text><text x="-10" y="190.7">0</text>
+            </g>
+            <line x1="0" y1="160" x2="760" y2="160" stroke="#B54708" stroke-width="1.5" stroke-dasharray="6 5"></line>
+            <text x="756" y="153" font-size="12" fill="#B54708" text-anchor="end" font-weight="600">Xavfsiz chegara · 10 mln</text>
+            <polygon points="0.0,58.1 12.9,43.2 25.8,33.5 38.6,24.0 51.5,73.1 64.4,63.0 77.3,51.5 90.2,37.8 103.1,25.3 115.9,16.3 128.8,47.0 141.7,37.7 154.6,28.2 167.5,16.6 180.3,3.2 193.2,-9.2 206.1,-18.1 219.0,-27.0 231.9,-36.2 244.7,123.7 257.6,112.2 270.5,98.8 283.4,86.5 296.3,77.7 309.2,90.2 322.0,81.1 334.9,71.7 347.8,60.2 360.7,46.9 373.6,34.6 386.4,25.8 399.3,16.7 412.2,7.7 425.1,-1.7 438.0,45.6 450.8,32.5 463.7,20.0 476.6,11.5 489.5,2.5 502.4,-6.6 515.3,-15.9 528.1,12.7 541.0,-0.6 553.9,-12.8 566.8,-21.6 579.7,-30.3 592.5,-39.4 605.4,-48.6 618.3,-60.1 631.2,-73.3 644.1,83.8 656.9,75.1 669.8,66.0 682.7,57.0 695.6,47.8 708.5,58.0 721.4,44.7 734.2,32.5 747.1,23.8 760.0,14.8 760.0,59.9 747.1,68.5 734.2,76.8 721.4,88.6 708.5,101.5 695.6,90.9 682.7,99.8 669.8,108.4 656.9,116.9 644.1,125.3 631.2,-32.3 618.3,-19.4 605.4,-8.4 592.5,0.4 579.7,9.0 566.8,17.3 553.9,25.6 541.0,37.4 528.1,50.2 515.3,21.2 502.4,30.1 489.5,38.6 476.6,47.2 463.7,55.2 450.8,67.2 438.0,79.8 425.1,32.1 412.2,40.9 399.3,49.4 386.4,57.9 373.6,66.2 360.7,77.9 347.8,90.7 334.9,101.6 322.0,110.4 309.2,118.9 296.3,105.8 283.4,114.0 270.5,125.7 257.6,138.5 244.7,149.3 231.9,-11.3 219.0,-2.8 206.1,5.3 193.2,13.5 180.3,25.1 167.5,37.8 154.6,48.6 141.7,57.2 128.8,65.5 115.9,33.9 103.1,41.9 90.2,53.4 77.3,65.9 64.4,76.2 51.5,84.8 38.6,34.1 25.8,41.7 12.9,49.1 0.0,58.1" fill="#1D4ED8" fill-opacity="0.10"></polygon>
+            <polyline points="0.0,58.1 12.9,46.1 25.8,37.6 38.6,29.1 51.5,78.9 64.4,69.6 77.3,58.7 90.2,45.6 103.1,33.6 115.9,25.1 128.8,56.3 141.7,47.5 154.6,38.4 167.5,27.2 180.3,14.1 193.2,2.1 206.1,-6.4 219.0,-14.9 231.9,-23.7 244.7,136.5 257.6,125.3 270.5,112.3 283.4,100.3 296.3,91.7 309.2,104.5 322.0,95.7 334.9,86.7 347.8,75.5 360.7,62.4 373.6,50.4 386.4,41.9 399.3,33.1 412.2,24.3 425.1,15.2 438.0,62.7 450.8,49.9 463.7,37.6 476.6,29.3 489.5,20.5 502.4,11.7 515.3,2.7 528.1,31.5 541.0,18.4 553.9,6.4 566.8,-2.1 579.7,-10.7 592.5,-19.5 605.4,-28.5 618.3,-39.7 631.2,-52.8 644.1,104.5 656.9,96.0 669.8,87.2 682.7,78.4 695.6,69.3 708.5,79.7 721.4,66.7 734.2,54.7 747.1,46.1 760.0,37.3" fill="none" stroke="#1D4ED8" stroke-width="2.5" stroke-linejoin="round"></polyline>
+            <line x1="244.7" y1="0" x2="244.7" y2="240" stroke="#B54708" stroke-width="1" stroke-dasharray="3 4"></line>
+            <circle cx="244.7" cy="136.5" r="6" fill="#FFFFFF" stroke="#B54708" stroke-width="3"></circle>
+            <rect x="256" y="96" width="196" height="46" rx="8" fill="#101828"></rect>
+            <text x="268" y="115" font-size="13" fill="#FFFFFF" font-weight="700">10-dek · eng qiyin kun</text>
+            <text x="268" y="133" font-size="12" fill="#D0D5DD">Oylik + kredit · 18,8 mln qoladi</text>
+            <circle cx="0" cy="58.1" r="5" fill="#1D4ED8"></circle>
+            <g font-size="12" fill="#5D6679" text-anchor="middle">
+              <text x="0" y="262">21-noy</text><text x="128.8" y="262">1-dek</text><text x="244.7" y="262">10-dek</text><text x="438" y="262">25-dek</text><text x="528.1" y="262">1-yan</text><text x="644.1" y="262">10-yan</text><text x="745" y="262">19-yan</text>
+            </g>
+          </g>
+        </svg>
+        <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #475467">
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 3px; background: #1D4ED8; border-radius: 2px"></span>Kassadagi pul</span>
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; background: #DCE6FB; border-radius: 2px"></span>Savdoga qarab o'zgarishi mumkin</span>
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 0; border-top: 2px dashed #B54708"></span>Xavfsiz chegara</span>
+          <a href="Forecast.dc.html" style="margin-left: auto; font-weight: 600">Batafsil prognoz</a>
+        </div>
+      </section>
+
+      <section aria-label="Ogohlantirishlar" style="flex: 1 1 320px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column; gap: 14px">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Nima qilish kerak</h2>
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+          <li style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #F5F6F8">
+            <span style="width: 26px; height: 26px; border-radius: 13px; background: #067647; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">1</span>
+            <div style="display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 13px; font-weight: 700; color: #067647">25-noyabr · bemalol</span>
+              <span style="font-size: 15px; line-height: 1.45">Agro Go'shtga 22 mln to'lang. Pul yetadi.</span>
+            </div>
+          </li>
+          <li style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #FFFAEB">
+            <span style="width: 26px; height: 26px; border-radius: 13px; background: #B54708; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">2</span>
+            <div style="display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 13px; font-weight: 700; color: #B54708">10-dekabrgacha · ehtiyot</span>
+              <span style="font-size: 15px; line-height: 1.45">8 mln so'mdan katta xarid qilmang.</span>
+            </div>
+          </li>
+          <li style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #FEF3F2">
+            <span style="width: 26px; height: 26px; border-radius: 13px; background: #B42318; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">3</span>
+            <div style="display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 13px; font-weight: 700; color: #B42318">10-dekabr · muhim kun</span>
+              <span style="font-size: 15px; line-height: 1.45">Avval oylik va kreditni to'lang, keyin boshqasini.</span>
+            </div>
+          </li>
+        </ol>
+        <span style="font-size: 12px; font-weight: 700; color: #5D6679; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 6px">AI yangiliklari</span>
+        <article style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #EFF4FF">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2" style="flex-shrink: 0" aria-hidden="true"><path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3z"></path><path d="M9 21h6"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 12px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.04em">AI o'rgandi · kecha</span>
+            <span style="font-size: 14px; line-height: 1.45">Xodim izohi: "Juma va shanba tushumi bayram oldidan oshadi". Dekabr prognoziga qo'shildi.</span>
+          </div>
+        </article>
+        <article style="display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: #F5F6F8">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2" style="flex-shrink: 0" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 2 6 5.5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 12px; font-weight: 700; color: #475467; text-transform: uppercase; letter-spacing: 0.04em">Shu turdagi bizneslardan</span>
+            <span style="font-size: 14px; line-height: 1.45">Toshkent kafelarida yanvarning birinchi haftasida tushum odatda pasayadi. Prognozga hisobga olindi.</span>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <!-- Obligations + revenue/expense -->
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch">
+      <section aria-label="Kelgusi to'lovlar" style="flex: 1 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Kelgusi to'lovlar · 30 kun</h2>
+          <a href="Calendar.dc.html" style="font-size: 14px; font-weight: 600">Kalendar</a>
+        </div>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; min-width: 420px">
+            <thead>
+              <tr style="text-align: left; color: #5D6679; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em">
+                <th style="padding: 8px 0; font-weight: 600">Sana</th><th style="padding: 8px 0; font-weight: 600">To'lov</th><th style="padding: 8px 0; font-weight: 600">Turi</th><th style="padding: 8px 0; font-weight: 600; text-align: right">Summa</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-top: 1px solid #EAECF0"><td style="padding: 12px 0; font-weight: 600">25-noy</td><td style="padding: 12px 0">Ta'minotchi · Agro Go'sht</td><td style="padding: 12px 0"><span style="padding: 3px 9px; border-radius: 999px; background: #F2F4F7; color: #344054; font-size: 12px; font-weight: 600">Kechiktirsa bo'ladi</span></td><td style="padding: 12px 0; text-align: right; font-weight: 600">22,0 mln</td></tr>
+              <tr style="border-top: 1px solid #EAECF0"><td style="padding: 12px 0; font-weight: 600">1-dek</td><td style="padding: 12px 0">Ijara</td><td style="padding: 12px 0"><span style="padding: 3px 9px; border-radius: 999px; background: #FEF3F2; color: #B42318; font-size: 12px; font-weight: 600">Muhim</span></td><td style="padding: 12px 0; text-align: right; font-weight: 600">15,0 mln</td></tr>
+              <tr style="border-top: 1px solid #EAECF0"><td style="padding: 12px 0; font-weight: 600">10-dek</td><td style="padding: 12px 0">Ish haqi · 15 xodim</td><td style="padding: 12px 0"><span style="padding: 3px 9px; border-radius: 999px; background: #FEF3F2; color: #B42318; font-size: 12px; font-weight: 600">Muhim</span></td><td style="padding: 12px 0; text-align: right; font-weight: 600">45,0 mln</td></tr>
+              <tr style="border-top: 1px solid #EAECF0"><td style="padding: 12px 0; font-weight: 600">10-dek</td><td style="padding: 12px 0">NBU kredit to'lovi</td><td style="padding: 12px 0"><span style="padding: 3px 9px; border-radius: 999px; background: #FEF3F2; color: #B42318; font-size: 12px; font-weight: 600">Muhim</span></td><td style="padding: 12px 0; text-align: right; font-weight: 600">18,5 mln</td></tr>
+              <tr style="border-top: 1px solid #EAECF0"><td style="padding: 12px 0; font-weight: 600">15-dek</td><td style="padding: 12px 0">Soliq</td><td style="padding: 12px 0"><span style="padding: 3px 9px; border-radius: 999px; background: #FEF3F2; color: #B42318; font-size: 12px; font-weight: 600">Muhim</span></td><td style="padding: 12px 0; text-align: right; font-weight: 600">8,0 mln</td></tr>
+              <tr style="border-top: 2px solid #D0D5DD"><td style="padding: 12px 0; font-weight: 700" colspan="3">Jami</td><td style="padding: 12px 0; text-align: right; font-weight: 700">108,5 mln</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-label="Tushum va xarajat" style="flex: 1 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px">
+          <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Tushum va xarajat</h2>
+          <div style="display: flex; gap: 14px; font-size: 13px; color: #475467">
+            <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #1D4ED8"></span>Tushum</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #F79009"></span>Xarajat</span>
+          </div>
+        </div>
+        <svg viewBox="0 0 400 200" role="img" aria-label="Iyun–oktyabr: tushum 182, 176, 191, 188, 203 mln; xarajat 165, 170, 174, 169, 181 mln" style="width: 100%; height: auto; display: block">
+          <line x1="20" y1="170" x2="390" y2="170" stroke="#D0D5DD"></line>
+          <g fill="#1D4ED8">
+            <rect x="40" y="37.6" width="24" height="132.4" rx="3"></rect><rect x="110" y="42" width="24" height="128" rx="3"></rect><rect x="180" y="31.1" width="24" height="138.9" rx="3"></rect><rect x="250" y="33.3" width="24" height="136.7" rx="3"></rect><rect x="320" y="22.4" width="24" height="147.6" rx="3"></rect>
+          </g>
+          <g fill="#F79009">
+            <rect x="66" y="50" width="24" height="120" rx="3"></rect><rect x="136" y="46.4" width="24" height="123.6" rx="3"></rect><rect x="206" y="43.5" width="24" height="126.5" rx="3"></rect><rect x="276" y="47.1" width="24" height="122.9" rx="3"></rect><rect x="346" y="38.4" width="24" height="131.6" rx="3"></rect>
+          </g>
+          <g font-size="11" fill="#5D6679" text-anchor="middle">
+            <text x="65" y="188">Iyun</text><text x="135" y="188">Iyul</text><text x="205" y="188">Avg</text><text x="275" y="188">Sen</text><text x="345" y="188">Okt</text>
+          </g>
+          <g font-size="11" fill="#344054" text-anchor="middle" font-weight="600">
+            <text x="65" y="30">+17</text><text x="135" y="34">+6</text><text x="205" y="23">+17</text><text x="275" y="25">+19</text><text x="345" y="14">+22</text>
+          </g>
+        </svg>
+        <span style="font-size: 13px; color: #5D6679">Ustidagi raqam — oylik sof foyda, mln so'm. Foyda bor, lekin to'lov sanalari bir-biriga to'g'ri kelgani uchun kassa tushib ketadi.</span>
+      </section>
+    </div>
+  </main>
+
+  <!-- Floating AI button -->
+  <a href="Live.dc.html" aria-label="AI CFO bilan jonli gaplashish" style="position: fixed; right: 28px; bottom: 28px; display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 22px 0 18px; border-radius: 999px; background: #1D4ED8; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 15px; box-shadow: 0 8px 24px rgba(29,78,216,.35)">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>AI bilan gaplashish</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

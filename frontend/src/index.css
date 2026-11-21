@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn/ui theme variables mapped to design tokens (design/DESIGN.md) */
+    --background: 220 14% 97%; /* #F5F6F8 */
+    --foreground: 221 43% 11%; /* #101828 */
+    --ring: 224 76% 48%; /* #1D4ED8 */
+  }
+  html,
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    margin: 0;
+  }
+  a {
+    @apply text-primary hover:text-primary-hover;
+  }
+  :focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

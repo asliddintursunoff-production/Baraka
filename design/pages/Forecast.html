@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>BizPilot AI — Prognoz va simulyator</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8;font-family:Inter,system-ui,sans-serif;color:#101828}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+.nav a{color:#344054;text-decoration:none}
+.nav a:hover{color:#101828;background:#F2F4F7}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #101828">
+
+<!-- SIDEBAR -->
+  <nav class="nav" aria-label="Asosiy menyu" style="flex: 1 1 240px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E4E7EC; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 24px">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1D4ED8"></rect><path d="M9 21l5-6 4 3 5-7" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 19px">BizPilot AI</span>
+    </div>
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Bosh sahifa</a>
+    <a href="Chat.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>AI CFO</a>
+    <a href="Forecast.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #EFF4FF; color: #1D4ED8; font-weight: 600; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8"></path><path d="M14 8h6v6"></path></svg>Prognoz</a>
+    <a href="Calendar.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>To'lovlar kalendari</a>
+    <a href="Knowledge.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3z"></path><path d="M9 21h6"></path></svg>AI bilimi</a>
+    <a href="Sources.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg>Ma'lumotlar</a>
+    <div style="flex-grow: 1; min-height: 24px"></div>
+    <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 12px; color: #5D6679; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase">Biznes</span>
+      <button type="button" style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; border: 0; background: #F5F6F8; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; font-weight: 600; color: #101828; cursor: pointer">Navro'z Kafe · Toshkent
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 36px 48px; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">Prognoz</h1>
+        <span style="font-size: 16px; color: #475467">Kelajakda kassangizda qancha pul bo'lishi — va "agar shunday qilsam-chi?" degan savollarga javob</span>
+      </div>
+      <div role="group" aria-label="Prognoz muddati" style="display: flex; background: #E9ECF1; border-radius: 10px; padding: 4px; gap: 2px">
+        <button type="button" style="min-width: 60px; min-height: 40px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">7 kun</button>
+        <button type="button" style="min-width: 60px; min-height: 40px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">30 kun</button>
+        <button type="button" aria-pressed="true" style="min-width: 60px; min-height: 40px; border: 0; border-radius: 8px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(16,24,40,.1); font: inherit; font-size: 14px; font-weight: 700; color: #101828; cursor: pointer">60 kun</button>
+        <button type="button" style="min-width: 60px; min-height: 40px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">90 kun</button>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch">
+
+      <!-- chart -->
+      <section aria-label="Kassa prognozi grafigi" style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+          <span style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #ECFDF3; color: #067647; font-size: 14px; font-weight: 700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Hozirgi holatda pul yetadi</span>
+          <span style="font-size: 15px; color: #344054">Eng qiyin kun — <strong>10-dekabr</strong> (18,8 mln qoladi)</span>
+        </div>
+        <svg viewBox="0 0 830 300" role="img" aria-label="Kassa prognozi va tanlangan 'agar' varianti" style="width: 100%; height: auto; display: block">
+          <g transform="translate(56,16)">
+            <rect x="0" y="186.7" width="760" height="53.3" fill="#FEF3F2"></rect>
+            <text x="8" y="230" font-size="12" fill="#B42318" font-weight="600">Pul yetmaydigan zona</text>
+            <g stroke="#EAECF0" stroke-width="1">
+              <line x1="0" y1="26.7" x2="760" y2="26.7"></line><line x1="0" y1="80" x2="760" y2="80"></line><line x1="0" y1="133.3" x2="760" y2="133.3"></line><line x1="0" y1="240" x2="760" y2="240"></line>
+            </g>
+            <line x1="0" y1="186.7" x2="760" y2="186.7" stroke="#98A2B3"></line>
+            <g font-size="12" fill="#5D6679" text-anchor="end">
+              <text x="-10" y="30.7">60 mln</text><text x="-10" y="84">40 mln</text><text x="-10" y="137.3">20 mln</text><text x="-10" y="190.7">0</text>
+            </g>
+            <line x1="0" y1="160" x2="760" y2="160" stroke="#B54708" stroke-width="1.5" stroke-dasharray="6 5"></line>
+            <text x="756" y="153" font-size="12" fill="#B54708" text-anchor="end" font-weight="600">Xavfsiz chegara · 10 mln</text>
+            <polygon points="0.0,58.1 12.9,43.2 25.8,33.5 38.6,24.0 51.5,73.1 64.4,63.0 77.3,51.5 90.2,37.8 103.1,25.3 115.9,16.3 128.8,47.0 141.7,37.7 154.6,28.2 167.5,16.6 180.3,3.2 193.2,-9.2 206.1,-18.1 219.0,-27.0 231.9,-36.2 244.7,123.7 257.6,112.2 270.5,98.8 283.4,86.5 296.3,77.7 309.2,90.2 322.0,81.1 334.9,71.7 347.8,60.2 360.7,46.9 373.6,34.6 386.4,25.8 399.3,16.7 412.2,7.7 425.1,-1.7 438.0,45.6 450.8,32.5 463.7,20.0 476.6,11.5 489.5,2.5 502.4,-6.6 515.3,-15.9 528.1,12.7 541.0,-0.6 553.9,-12.8 566.8,-21.6 579.7,-30.3 592.5,-39.4 605.4,-48.6 618.3,-60.1 631.2,-73.3 644.1,83.8 656.9,75.1 669.8,66.0 682.7,57.0 695.6,47.8 708.5,58.0 721.4,44.7 734.2,32.5 747.1,23.8 760.0,14.8 760.0,59.9 747.1,68.5 734.2,76.8 721.4,88.6 708.5,101.5 695.6,90.9 682.7,99.8 669.8,108.4 656.9,116.9 644.1,125.3 631.2,-32.3 618.3,-19.4 605.4,-8.4 592.5,0.4 579.7,9.0 566.8,17.3 553.9,25.6 541.0,37.4 528.1,50.2 515.3,21.2 502.4,30.1 489.5,38.6 476.6,47.2 463.7,55.2 450.8,67.2 438.0,79.8 425.1,32.1 412.2,40.9 399.3,49.4 386.4,57.9 373.6,66.2 360.7,77.9 347.8,90.7 334.9,101.6 322.0,110.4 309.2,118.9 296.3,105.8 283.4,114.0 270.5,125.7 257.6,138.5 244.7,149.3 231.9,-11.3 219.0,-2.8 206.1,5.3 193.2,13.5 180.3,25.1 167.5,37.8 154.6,48.6 141.7,57.2 128.8,65.5 115.9,33.9 103.1,41.9 90.2,53.4 77.3,65.9 64.4,76.2 51.5,84.8 38.6,34.1 25.8,41.7 12.9,49.1 0.0,58.1" fill="#1D4ED8" fill-opacity="0.08"></polygon>
+            <polyline points="0.0,58.1 12.9,46.1 25.8,37.6 38.6,29.1 51.5,78.9 64.4,69.6 77.3,58.7 90.2,45.6 103.1,33.6 115.9,25.1 128.8,56.3 141.7,47.5 154.6,38.4 167.5,27.2 180.3,14.1 193.2,2.1 206.1,-6.4 219.0,-14.9 231.9,-23.7 244.7,136.5 257.6,125.3 270.5,112.3 283.4,100.3 296.3,91.7 309.2,104.5 322.0,95.7 334.9,86.7 347.8,75.5 360.7,62.4 373.6,50.4 386.4,41.9 399.3,33.1 412.2,24.3 425.1,15.2 438.0,62.7 450.8,49.9 463.7,37.6 476.6,29.3 489.5,20.5 502.4,11.7 515.3,2.7 528.1,31.5 541.0,18.4 553.9,6.4 566.8,-2.1 579.7,-10.7 592.5,-19.5 605.4,-28.5 618.3,-39.7 631.2,-52.8 644.1,104.5 656.9,96.0 669.8,87.2 682.7,78.4 695.6,69.3 708.5,79.7 721.4,66.7 734.2,54.7 747.1,46.1 760.0,37.3" fill="none" stroke="#1D4ED8" stroke-width="2.5" stroke-linejoin="round"></polyline>
+            <sc-if value="{{ isBuy }}" hint-placeholder-val="{{ true }}">
+              <polyline points="0.0,124.8 12.9,112.8 25.8,104.3 38.6,95.7 51.5,145.6 64.4,136.3 77.3,125.3 90.2,112.3 103.1,100.3 115.9,91.7 128.8,122.9 141.7,114.1 154.6,105.1 167.5,93.9 180.3,80.8 193.2,68.8 206.1,60.3 219.0,51.7 231.9,42.9 244.7,203.2 257.6,192.0 270.5,178.9 283.4,166.9 296.3,158.4 309.2,171.2 322.0,162.4 334.9,153.3 347.8,142.1 360.7,129.1 373.6,117.1 386.4,108.5 399.3,99.7 412.2,90.9 425.1,81.9 438.0,129.3 450.8,116.5 463.7,104.3 476.6,96.0 489.5,87.2 502.4,78.4 515.3,69.3 528.1,98.1 541.0,85.1 553.9,73.1 566.8,64.5 579.7,56.0 592.5,47.2 605.4,38.1 618.3,26.9 631.2,13.9 644.1,171.2 656.9,162.7 669.8,153.9 682.7,145.1 695.6,136.0 708.5,146.4 721.4,133.3 734.2,121.3 747.1,112.8 760.0,104.0" fill="none" stroke="#B42318" stroke-width="2.5" stroke-dasharray="7 4" stroke-linejoin="round"></polyline>
+              <circle cx="244.7" cy="203.2" r="6" fill="#FFFFFF" stroke="#B42318" stroke-width="3"></circle>
+            </sc-if>
+            <sc-if value="{{ isRev }}" hint-placeholder-val="{{ false }}">
+              <polyline points="0.0,58.1 12.9,48.5 25.8,41.6 38.6,34.7 51.5,86.4 64.4,79.2 77.3,70.1 90.2,59.7 103.1,50.1 115.9,43.5 128.8,76.5 141.7,69.3 154.6,62.1 167.5,53.1 180.3,42.7 193.2,33.1 206.1,26.4 219.0,19.5 231.9,12.3 244.7,174.4 257.6,165.6 270.5,154.9 283.4,145.3 296.3,138.7 309.2,153.1 322.0,146.1 334.9,138.7 347.8,129.9 360.7,119.5 373.6,109.9 386.4,102.9 399.3,96.0 412.2,89.1 425.1,81.6 438.0,131.5 450.8,121.1 463.7,111.5 476.6,104.5 489.5,97.6 502.4,90.7 515.3,83.5 528.1,114.4 541.0,104.0 553.9,94.4 566.8,87.5 579.7,80.5 592.5,73.6 605.4,66.4 618.3,57.3 631.2,46.9 644.1,206.7 656.9,200.0 669.8,193.1 682.7,185.9 695.6,178.7 708.5,190.9 721.4,180.5 734.2,170.9 747.1,164.3 760.0,157.3" fill="none" stroke="#B42318" stroke-width="2.5" stroke-dasharray="7 4" stroke-linejoin="round"></polyline>
+              <circle cx="644.1" cy="206.7" r="6" fill="#FFFFFF" stroke="#B42318" stroke-width="3"></circle>
+            </sc-if>
+            <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+              <polyline points="0.0,58.1 12.9,46.1 25.8,37.6 38.6,29.1 51.5,78.9 64.4,69.6 77.3,58.7 90.2,45.6 103.1,33.6 115.9,25.1 128.8,56.3 141.7,47.5 154.6,38.4 167.5,27.2 180.3,14.1 193.2,2.1 206.1,-6.4 219.0,-14.9 231.9,-23.7 244.7,152.5 257.6,141.3 270.5,128.3 283.4,116.3 296.3,107.7 309.2,120.5 322.0,111.7 334.9,102.7 347.8,91.5 360.7,78.4 373.6,66.4 386.4,57.9 399.3,49.1 412.2,40.3 425.1,31.2 438.0,78.7 450.8,65.6 463.7,53.6 476.6,45.3 489.5,36.5 502.4,27.7 515.3,18.7 528.1,47.5 541.0,34.4 553.9,22.4 566.8,13.9 579.7,5.3 592.5,-3.5 605.4,-12.5 618.3,-23.7 631.2,-36.8 644.1,136.5 656.9,128.0 669.8,119.2 682.7,110.4 695.6,101.3 708.5,111.7 721.4,98.7 734.2,86.7 747.1,78.1 760.0,69.3" fill="none" stroke="#B54708" stroke-width="2.5" stroke-dasharray="7 4" stroke-linejoin="round"></polyline>
+              <circle cx="244.7" cy="152.5" r="6" fill="#FFFFFF" stroke="#B54708" stroke-width="3"></circle>
+            </sc-if>
+            <g font-size="12" fill="#5D6679" text-anchor="middle">
+              <text x="0" y="262">21-noy</text><text x="128.8" y="262">1-dek</text><text x="244.7" y="262">10-dek</text><text x="438" y="262">25-dek</text><text x="528.1" y="262">1-yan</text><text x="644.1" y="262">10-yan</text><text x="745" y="262">19-yan</text>
+            </g>
+          </g>
+        </svg>
+        <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #475467">
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 3px; background: #1D4ED8; border-radius: 2px"></span>Hozirgi holat</span>
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 0; border-top: 3px dashed #B42318"></span>Tanlangan "agar"</span>
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 18px; height: 10px; background: #E1E8FA; border-radius: 2px"></span>Savdoga qarab o'zgarishi mumkin</span>
+        </div>
+      </section>
+
+      <!-- simulator -->
+      <section aria-label="Agar shunday qilsam-chi" style="flex: 1 1 340px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column; gap: 16px">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Agar shunday qilsam-chi?</h2>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <sc-for list="{{ options }}" as="o" hint-placeholder-count="3">
+            <sc-if value="{{ o.selected }}" hint-placeholder-val="{{ false }}">
+              <button type="button" aria-pressed="true" onClick="{{ o.pick }}" style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 2px solid #1D4ED8; background: #EFF4FF; font: inherit; font-size: 15px; font-weight: 600; color: #101828; text-align: left; cursor: pointer"><span style="width: 18px; height: 18px; border-radius: 9px; border: 5px solid #1D4ED8; box-sizing: border-box; flex-shrink: 0"></span>{{ o.label }}</button>
+            </sc-if>
+            <sc-if value="{{ o.idle }}" hint-placeholder-val="{{ true }}">
+              <button type="button" aria-pressed="false" onClick="{{ o.pick }}" style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 1px solid #D0D5DD; background: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; color: #344054; text-align: left; cursor: pointer"><span style="width: 18px; height: 18px; border-radius: 9px; border: 2px solid #98A2B3; box-sizing: border-box; flex-shrink: 0"></span>{{ o.label }}</button>
+            </sc-if>
+          </sc-for>
+          <label for="own" style="font-size: 13px; color: #475467; font-weight: 600; padding-top: 6px">Yoki o'zingiz yozing</label>
+          <input id="own" type="text" placeholder="Masalan: 10 mln ga reklama qilsam" style="min-height: 46px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 12px; font: inherit; font-size: 15px">
+        </div>
+
+        <sc-if value="{{ isBuy }}" hint-placeholder-val="{{ true }}">
+          <div style="border-radius: 14px; background: #FEF3F2; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; font-weight: 700; color: #B42318">Yo'q, hozir emas</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #344054">10-dekabrda oylikka <strong>6,2 mln yetmaydi</strong>.</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #101828; font-weight: 600">Maslahat: 12-yanvarda oling — o'shanda hammasiga yetadi.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isRev }}" hint-placeholder-val="{{ false }}">
+          <div style="border-radius: 14px; background: #FEF3F2; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; font-weight: 700; color: #B42318">Xavfli</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #344054">10-yanvarda oylikka <strong>7,5 mln yetmaydi</strong>.</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #101828; font-weight: 600">Maslahat: savdo tushsa, dekabrda katta xaridlarni to'xtating va ta'minotchi bilan muddatni kelishing.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+          <div style="border-radius: 14px; background: #FFFAEB; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; font-weight: 700; color: #B54708">Bo'ladi, lekin tor</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #344054">10-dekabrda <strong>12,8 mln qoladi</strong> — xavfsiz chegaradan sal yuqori.</span>
+            <span style="font-size: 15px; line-height: 1.5; color: #101828; font-weight: 600">Maslahat: olsangiz, dekabrda boshqa katta xarajat qilmang.</span>
+          </div>
+        </sc-if>
+        <a href="Chat.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 12px; background: #101828; color: #FFFFFF; font-weight: 600; font-size: 15px; text-decoration: none">AI bilan batafsil gaplashish</a>
+      </section>
+    </div>
+
+    <!-- key days -->
+    <section aria-label="Muhim kunlar" style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">Muhim kunlar</h2>
+        <a href="Calendar.dc.html" style="font-size: 14px; font-weight: 600">Kalendarda ko'rish</a>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px">
+        <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #475467">25-noyabr</span>
+          <span style="font-size: 15px; font-weight: 600">Agro Go'sht · 22 mln</span>
+          <span style="font-size: 14px; color: #067647; font-weight: 600">40,4 mln qoladi · yaxshi</span>
+        </div>
+        <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #475467">1-dekabr</span>
+          <span style="font-size: 15px; font-weight: 600">Ijara · 15 mln</span>
+          <span style="font-size: 14px; color: #067647; font-weight: 600">48,9 mln qoladi · yaxshi</span>
+        </div>
+        <div style="border: 2px solid #F79009; background: #FFFAEB; border-radius: 12px; padding: 13px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #B54708">10-dekabr · eng qiyin kun</span>
+          <span style="font-size: 15px; font-weight: 600">Oylik + kredit · 63,5 mln</span>
+          <span style="font-size: 14px; color: #B54708; font-weight: 600">18,8 mln qoladi · ehtiyot</span>
+        </div>
+        <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #475467">15-dekabr</span>
+          <span style="font-size: 15px; font-weight: 600">Soliq · 8 mln</span>
+          <span style="font-size: 14px; color: #067647; font-weight: 600">30,8 mln qoladi · yaxshi</span>
+        </div>
+        <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #475467">25-dekabr</span>
+          <span style="font-size: 15px; font-weight: 600">Agro Go'sht · 22 mln</span>
+          <span style="font-size: 14px; color: #067647; font-weight: 600">46,5 mln qoladi · yaxshi</span>
+        </div>
+        <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 700; color: #475467">10-yanvar</span>
+          <span style="font-size: 15px; font-weight: 600">Oylik + kredit · 63,5 mln</span>
+          <span style="font-size: 14px; color: #067647; font-weight: 600">30,8 mln qoladi · yaxshi</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sc: "buy" };
+  }
+  renderVals() {
+    var sc = this.state.sc;
+    var self = this;
+    var defs = [
+      { id: "buy", label: "25 mln ga jihoz olsam" },
+      { id: "rev", label: "Savdo 20% kamaysa" },
+      { id: "staff", label: "Yana 2 ta xodim olsam" }
+    ];
+    return {
+      options: defs.map(function (d) {
+        return {
+          label: d.label,
+          selected: d.id === sc,
+          idle: d.id !== sc,
+          pick: function () { self.setState({ sc: d.id }); }
+        };
+      }),
+      isBuy: sc === "buy",
+      isRev: sc === "rev",
+      isStaff: sc === "staff"
+    };
+  }
+}
+</script>
+</body>
+</html>

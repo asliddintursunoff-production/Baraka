@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>BizPilot AI — AI CFO chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8;font-family:Inter,system-ui,sans-serif;color:#101828}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+.nav a{color:#344054;text-decoration:none}
+.nav a:hover{color:#101828;background:#F2F4F7}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #101828">
+
+  <!-- SIDEBAR -->
+  <nav class="nav" aria-label="Asosiy menyu" style="flex: 1 1 240px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E4E7EC; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 24px">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1D4ED8"></rect><path d="M9 21l5-6 4 3 5-7" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 19px">BizPilot AI</span>
+    </div>
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Bosh sahifa</a>
+    <a href="Chat.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #EFF4FF; color: #1D4ED8; font-weight: 600; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>AI CFO</a>
+    <a href="Forecast.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8"></path><path d="M14 8h6v6"></path></svg>Prognoz</a>
+    <a href="Calendar.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>To'lovlar kalendari</a>
+    <a href="Knowledge.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3z"></path><path d="M9 21h6"></path></svg>AI bilimi</a>
+    <a href="Sources.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 15px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg>Ma'lumotlar</a>
+    <div style="flex-grow: 1; min-height: 24px"></div>
+    <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 12px; color: #5D6679; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase">Biznes</span>
+      <button type="button" style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; border: 0; background: #F5F6F8; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; font-weight: 600; color: #101828; cursor: pointer">Navro'z Kafe · Toshkent
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    </div>
+  </nav>
+
+  <!-- CHAT COLUMN -->
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 32px; border-bottom: 1px solid #E4E7EC; background: #FFFFFF">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <div style="width: 40px; height: 40px; border-radius: 12px; background: #101828; display: flex; align-items: center; justify-content: center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700">AI CFO</h1>
+          <span style="font-size: 13px; color: #475467">Navro'z Kafe'ning moliyaviy maslahatchisi</span>
+        </div>
+      </div>
+      <a href="Live.dc.html" style="display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px; border-radius: 999px; background: #101828; color: #FFFFFF; font-weight: 600; font-size: 15px; text-decoration: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4M21 12h0"></path></svg>Jonli gaplashish</a>
+    </header>
+
+    <div style="flex-grow: 1; padding: 28px 32px; display: flex; flex-direction: column; gap: 22px; max-width: 900px; width: 100%; box-sizing: border-box; margin: 0 auto">
+
+      <div style="display: flex; align-items: center; gap: 12px; color: #5D6679; font-size: 13px; font-weight: 600">
+        <span style="flex-grow: 1; height: 1px; background: #E4E7EC"></span>Bugun<span style="flex-grow: 1; height: 1px; background: #E4E7EC"></span>
+      </div>
+
+      <!-- proactive AI message -->
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <div style="width: 32px; height: 32px; border-radius: 10px; background: #101828; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; max-width: 620px">
+          <span style="font-size: 12px; color: #5D6679; font-weight: 600">AI CFO · 08:00</span>
+          <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 4px 16px 16px 16px; padding: 14px 16px; font-size: 16px; line-height: 1.55">Xayrli tong! Bugun hammasi joyida. Faqat bitta narsa: <strong>10-dekabr qiyin kun bo'ladi</strong> — oylik va kredit bir kunga tushgan. Ungacha katta xarid qilmang.</div>
+        </div>
+      </div>
+
+      <!-- user voice message -->
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+        <span style="font-size: 12px; color: #5D6679; font-weight: 600">Siz · 10:41</span>
+        <div style="max-width: 520px; background: #1D4ED8; color: #FFFFFF; border-radius: 16px 4px 16px 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+          <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #D1E0FF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1E0FF" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>Ovozli · 0:06</span>
+          <span style="font-size: 16px; line-height: 1.5">Agar yangi jihoz uchun 25 million so'm sarflasam, keyingi oy ishchilarimning oyligini va kredit to'lovini vaqtida to'lay olamanmi?</span>
+        </div>
+      </div>
+
+      <!-- AI answer: simple -->
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <div style="width: 32px; height: 32px; border-radius: 10px; background: #101828; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"></path></svg>
+        </div>
+        <article style="flex: 1 1 auto; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 4px 16px 16px 16px; overflow: hidden">
+
+          <!-- 1. the answer -->
+          <div style="padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="width: 40px; height: 40px; border-radius: 20px; background: #FEF3F2; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B42318" stroke-width="2.6" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+              <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 26px; font-weight: 700">Yo'q, hozir olmang.</h2>
+            </div>
+            <p style="margin: 0; font-size: 17px; line-height: 1.6; color: #344054">Agar hozir 25 million sarflasangiz, <strong style="color: #101828">10-dekabrda xodimlarga oylik berishga 6,2 million so'm yetmay qoladi.</strong></p>
+          </div>
+
+          <!-- 2. simple picture -->
+          <div style="margin: 0 22px; padding: 18px; background: #F9FAFB; border: 1px solid #EAECF0; border-radius: 12px; display: flex; flex-direction: column; gap: 14px">
+            <span style="font-size: 14px; font-weight: 700; color: #344054">10-dekabr, oylik kuni — kassada qancha pul qoladi?</span>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+              <span style="flex: 0 0 170px; font-size: 15px; font-weight: 600">Hozir olsangiz</span>
+              <div style="flex: 1 1 240px; display: flex; height: 30px">
+                <div style="width: 25%; display: flex; justify-content: flex-end; border-right: 2px solid #344054"><div style="width: 93%; background: #B42318; border-radius: 6px 0 0 6px"></div></div>
+                <div style="width: 75%"></div>
+              </div>
+              <span style="flex: 0 0 150px; display: flex; flex-direction: column; align-items: flex-end"><strong style="font-size: 17px; color: #B42318">−6,2 mln</strong><span style="font-size: 13px; font-weight: 600; color: #B42318">Yetmaydi</span></span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+              <span style="flex: 0 0 170px; font-size: 15px; font-weight: 600">12-yanvarda olsangiz</span>
+              <div style="flex: 1 1 240px; display: flex; height: 30px">
+                <div style="width: 25%; border-right: 2px solid #344054"></div>
+                <div style="width: 75%; display: flex"><div style="width: 94%; background: #067647; border-radius: 0 6px 6px 0"></div></div>
+              </div>
+              <span style="flex: 0 0 150px; display: flex; flex-direction: column; align-items: flex-end"><strong style="font-size: 17px; color: #067647">+18,8 mln</strong><span style="font-size: 13px; font-weight: 600; color: #067647">Yetadi</span></span>
+            </div>
+          </div>
+
+          <!-- 3. what to do -->
+          <div style="padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+            <span style="font-size: 15px; font-weight: 700">Nima qilasiz:</span>
+            <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+              <li style="display: flex; gap: 12px; align-items: flex-start; font-size: 16px; line-height: 1.5"><span style="width: 26px; height: 26px; border-radius: 13px; background: #101828; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">1</span><span>Jihozni <strong>12-yanvarda</strong> oling — yanvar oyligi va kredit to'langandan keyin.</span></li>
+              <li style="display: flex; gap: 12px; align-items: flex-start; font-size: 16px; line-height: 1.5"><span style="width: 26px; height: 26px; border-radius: 13px; background: #101828; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">2</span><span>10-dekabrgacha <strong>8 million so'mdan katta</strong> xarid qilmang.</span></li>
+              <li style="display: flex; gap: 12px; align-items: flex-start; font-size: 16px; line-height: 1.5"><span style="width: 26px; height: 26px; border-radius: 13px; background: #101828; color: #FFFFFF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">3</span><span>12-yanvar ertalab sizga o'zim eslataman.</span></li>
+            </ol>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px">
+              <button type="button" style="min-height: 48px; padding: 0 22px; border-radius: 12px; border: 0; background: #1D4ED8; color: #FFFFFF; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer">Ha, shunday qilamiz</button>
+              <button type="button" style="min-height: 48px; padding: 0 20px; border-radius: 12px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer">Boshqa yo'l bormi?</button>
+            </div>
+          </div>
+
+          <!-- footer -->
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 22px; border-top: 1px solid #EAECF0; background: #FCFCFD">
+            <button type="button" aria-label="Javobni ovozda tinglash" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 6px; border-radius: 999px; border: 1px solid #D0D5DD; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600; color: #344054; cursor: pointer"><span style="width: 28px; height: 28px; border-radius: 14px; background: #1D4ED8; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg></span>Tinglash · 0:18</button>
+            <details style="flex: 1 1 260px">
+              <summary style="cursor: pointer; font-size: 14px; font-weight: 600; color: #475467; min-height: 40px; display: flex; align-items: center">Qanday hisobladim?</summary>
+              <ul style="margin: 6px 0 4px; padding-left: 20px; font-size: 14px; color: #475467; line-height: 1.7">
+                <li>Sizning 8 oylik jadvalingiz va 5 ta majburiy to'lov sanasi</li>
+                <li>Har bir kunning qoldig'i alohida hisoblandi, AI raqamni o'zi o'ylab topmaydi</li>
+                <li>Bo'lib to'lash ham ko'rib chiqildi: pul yetadi, lekin xavfsiz chegaradan pastga tushadi</li>
+              </ul>
+            </details>
+          </div>
+        </article>
+      </div>
+
+      <!-- learning example -->
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+        <span style="font-size: 12px; color: #5D6679; font-weight: 600">Dilnoza (hisobchi) · 10:45</span>
+        <div style="max-width: 520px; background: #1D4ED8; color: #FFFFFF; border-radius: 16px 4px 16px 16px; padding: 14px 16px; font-size: 16px; line-height: 1.5">Agro Go'shtga to'lovni har doim 15 kun kechiktirib to'laymiz, ular bilan shunday kelishilgan.</div>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <div style="width: 32px; height: 32px; border-radius: 10px; background: #101828; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"></path></svg>
+        </div>
+        <div style="flex: 1 1 auto; max-width: 620px; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 4px 16px 16px 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <span style="font-size: 16px; line-height: 1.55">Tushundim, eslab qoldim. Endi Agro Go'shtga to'lovni har doim <strong>15 kun keyin</strong> deb hisoblayman. Masalan, 25-noyabrdagi to'lov 10-dekabrga o'tadi.</span>
+          <span style="font-size: 15px; line-height: 1.5; color: #B54708; font-weight: 600">Lekin e'tibor bering: 10-dekabr yanada og'irlashadi. Shu kuni birinchi oylik va kreditni to'lang.</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px">
+            <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 10px; border: 0; background: #101828; color: #FFFFFF; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer">To'g'ri, eslab qol</button>
+            <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer">O'zgartirish</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- composer -->
+    <div style="position: sticky; bottom: 0; background: #F5F6F8; padding: 12px 32px 24px; border-top: 1px solid #E4E7EC">
+      <div style="max-width: 836px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Hozir qancha pulim bor?</button>
+          <button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Savdo kamaysa nima bo'ladi?</button>
+          <button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Yana 2 ta xodim olsam bo'ladimi?</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #D0D5DD; border-radius: 16px; padding: 8px 8px 8px 16px; box-shadow: 0 2px 6px rgba(16,24,40,.06)">
+          <label for="ask" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">AI CFO'ga savol</label>
+          <input id="ask" type="text" placeholder="Savolingizni yozing…" style="flex-grow: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 16px; color: #101828; background: transparent; min-height: 44px">
+          <button type="button" aria-label="Ovozli xabar yozib yuborish" style="width: 48px; height: 48px; border-radius: 24px; border: 1px solid #D0D5DD; background: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#344054" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></button>
+          <a href="Live.dc.html" aria-label="Jonli suhbatni boshlash" style="width: 48px; height: 48px; border-radius: 24px; background: #101828; display: flex; align-items: center; justify-content: center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4"></path></svg></a>
+          <button type="button" aria-label="Yuborish" style="width: 48px; height: 48px; border-radius: 24px; border: 0; background: #1D4ED8; display: flex; align-items: center; justify-content: center; cursor: pointer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- CONTEXT PANEL -->
+  <aside aria-label="Javob manbalari" style="flex: 1 1 280px; min-width: 0; box-sizing: border-box; background: #FFFFFF; border-left: 1px solid #E4E7EC; padding: 24px 20px; display: flex; flex-direction: column; gap: 18px">
+    <h2 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700">Nimaga asoslandim</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0"><rect x="4" y="2" width="16" height="20" rx="2" fill="#067647"></rect><path d="M8 9h8M8 13h8M8 17h8M12 9v8" stroke="#FFFFFF" stroke-width="1.6"></path></svg>
+      <span style="font-size: 14px; line-height: 1.5">Sizning Google Sheets jadvallaringiz<br><span style="color: #5D6679">yangilangan: bugun 09:12</span></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2" aria-hidden="true" style="flex-shrink: 0"><path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3z"></path><path d="M9 21h6"></path></svg>
+      <span style="font-size: 14px; line-height: 1.5">Siz o'rgatgan 2 ta qoida<br><span style="color: #5D6679">masalan: oylik har oy 10-sanada</span></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2" aria-hidden="true" style="flex-shrink: 0"><circle cx="9" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 2 6 5.5"></path></svg>
+      <span style="font-size: 14px; line-height: 1.5">Toshkentdagi shunga o'xshash kafelar tajribasi<br><span style="color: #5D6679">anonim, ularning ma'lumoti ko'rinmaydi</span></span>
+    </div>
+    <div style="border-top: 1px solid #EAECF0; padding-top: 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 13px; font-weight: 600; color: #5D6679">Javobga ishonch</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #067647"><span style="width: 10px; height: 10px; border-radius: 5px; background: #067647"></span>Yuqori</span>
+      <span style="font-size: 13px; color: #475467; line-height: 1.5">Oylik va kredit sanalari aniq ma'lum.</span>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1420}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
