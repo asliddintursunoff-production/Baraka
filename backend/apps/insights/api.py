@@ -303,6 +303,50 @@ def _freshness(b: Business) -> dict[str, Any] | None:
     }
 
 
+def _growth_steps(b: Any) -> list[dict[str, str]]:
+    """Main 'Nima qilish kerak': CFO verdict + top 3 profit levers (P1)."""
+    try:
+        from apps.ai.growth_tools import M, _summary
+        from apps.ai.tools import ToolContext
+        from apps.engine import growth as G
+
+        s = _summary()
+        if s is None:
+            return []
+        from apps.ai.growth_tools import _fc
+
+        cash, fmin, _fd, safe = _fc(ToolContext(b, 0, "api"))
+        g = G.growth_plan(s, forecast_min=fmin, safe_min=safe, cash=cash)
+        sev = {
+            "XAVFLI": "danger",
+            "E'TIBOR": "warning",
+            "BARQAROR": "success",
+            "O'SISH": "success",
+        }[g.verdict]
+        out = [
+            {
+                "severity": sev,
+                "label": f"{g.verdict} · sof foyda {M(g.net_profit)}/oy",
+                "text": f"{g.verdict_reason[:1].upper()}{g.verdict_reason[1:]}. Kassa {M(cash)}, 90 kunda eng kami {M(fmin or cash)}. "
+                f"Quyidagi 3 harakat foydani oyiga +{M(sum((x.lo for x in g.levers[:3]), G.D0))} … +{M(sum((x.hi for x in g.levers[:3]), G.D0))} oshiradi.",
+            }
+        ]
+        for lv in g.levers[:3]:
+            out.append(
+                {
+                    "severity": "success",
+                    "label": f"+{M(lv.lo)} … +{M(lv.hi)}/oy · {lv.confidence.lower()} ishonch",
+                    "text": f"{lv.title}: {lv.steps[0]}.",
+                }
+            )
+        return out
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("growth steps failed")
+        return []
+
+
 class DashboardView(BusinessAPIView):
     requires_data = True  # 409 no_data until a source is synced
 
@@ -334,7 +378,7 @@ class DashboardView(BusinessAPIView):
                 ),  # as of the last actual day when data is stale
                 "freshness": _freshness(b),
                 "forecast": forecast_block(base) | chart_extras(base, today_for(self.business)),
-                "steps": advice.steps(base),
+                "steps": _growth_steps(b) or advice.steps(base),
                 "news": _news(),
                 "upcoming": _upcoming(base),
                 "monthly": _monthly(today),

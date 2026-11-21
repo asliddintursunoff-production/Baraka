@@ -9,6 +9,7 @@ Call `refresh_forecast` after anything that changes the inputs (sync, rules, see
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -59,6 +60,9 @@ class CachedForecast:
 
 _cache: dict[int, CachedForecast] = {}
 _lock = threading.Lock()
+
+
+log = logging.getLogger(__name__)
 
 
 def invalidate(business_id: int) -> None:
@@ -117,6 +121,8 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
                 direction="in",
                 category__in=("financing", "capex", "dividend", "avans", "agregator"),
             )
+            # one-offs are never recurring: capex, dividends, transfers, loan principal
+            .exclude(category__in=("capex", "dividend", "transfer", "otkazma"))
             .values("txn_date", "direction", "category", "counterparty__name")
             .annotate(total=Sum("amount"))
         )
@@ -150,6 +156,31 @@ def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
             .select_related("counterparty")
             .order_by("due_date", "id")
         ]
+
+        # P0 guard: a single obligation > 10% of cash must be a named schedule (loan, payroll,
+        # tax, rent, supplier); anything else (e.g. a report-sheet value) is dropped and logged
+        # values copied from report sheets (book values, balances) are never payments
+        report_like = (
+            "asosiy vosita",
+            "qoldiq",
+            "balans",
+            "pul oqimi",
+            "pul mablag",
+            "jami",
+            "aktiv",
+        )
+        big = opening * Decimal("0.10") if opening > 0 else None
+        kept = []
+        for o in obligations:
+            if (
+                big is not None
+                and o.amount > big
+                and any(w in o.title.lower() for w in report_like)
+            ):
+                log.warning("forecast guard dropped obligation %s (%s)", o.title[:60], o.amount)
+                continue
+            kept.append(o)
+        obligations = kept
 
         from apps.ingestion.finmodel import aggregator_payouts
 

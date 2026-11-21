@@ -17,6 +17,7 @@ from .detail_tools import find_names
 _APOS = re.compile(r"[‘’ʻʼ`]")
 Routes = list[tuple[str, dict[str, Any]]]
 REVIEW: Routes = [
+    ("growth_plan", {}),
     ("kpi_scorecard", {}),
     ("cash_sources", {}),
     ("net_position", {}),
@@ -28,6 +29,10 @@ _TABLE: tuple[tuple[str, Routes], ...] = (
     (
         r"biznesim\s+qanday|umumiy\s+holat|moliyaviy\s+(holat|tahlil)|tahlil\s+qil|baho\s+ber|ahvol|hisobot\s+ber",
         REVIEW,
+    ),
+    (
+        r"nima\s+qilish\s+kerak|foyda\w*\s+(qanday\s+)?oshir|o'sish|rivojlan|ko'proq\s+foyda|daromad\w*\s+oshir",
+        [("growth_plan", {})],
     ),
     (r"zararsiz|break.?even|nechta\s+chek|minimal\s+savdo", [("break_even", {})]),
     (
@@ -57,6 +62,7 @@ _TABLE: tuple[tuple[str, Routes], ...] = (
 )
 ROUTES = [(re.compile(p, re.IGNORECASE), tools) for p, tools in _TABLE]
 MAX_TOOLS = 6
+_MLN = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mln|million|ming)")
 _BUY = re.compile(
     r"(?:yana\s+)?(?:bitta\s+|ikkinchi\s+|yangi\s+)?([a-z'\-]{3,30}(?:\s+[a-z'\-]{3,30})?)\s+(?:sotib\s+)?(?:olsam|olmoqchiman|olaymi|olishim|xarid\s+qilsam)"
 )
@@ -79,7 +85,19 @@ def route(text: str) -> list[tuple[str, dict[str, Any]]]:
         out.append(("menu_analysis", {"dish": name}))
     # "fritur olsam" without a price -> look the price up on the web first
     buy = _BUY.search(t)
-    if buy and not _AMOUNT.search(t):
+    amt = _MLN.search(t)
+    if buy and amt:
+        item = " ".join(
+            w
+            for w in buy.group(1).split()
+            if w not in _STOP and not w.isdigit() and w not in ("mln", "ga", "so'm")
+        )
+        price = int(
+            float(amt.group(1).replace(",", "."))
+            * (1_000_000 if amt.group(2).startswith(("mln", "mil")) else 1000)
+        )
+        out.insert(0, ("evaluate_investment", {"price": price, "item": item or "uskuna"}))
+    elif buy and not _AMOUNT.search(t):
         item = " ".join(w for w in buy.group(1).split() if w not in _STOP)
         if item:
             out.insert(0, ("web_price_lookup", {"item": item}))

@@ -29,7 +29,7 @@ def test_bad_login(client, demo):
 
 def test_dashboard(owner_client, demo, django_assert_max_num_queries):
     owner_client.get("/api/dashboard")
-    with django_assert_max_num_queries(14):  # +4: two-panel chart history
+    with django_assert_max_num_queries(18):  # +4: two-panel chart history, +growth steps
         r = owner_client.get("/api/dashboard")
     d = r.json()
     base = get_forecast(demo).result

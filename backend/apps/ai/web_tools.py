@@ -201,6 +201,26 @@ def web_price_lookup(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     if data.get("note"):
         lines.append(f"_{str(data['note'])[:200]}_")
         lines.append("")
+    try:
+        from .growth_tools import evaluate_investment_tool
+
+        inv = evaluate_investment_tool(
+            ctx,
+            {
+                "price": int(typ),
+                "item": item,
+                **({"dish": args["dish"]} if args.get("dish") else {}),
+            },
+        )
+        if inv.get("facts"):
+            lines += ["### Shu narxda olsangiz", *str(inv["md"]).split("\n")[:-1], ""]
+            facts.update({f"inv_{k}": v for k, v in inv["facts"].items()})
+            blocks_inv = inv.get("ui_blocks") or []
+        else:
+            blocks_inv = []
+    except Exception:
+        log.exception("evaluate_investment after lookup failed")
+        blocks_inv = []
     lines.append("Narxlar internetdan olingan taxmin; aniq narxni sotuvchidan so'rang.")
     lines.append("")
     lines.append(
@@ -214,6 +234,7 @@ def web_price_lookup(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         md=md,
         say=lines[0].strip("*"),
         sources=sources,
+        ui_blocks=blocks_inv,
         answer={"headline": lines[0].strip("*"), "reason": "Narx internetdan topildi."},
     )
 
