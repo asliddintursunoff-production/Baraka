@@ -14,6 +14,7 @@ const SourcesPage = lazy(() => import("./pages/Sources"));
 const ConnectPage = lazy(() => import("./pages/Connect"));
 const DevVoice = lazy(() => import("./pages/dev/DevVoice"));
 const LivePage = lazy(() => import("./pages/Live"));
+const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 
 function Lazy({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="p-9 text-text-3">Yuklanmoqda…</div>}>{children}</Suspense>;
@@ -31,7 +32,7 @@ export const router = createBrowserRouter([
   { path: "/forecast", element: authed(<ForecastPage />) },
   { path: "/calendar", element: authed(<CalendarPage />) },
   { path: "/chat", element: authed(<ChatPage />) },
-  { path: "/knowledge", element: authed(<Placeholder active="knowledge" title="AI bilimi" />) },
+  { path: "/knowledge", element: authed(<KnowledgePage />) },
   { path: "/sources", element: authed(<SourcesPage />) },
   { path: "/onboarding/connect", element: authed(<ConnectPage />) },
   { path: "/live", element: authed(<LivePage />) },

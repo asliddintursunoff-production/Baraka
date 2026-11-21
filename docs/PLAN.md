@@ -314,17 +314,21 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - 19:22 Budget guard: `AiUsage` logs every chat/light/mapping/TTS/STT/Live/check call with an estimated cost (prices in `app_settings`, estimates). Live mint reserves 60 s and `/live/finish` sets the real seconds. `make check-ai` and `make smoke-ai` pass with the new key (smoke $0.0021).
 - Decision: embeddings are not called at runtime in the MVP (memory uses recency), so there is no `text_hash` cache yet; one is added if M7 embeds.
 - Decision: P2 silence test (10 Q, 600 ms mid-sentence pause, silence 300 ms, free tier before the key change): 0/9 cut off, 1 session error → 300 ms stays.
-- 19:30 M5 finished: browser e2e (DEBUG FakeReader `POST /api/dev/sources/demo`) map → confirm → dashboard 6.5 s, the sheet reproduces the seed forecast exactly, an added expense row + "Hozir yangilash" → cash 44,3 → 41,3 mln.
+- 19:27 M5 finished: browser e2e (DEBUG FakeReader `POST /api/dev/sources/demo`) map → confirm → dashboard 6.5 s, the sheet reproduces the seed forecast exactly, an added expense row + "Hozir yangilash" → cash 44,3 → 41,3 mln.
 - Decision: the loan sheet's payment column is the "Jami" header, never "Qoldiq" (the LLM mapping marked all four money columns as amount → 34,7 mln remaining debt was counted as a payment).
 - Decision: the Sources page shows files whenever files exist (even if the Google credential is gone).
 - Decision: scheduled syncs re-map new/changed sheets with heuristics only (no LLM); `seed_demo --export` without `--reset` only exports.
 - Decision: during work, Django runs on host :8000 (uvicorn --reload) + local `run_scheduler`; Docker runs only db.
-- 19:35 M4: /live page (orb, captions, cards, text fallback), token prefetch on hover + background refresh (P3), `say` in tool results (P1), 300 ms silence confirmed (P2, 0/9 cut off), auto-close 30 s idle / hidden tab / leave / 5 min, 429 "Bugungi ovoz limiti tugadi".
+- 19:29 M4: /live page (orb, captions, cards, text fallback), token prefetch on hover + background refresh (P3), `say` in tool results (P1), 300 ms silence confirmed (P2, 0/9 cut off), auto-close 30 s idle / hidden tab / leave / 5 min, 429 "Bugungi ovoz limiti tugadi".
 - Decision: when `confirm_plan` arrives before the turn's "ha" transcription, the client waits up to 600 ms for it.
 - Decision: the in-browser fake-mic e2e was blocked by the tool permission check, so the voice page is on the manual checklist; the Live API path itself is covered by `smoke-ai`.
-- 19:36 M6: `apps/insights/alerts.py`, 3 template rules (negative on a critical payment day, below the safe minimum, salary + loan in one week), dedupe by `business:kind:date` with in-place updates, stale alerts auto-dismissed. Evaluated after every sync that changes data and at seed. 08:00 brief from templates in `run_scheduler`. Bell popover via `GET/POST /api/alerts`.
+- 19:31 M6: `apps/insights/alerts.py`, 3 template rules (negative on a critical payment day, below the safe minimum, salary + loan in one week), dedupe by `business:kind:date` with in-place updates, stale alerts auto-dismissed. Evaluated after every sync that changes data and at seed. 08:00 brief from templates in `run_scheduler`. Bell popover via `GET/POST /api/alerts`.
 - Decision: the dashboard banner and "Nima qilish kerak" already came from the engine (M2), so no change there.
 - Decision: the brief is stored as an `Alert(kind="brief")` and shows in the bell; no Telegram/e-mail.
+- 19:35 M7: Knowledge page on real data (`GET /api/knowledge`: weekly accuracy, AI candidates "Ha, to'g'ri / Yo'q", rules with author · date · effect, segment insights). "+ Qoida yozish" (`POST /api/knowledge/rules`: parser first, light LLM only if needed → rule → forecast refresh), rule on/off toggle (forecast refresh). `build_segment_stats` (6 demo cafés → weekday_shape + variable_cost_ratio, k ≥ 5, no names or amounts), run by `seed_demo`.
+- Decision: a rule toggle rebuilds the forecast (`refresh_forecast`); `invalidate` alone reuses the snapshot's stored inputs.
+- Decision: the chat correction flow (candidate card → "Eslab qol" → rule → forecast) is unchanged from M3; "Tushundim, eslab qoldim." is the design's own wording.
 
 ## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).
+- Nightly learning job (03:00: accuracy backtest, pattern → RuleCandidate); accuracy and the "Svet" candidate come from seed data.

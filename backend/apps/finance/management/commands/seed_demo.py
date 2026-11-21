@@ -8,6 +8,7 @@ synthetic Tashkent cafés for segment knowledge. Works without Google OAuth.
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -85,8 +86,11 @@ class Command(BaseCommand):
         for b in Business.objects.filter(seed_tag=SEED_TAG):
             invalidate(b.pk)
             refresh_forecast(b)
+        from django.core.management import call_command
+
         from apps.insights.alerts import evaluate_alerts
 
+        call_command("build_segment_stats", stdout=io.StringIO())
         evaluate_alerts(main)
 
         with tenant_context(main):
