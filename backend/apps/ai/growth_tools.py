@@ -217,6 +217,15 @@ def evaluate_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str
         key = next((v for k, v in ITEM_DISH.items() if k in item.lower()), None)
         dish = next((n for n in menu if key and key in n.lower()), None)
     dish = next((n for n in menu if dish and dish.lower() in n.lower()), None) if dish else None
+    if not dish and not args.get("unit_margin") and menu:
+        # generic equipment: assume it boosts the top gross-profit dish (flagged in the answer)
+        dish = max(
+            menu,
+            key=lambda n: (
+                (Decimal(str(menu[n].get("price", 0))) - Decimal(str(menu[n].get("cost", 0))))
+                * Decimal(str((menu[n].get("sold") or {}).get(G.last_month(s), 0)))
+            ),
+        )
     if not dish and not args.get("unit_margin"):
         md = (
             f"**{item} qaysi taomni ko'paytiradi?** Shuni ayting — foyda va qoplanishni hisoblayman.\n\nCHIPS: "
@@ -294,6 +303,10 @@ def evaluate_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str
     lines.append(
         f"- Xavfsiz chegara (3 oylik doimiy xarajat): {M(buffer)} — {'yuqorida qoladi ✓' if r.cash_low >= buffer else 'pastga tushadi ✗'}."
     )
+    from .cfo_qa_tools import purchase_check
+
+    pc_lines, pc_facts = purchase_check(ctx, price, r.monthly[2])
+    lines += ["", *pc_lines]
     lines += [
         "",
         "### Xavf",
@@ -389,6 +402,7 @@ def evaluate_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str
         "units": str(int(units)),
         "best_date": r.best_date.isoformat() if r.best_date else None,
         "downside_payback": str(cons.payback_months),
+        **pc_facts,
         "depreciation": M(r.depreciation),
         "loan_cost": M(r.loan_cost),
     }

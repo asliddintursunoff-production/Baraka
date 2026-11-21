@@ -42,6 +42,26 @@ _TABLE: tuple[tuple[str, Routes], ...] = (
         r"bozor\w*\s+narx|raqobatchi|oqtepa|evos|max\s*way|boshqalar\w*\s+(qancha|narx)|nech\s*pul|qanchaga\s+(sot|qo'y)|narx\w*\s+(qancha|qo'y|kutar|oshir)",
         [("market_prices", {})],
     ),
+    (
+        r"rentabel|foydali\w*\s+(tovar|taom|mahsulot)|zarar\w*\s+(tovar|taom)|oshirayotgan|pasaytirayotgan",
+        [("profitability", {})],
+    ),
+    (
+        r"reklama|savdosini\s+kuchaytir|qanchaga\s+oshirsam|punkt\w*\s+yet|qaysi\s+(tovar|taom)\w*\s+(sot|kuchaytir)",
+        [("promote_target", {})],
+    ),
+    (
+        r"kontragent|pastavchik|postavshik|yetkazib\s+beruvchi\w*\s+qarz|qarzdorlig|kimga\s+qarz",
+        [("payables", {})],
+    ),
+    (
+        r"ishchi\s+olsam|xodim\s+olsam|yangi\s+(ishchi|xodim|ofitsiant|oshpaz|kassir)|o'zini\s+(necha\s+oyda\s+)?oqla",
+        [("hire_payback", {})],
+    ),
+    (
+        r"qayerga\s+tik|qayerga\s+(sarfla|qo'y|investitsiya)|qo'shimcha\s+\d+\s*mln|investitsiya\w*\s+reja",
+        [("allocate_capital", {"amount": 50_000_000})],
+    ),
     (r"zararsiz|break.?even|nechta\s+chek|minimal\s+savdo", [("break_even", {})]),
     (
         r"(savdo|tushum)\w*\s+.*(tushsa|kamaysa|pasaysa)|stress|chidaydi|inqiroz",
@@ -72,10 +92,11 @@ ROUTES = [(re.compile(p, re.IGNORECASE), tools) for p, tools in _TABLE]
 MAX_TOOLS = 6
 _MLN = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mln|million|ming)")
 _BUY = re.compile(
-    r"(?:yana\s+)?(?:bitta\s+|ikkinchi\s+|yangi\s+)?([a-z'\-]{3,30}(?:\s+[a-z'\-]{3,30})?)\s+(?:sotib\s+)?(?:olsam|olmoqchiman|olaymi|olishim|xarid\s+qilsam)"
+    r"(?:yana\s+)?(?:bitta\s+|ikkinchi\s+|yangi\s+)?([a-z'\-]{3,30}(?:\s+[a-z'\-]{3,30})?)\s+(?:sotib\s+)?(?:olsam|olmoqchiman|olaymi|olishim|xarid\s+qilsam|sarflasam)"
 )
 _AMOUNT = re.compile(r"\d[\d\s.,]*\s*(mln|million|ming|so'm|som|\$|usd)|\d{5,}")
-_STOP = {"yana", "bitta", "yangi", "ikkinchi", "pul", "kredit", "qarz", "sotib"}
+_STOP = {"yana", "bitta", "yangi", "ikkinchi", "pul", "kredit", "qarz", "sotib", "uchun", "som"}
+_NOT_ITEM = ("ishchi", "xodim", "ofitsiant", "oshpaz", "kassir", "odam")
 
 
 def route(text: str) -> list[tuple[str, dict[str, Any]]]:
@@ -92,8 +113,19 @@ def route(text: str) -> list[tuple[str, dict[str, Any]]]:
     for name in find_names(t, list(details.get("menu") or {}))[:2]:
         out.append(("menu_analysis", {"dish": name}))
     # "fritur olsam" without a price -> look the price up on the web first
-    buy = _BUY.search(t)
     amt = _MLN.search(t)
+    buy = _BUY.search(t)
+    if buy and any(w in buy.group(1) for w in _NOT_ITEM):
+        buy = None
+    amt = _MLN.search(t)
+    gen = re.search(r"\b(jihoz|uskuna|aparat|apparat)\w*", t)
+    if amt and gen and re.search(r"sarfla|olsam|olay|xarid|sotib", t):
+        price = int(
+            float(amt.group(1).replace(",", "."))
+            * (1_000_000 if amt.group(2).startswith(("mln", "mil")) else 1000)
+        )
+        out.insert(0, ("evaluate_investment", {"price": price, "item": gen.group(1)}))
+        buy = None
     if buy and amt:
         item = " ".join(
             w
@@ -113,6 +145,13 @@ def route(text: str) -> list[tuple[str, dict[str, Any]]]:
     for pattern, tools in ROUTES:
         if pattern.search(t):
             out += [(n, a) for n, a in tools if not (n in named and not a)]
+    amt = _MLN.search(t)
+    if amt:
+        val = int(
+            float(amt.group(1).replace(",", "."))
+            * (1_000_000 if amt.group(2).startswith(("mln", "mil")) else 1000)
+        )
+        out = [(n, {**a, "amount": val} if n == "allocate_capital" else a) for n, a in out]
     seen: set[str] = set()
     unique = []
     for n, a in out:
