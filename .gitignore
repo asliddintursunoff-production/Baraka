@@ -30,3 +30,13 @@ backend/spike_out/
 
 # visual checks
 visual_out/
+
+# local tools / platform
+.vercel/
+.railway/
+.idea/
+.vscode/
+.claude/
+coverage/
+*.wav
+*.pcm
