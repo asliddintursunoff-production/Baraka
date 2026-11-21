@@ -77,8 +77,8 @@ Demo file: `make seed` then `backend/.venv/bin/python backend/manage.py seed_dem
 - Tests never call Gemini. The only paid commands are `make check-ai` and `make smoke-ai` (5 chat turns + 1 Live session, about $0.01).
 - `make latency` prints page/voice/chat p50/p95 and the AI spend table.
 
-## Deploy (Railway + Vercel)
-Step-by-step guide (Uzbek): **[DEPLOY.md](DEPLOY.md)**.
-- Railway: `pgvector` (Docker image `pgvector/pgvector:pg16` + volume), `web` (Root Directory `backend`, `backend/Dockerfile`), optional `scheduler` (same, start command `python manage.py run_scheduler`).
-- Vercel: Root Directory `frontend`; `frontend/vercel.json` proxies `/api` and `/app-config.js` to the Railway web domain.
-- The root `Dockerfile` (frontend + backend in one image) is used by `docker compose` and as a single-service fallback.
+## Deploy (Railway)
+Step-by-step guide (Uzbek): **[DEPLOY.md](DEPLOY.md)**. Everything runs on Railway from GitHub:
+- `pgvector`: Docker image `pgvector/pgvector:pg16` + volume.
+- `web`: Root Directory empty → the root `Dockerfile` serves the React site and the Django API on one domain.
+- `scheduler` (optional): Root Directory `backend` (`backend/Dockerfile`), start command `python manage.py run_scheduler`.
