@@ -1,0 +1,379 @@
+{
+ "md": "**Xulosa: Hozir olsangiz — zarariga ishlaydi: ikkala lavash stansiyangiz hali to'lmagan, iyundan beri birorta buyurtma navbat sababli yo'qolmagan. Apparat 2027-yil may oyida investitsiyaga aylanadi: shunda oyiga +4,3 mln so'm foyda beradi va 25 mln ni ~6 oyda qoplaydi. Hozirdan oyiga 5 mln dan jamg'arib boring — mayda qarzsiz olasiz.**\n\nCHIPS: Eski apparat buzilsa-chi? | Kreditga olsam? | Apparat 40 mln bo'lsa?",
+ "say": "Qisqasi: hozir olsangiz, apparat zarariga ishlaydi — oyiga to'rt yuz ming so'm faqat elektr va servisga ketadi. Sababi: ikkala lavash stansiyangiz hali to'lmagan. Shanba kuni ham oshxona sakson to'rt foiz band, iyundan beri birorta mijoz navbat sababli ketmagan. Savdo shu sur'atda o'ssa, quvvat kelasi may oyida tugaydi. Ana o'shanda apparat haqiqiy investitsiya bo'ladi: oyiga to'rt million uch yuz ming foyda va olti oyda o'zini qoplaydi. Hozir olish sizga ikki million qimmatga tushadi va beshinchi dekabrda kassani xavfli chegaraga yaqinlashtiradi. Pul masalasi: hozirdan har oy besh million jamg'arsangiz, mayda qarzsiz olasiz. Kredit olsangiz ham apparat to'lovini o'zi to'laydi va yetti oyda yopiladi. Jamg'arma rejasini va signal kuzatuvini yoqaymi?",
+ "speech_segments": [
+  {
+   "cue": "verdict+kpi",
+   "text": "Qisqasi: hozir olsangiz, apparat zarariga ishlaydi — oyiga to'rt yuz ming so'm faqat elektr va servisga ketadi."
+  },
+  {
+   "cue": "capacity_chart",
+   "text": "Sababi: ikkala lavash stansiyangiz hali to'lmagan. Shanba kuni ham oshxona sakson to'rt foiz band, iyundan beri birorta mijoz navbat sababli ketmagan. Savdo shu sur'atda o'ssa, quvvat kelasi may oyida tugaydi."
+  },
+  {
+   "cue": "may_table",
+   "text": "Ana o'shanda apparat haqiqiy investitsiya bo'ladi: oyiga to'rt million uch yuz ming foyda va olti oyda o'zini qoplaydi."
+  },
+  {
+   "cue": "jcurve",
+   "text": "Hozir olish sizga ikki million qimmatga tushadi va beshinchi dekabrda kassani xavfli chegaraga yaqinlashtiradi."
+  },
+  {
+   "cue": "financing",
+   "text": "Pul masalasi: hozirdan har oy besh million jamg'arsangiz, mayda qarzsiz olasiz. Kredit olsangiz ham apparat to'lovini o'zi to'laydi va yetti oyda yopiladi."
+  },
+  {
+   "cue": "approve_button",
+   "text": "Jamg'arma rejasini va signal kuzatuvini yoqaymi?"
+  }
+ ],
+ "speech_short": "Hozir olmang — oyiga to'rt yuz ming zarar. Quvvat mayda tugaydi: o'shanda oling, oyiga to'rt million foyda beradi. Hozirdan oyiga besh million jamg'aring.",
+ "ui_blocks": [
+  {
+   "type": "report",
+   "id": "q3_equipment_investment",
+   "intent": "equipment_investment",
+   "period": "22.11.2026",
+   "verdict": "Hozir olsangiz — zarariga ishlaydi: ikkala lavash stansiyangiz hali to'lmagan.",
+   "verdict_highlight": "Apparat 2027-yil may oyida investitsiyaga aylanadi: oyiga +4,3 mln so'm va ~6 oyda qoplaydi. Hozirdan oyiga 5 mln jamg'aring — mayda qarzsiz olasiz.",
+   "kpis": [
+    {
+     "label": "Hozir olsangiz",
+     "value": "−430 000",
+     "sub": "so'm/oy · elektr + servis",
+     "tone": "bad"
+    },
+    {
+     "label": "Olish vaqti",
+     "value": "May 2027",
+     "sub": "shanba yuklamasi 95% ga yetganda"
+    },
+    {
+     "label": "O'shanda foyda",
+     "value": "+4 320 000",
+     "sub": "so'm/oy · ustasi bilan",
+     "tone": "good"
+    },
+    {
+     "label": "Qoplash",
+     "value": "~5,8 oy",
+     "sub": "2027-yil noyabr"
+    }
+   ],
+   "sections": [
+    {
+     "id": "capacity_chart",
+     "title": "Quvvat qachon tugaydi — shanba cheklari",
+     "chart": {
+      "type": "line_multi",
+      "x_labels": [
+       "Dek 26",
+       "Yan 27",
+       "Fev 27",
+       "Mar 27",
+       "Apr 27",
+       "May 27",
+       "Iyun 27",
+       "Iyul 27",
+       "Avg 27",
+       "Sen 27",
+       "Okt 27",
+       "Noy 27",
+       "Dek 27"
+      ],
+      "series": [
+       {
+        "name": "Shanba cheklari (prognoz)",
+        "color": "#2DD4BF",
+        "data": [
+         77.2,
+         78.9,
+         80.7,
+         82.4,
+         84.2,
+         86.0,
+         87.9,
+         89.8,
+         91.8,
+         93.8,
+         95.8,
+         97.9,
+         100.1
+        ]
+       }
+      ],
+      "ref_lines": [
+       {
+        "y": 90,
+        "label": "Quvvat — 90",
+        "color": "#DC2626"
+       },
+       {
+        "y": 85,
+        "label": "95% — olish vaqti",
+        "color": "#F59E0B"
+       }
+      ],
+      "marker": {
+       "x": "May 27",
+       "label": "Apparat olish"
+      }
+     },
+     "note": "O'sish: oxirgi 9 oy o'rtachasi +2,2%/oy. Iyundan beri \"ulgurmadi\" kunlari: 0."
+    },
+    {
+     "id": "now_table",
+     "title": "Hozir olsangiz nima bo'ladi",
+     "table": {
+      "columns": [
+       "",
+       "Oyiga"
+      ],
+      "rows": [
+       [
+        "Qo'shimcha savdo",
+        "~0 (quvvat yetarli)"
+       ],
+       [
+        "Elektr (10 kVt·soat/kun × 1 100)",
+        "−330 000"
+       ],
+       [
+        "Servis",
+        "−100 000"
+       ],
+       [
+        "**Naqd natija**",
+        "**−430 000**"
+       ],
+       [
+        "Amortizatsiya (25 mln ÷ 84 oy)",
+        "−298 000"
+       ],
+       [
+        "**Foyda bo'yicha natija**",
+        "**−728 000**"
+       ],
+       [
+        "5-dekabr (oylik kuni) kassa: 44,7 mln → **19,7 mln**",
+        "xavfsiz chegara ~17 mln — **juda yaqin**"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "capacity_table",
+     "title": "Quvvat qachon tugaydi (shanba cheklari, oshxona quvvati 90)",
+     "table": {
+      "columns": [
+       "Oy",
+       "Dek 26",
+       "Fev 27",
+       "Apr 27",
+       "**May 27**",
+       "Iyul 27",
+       "Avg 27"
+      ],
+      "rows": [
+       [
+        "Shanba cheklari",
+        "77,2",
+        "80,7",
+        "84,2",
+        "**86,0**",
+        "89,8",
+        "91,8"
+       ],
+       [
+        "Yuklama",
+        "86%",
+        "90%",
+        "94%",
+        "**96%**",
+        "100%",
+        "102% — buyurtma yo'qoladi"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "may_table",
+     "title": "May 2027 da olsangiz (quvvat to'lganda)",
+     "table": {
+      "columns": [
+       "",
+       "Oyiga"
+      ],
+      "rows": [
+       [
+        "Qo'shimcha yalpi foyda (2-stansiya tajribasi)",
+        "+8 160 000"
+       ],
+       [
+        "Elektr + servis",
+        "−430 000"
+       ],
+       [
+        "Yangi lavash ustasi (oylik + ovqat)",
+        "−3 412 000"
+       ],
+       [
+        "**Sof naqd natija**",
+        "**+4 320 000**"
+       ],
+       [
+        "**Qoplash muddati**",
+        "**~5,8 oy** (2027-yil noyabr)"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "jcurve",
+     "title": "Hozir vs may — yig'ma natija (mln so'm)",
+     "chart": {
+      "type": "line_multi",
+      "zero_line": true,
+      "x_labels": [
+       "Dek 26",
+       "Yan 27",
+       "Fev 27",
+       "Mar 27",
+       "Apr 27",
+       "May 27",
+       "Iyun 27",
+       "Iyul 27",
+       "Avg 27",
+       "Sen 27",
+       "Okt 27",
+       "Noy 27",
+       "Dek 27"
+      ],
+      "unit": "mln so'm",
+      "series": [
+       {
+        "name": "Hozir olish",
+        "color": "#F87171",
+        "data": [
+         -25.43,
+         -25.86,
+         -26.29,
+         -26.72,
+         -27.15,
+         -22.83,
+         -18.51,
+         -14.2,
+         -9.88,
+         -5.56,
+         -1.24,
+         3.08,
+         7.39
+        ]
+       },
+       {
+        "name": "May 2027 da olish (tavsiya)",
+        "color": "#14B8A6",
+        "data": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         -20.68,
+         -16.36,
+         -12.05,
+         -7.73,
+         -3.41,
+         0.91,
+         5.23,
+         9.54
+        ]
+       }
+      ]
+     },
+     "table": {
+      "columns": [
+       "",
+       "Dek 2027 holatida"
+      ],
+      "rows": [
+       [
+        "Hozir olish",
+        "+7,4 mln"
+       ],
+       [
+        "**May 2027 da olish**",
+        "**+9,5 mln**"
+       ],
+       [
+        "Farq",
+        "hozir olish **2,2 mln qimmatga** tushadi + dekabrda kassa xavfli"
+       ]
+      ]
+     },
+     "note": "Hozir olish 2,2 mln qimmatga tushadi; 5-dekabrda kassa 44,7 → 19,7 mln (chegara ~17 mln)."
+    },
+    {
+     "id": "financing",
+     "title": "Pul yetmasa — qanday olish (25 mln, may 2027)",
+     "table": {
+      "columns": [
+       "Variant",
+       "Hozir to'laysiz",
+       "Oyiga",
+       "Muddati",
+       "Ortiqcha to'lov",
+       "Apparat foydasidan keyin oyiga"
+      ],
+      "rows": [
+       [
+        "✅ **Jamg'arma** (dek–apr har oy 5 mln)",
+        "0 (oldindan yig'ilgan)",
+        "—",
+        "—",
+        "**0**",
+        "**+4 320 000**"
+       ],
+       [
+        "Bo'lib to'lash (20% + 6 oy)",
+        "5 000 000",
+        "3 667 000",
+        "6 oy",
+        "2 000 000",
+        "+653 000"
+       ],
+       [
+        "Bank krediti (24%, 12 oy)",
+        "0",
+        "2 364 000",
+        "12 oy",
+        "3 370 000",
+        "+1 956 000"
+       ]
+      ]
+     },
+     "note": "Kredit olsangiz ham apparat o'z to'lovini o'zi to'laydi: oyiga +4,32 mln foyda − 2,36 mln to'lov = +1,96 mln qoladi. Foydaning hammasini qarzga yo'naltirsangiz — kredit 7 oyda yopiladi."
+    },
+    {
+     "id": "actions",
+     "title": "Nima qilish kerak",
+     "actions": [
+      "**Hozir olmang** — oyiga 430 000 so'm bekorga ketadi.",
+      "**Jamg'arma:** dekabrdan aprelgacha har oy **5 mln** alohida hisobga (oktyabrdagi sof foyda 17,7 mln — bemalol).",
+      "**Signal:** shanba cheklari 85 dan oshsa yoki \"ulgurmadi\" kunlari oyiga 2 tadan ko'paysa — AI xabar beradi, sotib olish vaqti.",
+      "**Apparat bilan birga lavash ustasi** oling (aks holda quvvat ishlamaydi).",
+      "Agar eski apparat **buzilsa** — kutmang, darhol oling (bo'lib to'lashga)."
+     ]
+    }
+   ],
+   "assumptions": "Taxminlar: oshxona quvvati 90 chek/kun, o'sish 2,2%/oy, elektr 10 kVt·soat/kun, servis 100 000/oy, foyda — 2-stansiya tajribasi (+8,16 mln), xavfsiz chegara — 7 kunlik qat'iy chiqimlar (~17 mln), bo'lib to'lash ustamasi ~20%/yil, kredit 24%.",
+   "source": "Smena (shanba cheklari, \"ulgurmadi\" izohlari) · Investitsiyalar (2-lavash stansiyasi) · Ish haqi (lavash ustasi) · Energiya (tarif) · Prognoz (5-dekabr kassa)"
+  }
+ ],
+ "facts": {
+  "now": "−430 000",
+  "buy_month": "May 2027",
+  "profit": "+4 320 000",
+  "payback": "~5,8 oy"
+ }
+}

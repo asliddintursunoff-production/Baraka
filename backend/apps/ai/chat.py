@@ -545,7 +545,7 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
             final, _model = None, "template"
             from .golden_tools import GOLDEN_TOOLS
 
-            golden = {t.name for t in GOLDEN_TOOLS}
+            golden = {t.name for t in GOLDEN_TOOLS} | {"catalog", "bad_intent"}
             gres = next(
                 (
                     turn.results[k]

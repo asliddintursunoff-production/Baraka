@@ -906,6 +906,30 @@ def hire_payback_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             ],
         },
     ]
+    if (role_given not in (None, "ofitsiant")) or args.get("salary") or args.get("official"):
+        h0 = HR.compute(s, HR.Params(courier_orders=p.courier_orders))
+        sections.insert(
+            0,
+            {
+                "id": "compare",
+                "title": "Oldin → Yangi",
+                "table": {
+                    "columns": ["Ko'rsatkich", "Oldin (ofitsiant, 2 mln)", f"Yangi ({role})"],
+                    "rows": [
+                        ["Oylik narxi", N(h0.cost, 1000), N(cost, 1000)],
+                        ["Qo'shimcha yalpi foyda", N(h0.gain_gp, 1000), N(h.gain_gp, 1000)],
+                        [
+                            "Oylik sof natija",
+                            S(h0.net) if h0.net >= 0 else "−" + N(-h0.net, 1000),
+                            S(net) if net >= 0 else "−" + N(-net, 1000),
+                        ],
+                    ],
+                },
+                "note": "Bu holatda xulosa o'zgaradi."
+                if (h0.net > 0) != (net > 0)
+                else "Xulosa o'zgarmaydi.",
+            },
+        )
     if role_given is None:
         sections.insert(
             0,
@@ -1395,6 +1419,13 @@ def q3_price_variant(
         f"| 12 oylik natija (narx ayirilgan) | {S(y12)} | {buy} – 12 oy |",
         f"| Kredit 24%, 12 oy | {N(loan_m, 1000)} / oy | — |",
         "",
+        "### Oldin → Yangi",
+        "| Ko'rsatkich | Oldin (25 mln) | Yangi |",
+        "|---|---:|---:|",
+        f"| Narx | 25 000 000 | {N(price)} |",
+        f"| Qoplash ({buy} dan keyin) | ~5,8 oy | ~{str(payback).replace('.', ',')} oy |",
+        f"| Kredit 24%, 12 oy | 2 364 000 / oy | {N(loan_m, 1000)} / oy |",
+        "",
         "_Iqtisod Q3 spec bo'yicha (2-stansiya tajribasi +8,16 mln, elektr+servis 430 000, lavash ustasi 3,41 mln)._",
         "",
         "CHIPS: Necha puldan qimmat bo'lsa zarar? | Kreditga olsam? | Eski apparat buzilsa-chi?",
@@ -1750,7 +1781,7 @@ INTENTS = [
         "golden/Q3_lavash_aparat_olsam.md",
         "equipment_investment",
         re.compile(
-            r"(apparat|stansiya|fritur|gril|pech|muzlatgich|jihoz|uskuna)\w*.{0,60}(olsam|olmoqchi|olay|sarflasam|arziydi|qoplaydi|investitsiya|zarar|kreditga|bo'lib)|(apparat|stansiya)\w*\s+olganim",
+            r"(apparat|stansiya|fritur|gril|pech|muzlatgich|jihoz|uskuna)\w*.{0,60}(olsam|olmoqchi|olay|sarflasam|arziydi|qoplaydi|investitsiya|zarar|kreditga|bo'lib)|(apparat|stansiya)\w*\s+(olganim|qanday\s+olaman)",
             re.I,
         ),
         _q3_params,
@@ -1815,13 +1846,21 @@ def is_side_question(text: str) -> bool:
 
 
 def last_intent(conversation_id: int) -> str | None:
-    """The golden intent of the conversation's latest report (looks back 4 answers)."""
+    """active_golden: the golden intent of the conversation's latest report, within the last
+    10 answers and 15 minutes (chat and Live share the conversation history)."""
+    from datetime import timedelta as _td
+
+    from django.utils import timezone
+
     from .models import Message
 
+    since = timezone.now() - _td(minutes=15)
     for m in (
-        Message.objects.filter(conversation_id=conversation_id, role="assistant")
+        Message.objects.filter(
+            conversation_id=conversation_id, role="assistant", created_at__gte=since
+        )
         .order_by("-created_at")
-        .values("model", "tool_calls")[:4]
+        .values("model", "tool_calls")[:10]
     ):
         names = {c.get("name") for c in (m["tool_calls"] or []) if isinstance(c, dict)}
         hit = next((i.id for i in INTENTS if i.tool in names), None)

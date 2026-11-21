@@ -401,7 +401,7 @@
    "answer": "**+1,67 mln/oy**. Xavf kamroq, foyda biroz kam."
   },
   {
-   "match": "uzum\\w*\\s+(butunlay\\s+)?chiq",
+   "match": "uzum\\w*(?:'\\w+)?\\s+(?:butunlay\\s+)?chiq",
    "answer": "**−4,65 mln/oy**. Uzum oyiga 8,56 mln foyda beradi — chiqmang."
   },
   {
