@@ -1,10 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { LogoMark } from "@/components/LogoMark";
-import { ApiError, apiPost } from "@/lib/api";
-import { appConfig } from "@/lib/config";
+import { apiMessage, AuthLayout, INPUT, LABEL, SUBMIT } from "@/components/public/AuthLayout";
+import { apiPost } from "@/lib/api";
+import { stepRoute } from "@/lib/auth";
 import type { Me } from "@/lib/types";
 
 export default function LoginPage() {
@@ -14,12 +14,28 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const from = (useLocation().state as { from?: string } | null)?.from ?? "/";
+  const from = (useLocation().state as { from?: string } | null)?.from;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-4">
+    <AuthLayout
+      asideLabel="Mahsulot haqida"
+      aside={
+        <>
+          <h2 className="m-0 max-w-[460px] font-display text-[34px] font-bold leading-[1.2]">
+            Bugun kassangizda nima bo'ladi — AI allaqachon hisoblab qo'ygan
+          </h2>
+          <div className="flex max-w-[460px] flex-col gap-2 rounded-card bg-surface p-[18px] text-ink">
+            <span className="text-12 font-bold tracking-label text-primary">BUGUNGI MASLAHAT · 08:00</span>
+            <span className="font-display text-[19px] font-bold">
+              Pulingiz yetadi. Faqat 10-dekabrga ehtiyot bo'ling.
+            </span>
+            <span className="text-14 text-text-3">Namuna</span>
+          </div>
+        </>
+      }
+    >
       <form
-        className="flex w-full max-w-[400px] flex-col gap-4 rounded-card border border-border bg-surface p-7"
+        className="flex w-full max-w-[400px] flex-col gap-[18px]"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -28,55 +44,68 @@ export default function LoginPage() {
             const me = await apiPost<Me>("/api/auth/login", { email, password });
             qc.clear();
             qc.setQueryData(["me"], me);
-            navigate(from, { replace: true });
+            const step = stepRoute(me);
+            navigate(step === "/dashboard" ? (from ?? step) : step, { replace: true });
           } catch (err) {
-            const msg = err instanceof ApiError ? (err.body as { message?: string } | null)?.message : null;
-            setError(msg ?? "Kirib bo'lmadi. Internet aloqasini tekshiring.");
+            setError(apiMessage(err, "Kirib bo'lmadi. Internet aloqasini tekshiring."));
           } finally {
             setBusy(false);
           }
         }}
       >
-        <div className="flex items-center gap-[10px]">
-          <LogoMark />
-          <span className="font-display text-[19px] font-bold">{appConfig.appName}</span>
+        <div className="flex flex-col gap-2">
+          <h1 className="m-0 font-display text-32 font-bold">Xush kelibsiz</h1>
+          <span className="text-16 text-text-3">Hisobingizga kiring</span>
         </div>
-        <h1 className="m-0 font-display text-24 font-bold">Kirish</h1>
-        <label className="flex flex-col gap-1 text-14 font-semibold text-text-2">
-          Email
+        <div className="flex flex-col gap-[6px]">
+          <label htmlFor="email" className={LABEL}>
+            Email
+          </label>
           <input
+            id="email"
             type="email"
             required
             autoComplete="email"
+            placeholder="siz@misol.uz"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="min-h-tap rounded-btn border border-border-input px-3 text-15 font-normal"
+            className={INPUT}
           />
-        </label>
-        <label className="flex flex-col gap-1 text-14 font-semibold text-text-2">
-          Parol
+        </div>
+        <div className="flex flex-col gap-[6px]">
+          <div className="flex items-baseline justify-between">
+            <label htmlFor="pw" className={LABEL}>
+              Parol
+            </label>
+            <Link to="/login" className="text-14 font-semibold">
+              Parolni unutdingizmi?
+            </Link>
+          </div>
           <input
+            id="pw"
             type="password"
             required
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="min-h-tap rounded-btn border border-border-input px-3 text-15 font-normal"
+            className={INPUT}
           />
-        </label>
+        </div>
         {error && (
           <p role="alert" className="m-0 text-14 text-danger">
             {error}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="min-h-12 rounded-btn-lg bg-primary text-16 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-        >
+        <button type="submit" disabled={busy} className={SUBMIT}>
           Kirish
         </button>
+        <span className="text-center text-15 text-text-3">
+          Hisobingiz yo'qmi?{" "}
+          <Link to="/register" className="font-semibold">
+            Ro'yxatdan o'ting
+          </Link>
+        </span>
       </form>
-    </main>
+    </AuthLayout>
   );
 }

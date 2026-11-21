@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>BizPilot AI — Birinchi tahlil</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8;font-family:Inter,system-ui,sans-serif;color:#101828}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+@keyframes bpSpin{to{transform:rotate(360deg)}}
+.bp-spin{animation:bpSpin 1s linear infinite;transform-origin:center}
+@media (prefers-reduced-motion: reduce){.bp-spin{animation:none}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #101828; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 40px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1D4ED8"></rect><path d="M9 21l5-6 4 3 5-7" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 19px">BizPilot AI</span>
+    </div>
+    <ol aria-label="Sozlash bosqichlari" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <li style="display: flex; align-items: center; gap: 8px; color: #067647; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; background: #067647; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Biznes</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #067647"></li>
+      <li style="display: flex; align-items: center; gap: 8px; color: #067647; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; background: #067647; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Jadval ulash</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #067647"></li>
+      <li style="display: flex; align-items: center; gap: 8px; color: #067647; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; background: #067647; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>Ustunlarni tasdiqlash</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #1D4ED8"></li>
+      <li aria-current="step" style="display: flex; align-items: center; gap: 8px; color: #1D4ED8; font-weight: 700"><span style="width: 26px; height: 26px; border-radius: 13px; background: #1D4ED8; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px">4</span>Birinchi tahlil</li>
+    </ol>
+  </header>
+
+  <main style="flex-grow: 1; width: 100%; max-width: 760px; box-sizing: border-box; margin: 0 auto; padding: 48px 24px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 8px; text-align: center">
+      <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">{{ title }}</h1>
+      <span style="font-size: 16px; color: #475467">{{ subtitle }}</span>
+    </div>
+
+    <div role="progressbar" aria-label="Tahlil jarayoni" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}" style="height: 10px; border-radius: 5px; background: #E4E7EC; overflow: hidden">
+      <div style="height: 100%; border-radius: 5px; background: #1D4ED8; width: {{ pctCss }}; transition: width .4s ease"></div>
+    </div>
+
+    <ol aria-live="polite" style="margin: 0; padding: 0; list-style: none; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; overflow: hidden">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="5">
+        <li style="display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid #EAECF0">
+          <sc-if value="{{ s.done }}" hint-placeholder-val="{{ true }}">
+            <span style="width: 28px; height: 28px; border-radius: 14px; background: #ECFDF3; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span>
+            <span style="flex-grow: 1; font-size: 16px; font-weight: 600">{{ s.label }}</span>
+            <span style="font-size: 14px; color: #475467">{{ s.meta }}</span>
+          </sc-if>
+          <sc-if value="{{ s.active }}" hint-placeholder-val="{{ false }}">
+            <span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg class="bp-spin" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="3" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg></span>
+            <span style="flex-grow: 1; font-size: 16px; font-weight: 700; color: #1D4ED8">{{ s.label }}…</span>
+          </sc-if>
+          <sc-if value="{{ s.wait }}" hint-placeholder-val="{{ false }}">
+            <span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><span style="width: 12px; height: 12px; border-radius: 6px; border: 2px solid #D0D5DD"></span></span>
+            <span style="flex-grow: 1; font-size: 16px; color: #5D6679">{{ s.label }}</span>
+          </sc-if>
+        </li>
+      </sc-for>
+    </ol>
+
+    <sc-if value="{{ finished }}" hint-placeholder-val="{{ false }}">
+      <section aria-label="Birinchi xulosa" style="background: #101828; color: #FFFFFF; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 13px; font-weight: 700; color: #B2CCFF; letter-spacing: 0.04em">AI'NING BIRINCHI XULOSASI</span>
+        <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; font-weight: 700; line-height: 1.3">Pulingiz yetadi. Faqat 10-dekabrga ehtiyot bo'ling.</span>
+        <span style="font-size: 15px; line-height: 1.5; color: #D0D5DD">O'sha kuni oylik va kredit bir kunga tushgan. 10-dekabrgacha 8 mln so'mdan katta xarid qilmang.</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px">
+          <a href="Main.dc.html" style="display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 10px; background: #FFFFFF; color: #101828; font-weight: 700; font-size: 15px; text-decoration: none">Bosh sahifaga o'tish</a>
+          <a href="Chat.dc.html" style="display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 10px; border: 1px solid #475467; color: #FFFFFF; font-weight: 600; font-size: 15px; text-decoration: none">AI'dan savol so'rash</a>
+        </div>
+      </section>
+      <button type="button" onClick="{{ replay }}" style="align-self: center; min-height: 40px; padding: 0 14px; border: 0; background: transparent; color: #475467; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Animatsiyani qayta ko'rish</button>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 0 };
+    this.timer = null;
+  }
+  componentDidMount() { this.start(); }
+  componentWillUnmount() { if (this.timer) clearInterval(this.timer); }
+  start() {
+    var self = this;
+    if (this.timer) clearInterval(this.timer);
+    this.setState({ step: 0 });
+    this.timer = setInterval(function () {
+      var n = self.state.step + 1;
+      self.setState({ step: n });
+      if (n >= 5) { clearInterval(self.timer); self.timer = null; }
+    }, 1100);
+  }
+  renderVals() {
+    var self = this;
+    var st = this.state.step;
+    var defs = [
+      { label: "Jadvallar o'qildi", meta: "3 fayl · 5 varaq" },
+      { label: "Qatorlar tekshirildi", meta: "3 710 qator · 1 tasini keyin ko'rasiz" },
+      { label: "To'lovlar kalendari tuzildi", meta: "keyingi 60 kun · 9 ta to'lov" },
+      { label: "Kunlik kassa hisoblandi", meta: "60 kun" },
+      { label: "Xavfli kunlar qidirildi", meta: "1 ta qiyin kun topildi" }
+    ];
+    var finished = st >= 5;
+    return {
+      title: finished ? "Tayyor!" : "AI jadvallaringizni o'rganyapti",
+      subtitle: finished ? "Endi AI biznesingizni har 15 daqiqada kuzatib boradi." : "Odatda 1 daqiqadan kam vaqt oladi.",
+      pct: Math.round(st / 5 * 100),
+      pctCss: Math.round(st / 5 * 100) + "%",
+      finished: finished,
+      replay: function () { self.start(); },
+      steps: defs.map(function (d, i) {
+        return { label: d.label, meta: d.meta, done: i < st, active: i === st, wait: i > st };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

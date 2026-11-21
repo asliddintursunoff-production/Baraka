@@ -3,9 +3,11 @@ import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { AppShell } from "@/components/AppShell";
+import { Gate } from "@/components/Gate";
 import { RichText } from "@/components/RichText";
 import { HorizonToggle, type Horizon } from "@/components/HorizonToggle";
 import { ErrorState, InsufficientData, PageSkeleton, Skeleton } from "@/components/States";
+import { useMe } from "@/lib/auth";
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 import type { ForecastPage, ScenarioCard, ScenarioResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -36,7 +38,13 @@ function Card({ card }: { card: ScenarioCard }) {
 }
 
 export default function ForecastPageView() {
-  const q = useQuery({ queryKey: ["forecast"], queryFn: () => apiGet<ForecastPage>("/api/forecast") });
+  const me = useMe();
+  const short = me.data?.data_status === "short_history";
+  const q = useQuery({
+    queryKey: ["forecast"],
+    queryFn: () => apiGet<ForecastPage>("/api/forecast"),
+    enabled: !short,
+  });
   const [horizon, setHorizon] = useState<Horizon>(60);
   const [selected, setSelected] = useState("buy");
   const [text, setText] = useState("");
@@ -54,6 +62,13 @@ export default function ForecastPageView() {
     },
   });
 
+  // Under 2 weeks of history: no forecast numbers and no simulator (Gate.html `short`).
+  if (short)
+    return (
+      <AppShell active="forecast">
+        <Gate state="short" days={me.data?.history_days ?? 0} />
+      </AppShell>
+    );
   if (q.isPending)
     return (
       <AppShell active="forecast">

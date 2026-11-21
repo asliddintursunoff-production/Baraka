@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, Database, House, Lightbulb, MessageCircle, TrendingUp } from "lucide-react";
+import { CalendarDays, ChevronDown, Database, House, Lightbulb, Lock, MessageCircle, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -11,7 +11,7 @@ import { LogoMark } from "./LogoMark";
 export type NavKey = "main" | "chat" | "forecast" | "calendar" | "knowledge" | "sources";
 
 const NAV: { key: NavKey; to: string; label: string; Icon: typeof House }[] = [
-  { key: "main", to: "/", label: "Bosh sahifa", Icon: House },
+  { key: "main", to: "/dashboard", label: "Bosh sahifa", Icon: House },
   { key: "chat", to: "/chat", label: "AI CFO", Icon: MessageCircle },
   { key: "forecast", to: "/forecast", label: "Prognoz", Icon: TrendingUp },
   { key: "calendar", to: "/calendar", label: "To'lovlar kalendari", Icon: CalendarDays },
@@ -19,7 +19,14 @@ const NAV: { key: NavKey; to: string; label: string; Icon: typeof House }[] = [
   { key: "sources", to: "/sources", label: "Ma'lumotlar", Icon: Database },
 ];
 
-export function AppSidebar({ active }: { active: NavKey }) {
+function DemoBadge() {
+  return (
+    <span className="ml-2 rounded-pill bg-warning-bg px-2 py-[2px] text-12 font-bold text-warning">Demo</span>
+  );
+}
+
+/** `locked`: no data yet (Gate.html) — every item except "Ma'lumotlar" is disabled. */
+export function AppSidebar({ active, locked = false }: { active: NavKey; locked?: boolean }) {
   const me = useMe();
   const switchBusiness = useSwitchBusiness();
   const [open, setOpen] = useState(false);
@@ -35,7 +42,17 @@ export function AppSidebar({ active }: { active: NavKey }) {
         <LogoMark />
         <span className="font-display text-[19px] font-bold">{appConfig.appName}</span>
       </div>
-      {NAV.map(({ key, to, label, Icon }) => (
+      {NAV.map(({ key, to, label, Icon }) =>
+        locked && key !== "sources" ? (
+          <span
+            key={key}
+            aria-disabled="true"
+            className="flex min-h-tap items-center gap-3 rounded-btn px-3 text-15 text-[#98A2B3]"
+          >
+            <Lock size={18} strokeWidth={2} aria-hidden="true" />
+            {label}
+          </span>
+        ) : (
         <Link
           key={key}
           to={to}
@@ -50,7 +67,8 @@ export function AppSidebar({ active }: { active: NavKey }) {
           <Icon size={20} strokeWidth={2} aria-hidden="true" />
           {label}
         </Link>
-      ))}
+        ),
+      )}
       <div className="min-h-6 grow" />
       <div className="relative flex flex-col gap-[6px] rounded-inner border border-border p-3">
         <span className="text-12 font-semibold uppercase tracking-label text-text-4">Biznes</span>
@@ -61,7 +79,10 @@ export function AppSidebar({ active }: { active: NavKey }) {
           onClick={() => setOpen((v) => !v)}
           className="flex min-h-tap items-center justify-between rounded-lg border-0 bg-bg px-[10px] text-14 font-semibold text-ink"
         >
-          {current ? `${current.name} · ${current.city}` : "…"}
+          <span>
+            {current ? `${current.name} · ${current.city}` : "…"}
+            {current?.is_demo && <DemoBadge />}
+          </span>
           <ChevronDown size={16} aria-hidden="true" />
         </button>
         {open && others.length > 0 && (
@@ -83,6 +104,7 @@ export function AppSidebar({ active }: { active: NavKey }) {
                   }}
                 >
                   {b.name} · {b.city}
+                  {b.is_demo && <DemoBadge />}
                 </button>
               </li>
             ))}

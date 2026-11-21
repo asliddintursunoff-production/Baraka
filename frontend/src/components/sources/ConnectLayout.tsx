@@ -8,7 +8,8 @@ import { CheckIcon } from "./icons";
 
 export type ConnectStep = 1 | 2 | 3 | 4;
 
-const STEPS = ["Google hisob", "Fayllar", "AI ustunlarni tanidi", "Tayyor"] as const;
+/** Onboarding stepper everywhere (DESIGN_ONBOARDING.md). */
+const STEPS = ["Biznes", "Jadval ulash", "Ustunlarni tasdiqlash", "Birinchi tahlil"] as const;
 
 type StepState = "done" | "current" | "todo";
 
@@ -17,7 +18,7 @@ function Stepper({ step, finished }: { step: ConnectStep; finished: boolean }) {
     n < step || (finished && n === step) ? "done" : n === step ? "current" : "todo";
   return (
     <ol
-      aria-label="Ulash bosqichlari"
+      aria-label="Sozlash bosqichlari"
       className="m-0 flex list-none flex-wrap items-center gap-[10px] p-0 text-14"
     >
       {STEPS.map((label, i) => {
@@ -67,10 +68,12 @@ function Stepper({ step, finished }: { step: ConnectStep; finished: boolean }) {
 export function ConnectLayout({
   step,
   finished = false,
+  mainClassName = "max-w-[1280px]",
   children,
 }: {
   step: ConnectStep;
   finished?: boolean;
+  mainClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -82,7 +85,7 @@ export function ConnectLayout({
         </div>
         <Stepper step={step} finished={finished} />
       </header>
-      <main className="mx-auto box-border flex w-full max-w-[1280px] grow flex-col gap-6 px-4 pb-12 pt-8 md:px-10">
+      <main className={cn("mx-auto box-border flex w-full grow flex-col gap-6 px-4 pb-12 pt-8 md:px-10", mainClassName)}>
         {children}
       </main>
     </div>

@@ -3,10 +3,16 @@
 export type Verdict = "yes" | "risky" | "no";
 export type Severity = "success" | "warning" | "danger";
 
+export type OnboardingStep = "business" | "connect" | "review" | "analyzing" | "done";
+export type DataStatus = "no_data" | "short_history" | "ok";
+
 export interface Me {
   user: { email: string; first_name: string; last_name: string };
-  business: { id: number; name: string; city: string } | null;
-  businesses: { id: number; name: string; city: string; role: string }[];
+  business: { id: number; name: string; city: string; is_demo?: boolean } | null;
+  businesses: { id: number; name: string; city: string; role: string; is_demo?: boolean }[];
+  onboarding_step?: OnboardingStep;
+  data_status?: DataStatus;
+  history_days?: number;
 }
 
 export interface SeriesPoint {

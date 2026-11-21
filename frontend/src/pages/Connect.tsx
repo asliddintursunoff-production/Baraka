@@ -23,7 +23,7 @@ import type { RunResult } from "@/components/sources/useSseRun";
 import { ErrorState, Skeleton } from "@/components/States";
 import { apiGet, apiPost } from "@/lib/api";
 import { useMe } from "@/lib/auth";
-import type { GoogleStatus, Proposals } from "@/lib/sourcesTypes";
+import type { ConfirmBody, GoogleStatus, Proposals } from "@/lib/sourcesTypes";
 
 /** How long step 4 "Tayyor" stays on screen before following `redirect`. */
 const DONE_DELAY_MS = 1500;
@@ -75,7 +75,12 @@ export default function ConnectPage() {
   const [moved, setMoved] = useState(false);
   const base = useMemo(() => (remap.data ? normalizeProposals(remap.data) : null), [remap.data]);
   const proposals = local ?? base;
-  const fallbackRedirect = remapId ? "/sources" : "/";
+  const fallbackRedirect = remapId ? "/sources" : "/dashboard";
+  // During onboarding the first sync runs on /onboarding/analyzing (FirstSync), not inline.
+  const onboarding = (me.data?.onboarding_step ?? "done") !== "done";
+  const onConfirm = onboarding
+    ? (body: ConfirmBody) => navigate("/onboarding/analyzing", { state: { confirm: body } })
+    : undefined;
 
   const onProposals = useCallback((p: Proposals) => {
     setMoved(true);
@@ -90,7 +95,8 @@ export default function ConnectPage() {
     invalidateFinance(qc);
     void qc.invalidateQueries({ queryKey: ["sources"] });
     void qc.invalidateQueries({ queryKey: ["google-status"] });
-    setDone({ text: r.text || "Tayyor", to: safePath(r.redirect, fallbackRedirect) });
+    const to = safePath(r.redirect, fallbackRedirect);
+    setDone({ text: r.text || "Tayyor", to: to === "/" ? "/dashboard" : to });
   };
 
   useEffect(() => {
@@ -122,6 +128,7 @@ export default function ConnectPage() {
         onMerge={onMerge}
         onBack={onBack}
         onDone={onDone}
+        onConfirm={onConfirm}
         autoFocus={moved}
       />
     );
@@ -169,7 +176,7 @@ export default function ConnectPage() {
   }
 
   return (
-    <ConnectLayout step={step} finished={done != null}>
+    <ConnectLayout step={step === 1 ? 2 : step} finished={done != null}>
       <ConnectIntro full={step === 3} />
       {body}
     </ConnectLayout>

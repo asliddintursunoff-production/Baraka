@@ -1,10 +1,11 @@
+import { useStartDemo } from "@/components/Gate";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import type { Proposals } from "@/lib/sourcesTypes";
 
 import { CheckIcon } from "./icons";
-import { BTN_PRIMARY, ErrorBox, PICK_NEXT, PrivacyNote, Spinner, startGoogleAuth } from "./shared";
+import { BTN_PRIMARY, BTN_SECONDARY, ErrorBox, PICK_NEXT, PrivacyNote, Spinner, startGoogleAuth } from "./shared";
 import { usePickFiles, type PickError, type PickPhase } from "./usePickFiles";
 
 const CARD =
@@ -76,6 +77,7 @@ export function GoogleStep({
           >
             {needsReauth ? "Qayta ulash" : "Google bilan ulash"}
           </button>
+          {!needsReauth && <DemoLink />}
         </>
       )}
       <PrivacyNote businessName={businessName} />
@@ -177,5 +179,18 @@ export function DoneStep({ text, to }: { text: string; to: string }) {
         Davom etish
       </Link>
     </section>
+  );
+}
+
+
+function DemoLink() {
+  const { startDemo, busy, error } = useStartDemo();
+  return (
+    <div className="flex flex-col gap-1">
+      <button type="button" onClick={() => void startDemo()} disabled={busy} className={`${BTN_SECONDARY} self-start`}>
+        {busy ? "Demo tayyorlanmoqda…" : "Demo kafe bilan sinab ko'rish"}
+      </button>
+      {error && <span className="text-13 text-danger">{error}</span>}
+    </div>
   );
 }

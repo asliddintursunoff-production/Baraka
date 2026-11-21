@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 
 import { ApiError } from "@/lib/api";
 
+import { Gate, isNoData } from "./Gate";
+
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-inner bg-[#EAECF0] ${className}`} aria-hidden="true" />;
 }
@@ -23,6 +25,7 @@ export function PageSkeleton() {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  if (isNoData(error)) return <Gate state="nodata" />;
   const offline = !(error instanceof ApiError);
   return (
     <section

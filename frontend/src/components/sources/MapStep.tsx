@@ -17,6 +17,7 @@ export function MapStep({
   onMerge,
   onBack,
   onDone,
+  onConfirm,
   autoFocus,
 }: {
   proposals: Proposals;
@@ -24,6 +25,8 @@ export function MapStep({
   onMerge: (p: Proposals) => void;
   onBack: () => void;
   onDone: (r: RunResult) => void;
+  /** Onboarding: hand the confirm body to the FirstSync page instead of running it here. */
+  onConfirm?: (body: ConfirmBody) => void;
   autoFocus: boolean;
 }) {
   const sheets = useMemo<SheetRef[]>(
@@ -122,6 +125,10 @@ export function MapStep({
       opening_balance: opening,
       auto_sync: autoSync,
     };
+    if (onConfirm) {
+      onConfirm(body);
+      return;
+    }
     const result = await run("/api/sources/confirm", body, "Tahlil boshlanmoqda…");
     if (result) onDone(result);
   };

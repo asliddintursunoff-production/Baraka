@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>BizPilot AI — Biznes profili</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8;font-family:Inter,system-ui,sans-serif;color:#101828}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #101828; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 40px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1D4ED8"></rect><path d="M9 21l5-6 4 3 5-7" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 19px">BizPilot AI</span>
+    </div>
+    <ol aria-label="Sozlash bosqichlari" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <li aria-current="step" style="display: flex; align-items: center; gap: 8px; color: #1D4ED8; font-weight: 700"><span style="width: 26px; height: 26px; border-radius: 13px; background: #1D4ED8; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px">1</span>Biznes</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #D0D5DD"></li>
+      <li style="display: flex; align-items: center; gap: 8px; color: #5D6679; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; border: 2px solid #D0D5DD; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 13px">2</span>Jadval ulash</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #D0D5DD"></li>
+      <li style="display: flex; align-items: center; gap: 8px; color: #5D6679; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; border: 2px solid #D0D5DD; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 13px">3</span>Ustunlarni tasdiqlash</li>
+      <li aria-hidden="true" style="width: 28px; height: 2px; background: #D0D5DD"></li>
+      <li style="display: flex; align-items: center; gap: 8px; color: #5D6679; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 13px; border: 2px solid #D0D5DD; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 13px">4</span>Birinchi tahlil</li>
+    </ol>
+  </header>
+
+  <main style="flex-grow: 1; width: 100%; max-width: 1100px; box-sizing: border-box; margin: 0 auto; padding: 40px 32px 56px; display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+    <form style="flex: 999 1 520px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 22px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700">Biznesingiz haqida</h1>
+        <span style="font-size: 16px; color: #475467">Bir daqiqa. AI hisob-kitobni shunga moslaydi.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="bn" style="font-size: 14px; font-weight: 600; color: #344054">Biznes nomi</label>
+        <input id="bn" type="text" placeholder="Masalan: Navro'z Kafe" style="min-height: 48px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 16px">
+      </div>
+
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+        <legend style="font-size: 14px; font-weight: 600; color: #344054; padding: 0 0 8px">Turi</legend>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{ kinds }}" as="k" hint-placeholder-count="4">
+            <sc-if value="{{ k.on }}" hint-placeholder-val="{{ false }}">
+              <button type="button" aria-pressed="true" onClick="{{ k.pick }}" style="min-height: 44px; padding: 0 16px; border-radius: 999px; border: 2px solid #1D4ED8; background: #EFF4FF; color: #1D4ED8; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer">{{ k.label }}</button>
+            </sc-if>
+            <sc-if value="{{ k.off }}" hint-placeholder-val="{{ true }}">
+              <button type="button" aria-pressed="false" onClick="{{ k.pick }}" style="min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid #D0D5DD; background: #FFFFFF; color: #344054; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">{{ k.label }}</button>
+            </sc-if>
+          </sc-for>
+        </div>
+      </fieldset>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="ct" style="font-size: 14px; font-weight: 600; color: #344054">Shahar</label>
+          <select id="ct" style="min-height: 48px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 12px; font: inherit; font-size: 16px; background: #FFFFFF"><option>Toshkent</option><option>Samarqand</option><option>Buxoro</option><option>Andijon</option><option>Boshqa</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="st" style="font-size: 14px; font-weight: 600; color: #344054">Xodimlar soni</label>
+          <input id="st" type="number" min="0" placeholder="15" style="min-height: 48px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 16px">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="pd" style="font-size: 14px; font-weight: 600; color: #344054">Oylik har oyning nechanchi sanasida?</label>
+          <input id="pd" type="number" min="1" max="31" placeholder="10" style="min-height: 48px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 16px">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="sm" style="font-size: 14px; font-weight: 600; color: #344054">Kassada doim qolsin (so'm)</label>
+          <input id="sm" type="text" inputmode="numeric" placeholder="10 000 000" aria-describedby="smh" style="min-height: 48px; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 16px">
+          <span id="smh" style="font-size: 13px; color: #5D6679">Ixtiyoriy. Bundan pastga tushsa, AI ogohlantiradi.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; padding-top: 4px">
+        <a href="Connect.dc.html" style="display: inline-flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 24px; border-radius: 12px; background: #1D4ED8; color: #FFFFFF; font-weight: 600; font-size: 16px; text-decoration: none">Davom etish: jadval ulash
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+      </div>
+    </form>
+
+    <aside aria-label="Nega so'raymiz" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+      <div style="background: #101828; color: #FFFFFF; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 12px; font-weight: 700; color: #B2CCFF; letter-spacing: 0.04em">NEGA SO'RAYMIZ</span>
+        <span style="font-size: 15px; line-height: 1.55">Oylik kuni va xodimlar soni — eng muhim to'lovni to'g'ri hisoblash uchun. Turi va shahri — shunga o'xshash bizneslarning umumiy tajribasidan foydalanish uchun.</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 16px; padding: 18px; display: flex; gap: 10px; font-size: 14px; color: #475467; line-height: 1.5">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2" style="flex-shrink: 0" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        <span>Hammasini keyin sozlamalarda o'zgartirish mumkin.</span>
+      </div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { kind: "cafe" };
+  }
+  renderVals() {
+    var self = this;
+    var defs = [
+      { id: "cafe", label: "Kafe / restoran" },
+      { id: "shop", label: "Do'kon" },
+      { id: "pharmacy", label: "Dorixona" },
+      { id: "other", label: "Boshqa" }
+    ];
+    return {
+      kinds: defs.map(function (d) {
+        return {
+          label: d.label,
+          on: d.id === self.state.kind,
+          off: d.id !== self.state.kind,
+          pick: function () { self.setState({ kind: d.id }); }
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
