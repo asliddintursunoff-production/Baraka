@@ -72,6 +72,7 @@ def golden_input(
         params=ParamsIn(variable_cost_ratio=Decimal("0.45")),
         safe_min=mln("10"),
         staff_count=15,
+        last_payroll_amount=mln("45"),
     )
     kwargs.update(overrides)
     return EngineInput(**kwargs)  # type: ignore[arg-type]

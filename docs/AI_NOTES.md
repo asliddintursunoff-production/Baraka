@@ -27,7 +27,34 @@ Checked 2026-11-21 against the official docs (the `ai.google.dev/gemini-api/docs
 | gemini-3.7-flash | 504 |
 | gemini-3.6-flash | OK, 3.0–4.0 s |
 | gemini-3.5-flash | OK, 3.2 s once, then 54 s |
-Open decision for M3 (not changed without approval): a fallback chain for `chat`, e.g. `3.8-flash → 3.6-flash`, with a short per-attempt deadline.
+### Root cause (investigated 2026-11-21, 17:10)
+The same failures happen with the **simplest possible request**: one text, no tools, no thinking config, no schema, SDK retries off.
+
+| request variant | result |
+|---|---|
+| A plain | 504, then 429 |
+| B max_tokens | 429 |
+| C thinking LOW | 429 |
+| D thinking MEDIUM | 429 |
+| E json schema | 503, then 429 |
+| F tools | 429 |
+| G tools+json+LOW | 429 |
+
+So the cause is **not** our request config. The 429 body says:
+
+> Quota exceeded for metric `generate_content_free_tier_requests`, limit **20**, model gemini-3.8-flash, quotaId `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, retryDelay ≈ 19 h
+
+- **The key belongs to a Free Tier project.** gemini-3.8-flash allows only **20 requests per day** per model, and the earlier 503 "high demand" / 504 answers match the free tier's low serving priority.
+- At the same moment `gemini-3.6-flash` → 504 and `gemini-3.5-flash-lite` → OK.
+- **Fix:** enable billing on the Google Cloud project of this key (paid Tier 1). A chat demo cannot run on 20 requests per day.
+- Our side: tests never call the real API (fake client). Real calls only via `check_ai` / latency scripts.
+
+### Fallback chain (approved 2026-11-21, implemented in M3)
+- Order: `gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite`, defined in `app_settings.CHAT_MODEL_CHAIN`.
+- 5 s deadline per attempt.
+- On 429/503/504 or a passed deadline, move on immediately; no waiting on the same model.
+- Circuit breaker: 3 errors within 60 s → the model is skipped for 60 s.
+- The answering model is stored on `Message` and `LatencyEvent`.
 
 ## Live API (`gemini-3.8-live`)
 ### Ephemeral tokens (verified)

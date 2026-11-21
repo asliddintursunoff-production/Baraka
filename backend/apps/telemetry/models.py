@@ -11,11 +11,14 @@ class LatencyEvent(models.Model):
         CHAT = "chat", "chat"
         API = "api", "api"
 
-    # business FK is added in M2 together with the tenancy models.
+    business = models.ForeignKey(
+        "tenancy.Business", null=True, blank=True, on_delete=models.CASCADE
+    )
     channel = models.CharField(max_length=8, choices=Channel.choices)
     name = models.CharField(max_length=64)
     ms = models.FloatField()  # a duration, not money
     meta = models.JSONField(default=dict, blank=True)
+    model = models.CharField(max_length=64, blank=True)  # LLM that answered, if any
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

@@ -6,3 +6,5 @@ ruff==0.17.6
 mypy==2.4.1
 django-stubs==6.1.2
 djangorestframework-stubs==3.18.2
+openpyxl==3.1.5  # only for seed_demo --export (dev/seed dependency)
+playwright==1.65.2  # dev tool: visual checks against design/ (uses system Chrome)

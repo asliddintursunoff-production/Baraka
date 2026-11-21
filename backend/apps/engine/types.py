@@ -116,6 +116,7 @@ class EngineInput:
     segment_prior: SegmentPriorIn | None = None
     safe_min: Decimal = Decimal("10000000")
     staff_count: int | None = None  # for "new_staff" changes (average salary)
+    last_payroll_amount: Decimal | None = None  # last paid payroll total (from history)
 
     def __post_init__(self) -> None:
         # Freeze sequences so a cached input can never be mutated by a caller.
@@ -160,6 +161,16 @@ class PreparedObligation:
 
 
 @dataclass(frozen=True)
+class Deferral:
+    """Engine advice: move one non-critical payment by `days` to avoid a cash shortage."""
+
+    obligation: PreparedObligation
+    days: int
+    new_date: Date
+    resolves: bool  # True if no balance is below zero after the move
+
+
+@dataclass(frozen=True)
 class DayRow:
     date: Date
     open: Decimal
@@ -195,6 +206,7 @@ class ForecastResult:
     weeks_of_history: float
     segment_weight: float
     variable_cost_ratio: Decimal
+    deferrals: tuple[Deferral, ...] = ()  # only for a `risky` result with a shortage
 
     @property
     def end(self) -> Date:
@@ -245,6 +257,7 @@ class ScenarioResult:
     verdict: Verdict | None
     base_min_balance: Decimal
     delta_min: Decimal  # scenario min - base min
+    deferrals: tuple[Deferral, ...] = ()
 
     def close_on(self, d: Date) -> Decimal:
         i = (d - self.today).days

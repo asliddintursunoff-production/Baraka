@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import numpy as np
 
+from .deferral import suggest_deferrals
 from .forecast import compute_verdict
 from .money import from_tiyin, to_tiyin
 from .rules import norm
@@ -19,6 +20,10 @@ from .types import (
     IntArray,
     ScenarioResult,
 )
+
+
+class StaffCountUnknown(EngineError):
+    """The number of staff is not in the sheet or the profile: ask the user once."""
 
 
 def _idx(base: ForecastResult, d: date) -> int:
@@ -58,27 +63,35 @@ def delta_for(base: ForecastResult, inp: EngineInput, change: Change) -> tuple[I
         if people != value or not 1 <= people <= 1000:
             raise EngineError("new_staff value must be a whole number of people (1..1000)")
         if not inp.staff_count:
-            raise EngineError("staff_count is unknown, cannot price new staff")
+            raise StaffCountUnknown("staff_count is unknown, cannot price new staff")
         payroll = [p for p in base.obligations if p.category == "payroll"]
         if not payroll:
             raise EngineError("no payroll payments in the forecast, cannot price new staff")
+        # average salary from data: the last paid payroll, else the next planned one
+        payroll_total = inp.last_payroll_amount or payroll[0].amount
+        per_person = to_tiyin(payroll_total) * people
+        cost = (per_person + inp.staff_count // 2) // inp.staff_count
+        payroll_days = sorted({max(0, (p.date - base.today).days) for p in payroll})
         mask = mask.copy()
-        for p in payroll:
-            i = max(0, (p.date - base.today).days)
+        for i in payroll_days:
             if i >= start:
-                cost = (to_tiyin(p.amount) * people + inp.staff_count // 2) // inp.staff_count
                 delta[i] -= cost
                 mask[i] = True
 
     elif change.kind == "extra_expense":
+        # The planned spend itself must be covered on the day it is paid: a shortage on
+        # that day means "no" (you cannot pay with money you do not have).
         schedule = change.schedule or ((change.start_date or base.today, value),)
+        mask = mask.copy()
         for d, amount in schedule:
             if not isinstance(amount, Decimal) or amount <= 0:
                 raise EngineError("expense amounts must be positive Decimals")
             if d < base.today:
                 raise EngineError("an expense cannot be in the past")
             if d <= base.end:
-                delta[_idx(base, d)] -= to_tiyin(amount)
+                i = _idx(base, d)
+                delta[i] -= to_tiyin(amount)
+                mask[i] = True
 
     elif change.kind == "payment_delay":
         days = int(value)
@@ -122,6 +135,11 @@ def simulate(base: ForecastResult, inp: EngineInput, change: Change) -> Scenario
     verdict = (
         None if base.insufficient_data else compute_verdict(close, mask, to_tiyin(base.safe_min))
     )
+    deferrals = (
+        suggest_deferrals(close, mask, base.obligations, base.today)
+        if verdict == "risky" and shortage.size
+        else ()
+    )
     return ScenarioResult(
         change=change,
         today=base.today,
@@ -135,4 +153,5 @@ def simulate(base: ForecastResult, inp: EngineInput, change: Change) -> Scenario
         verdict=verdict,
         base_min_balance=base.min_balance,
         delta_min=min_balance - base.min_balance,
+        deferrals=deferrals,
     )

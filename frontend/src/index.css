@@ -15,7 +15,7 @@
     margin: 0;
   }
   a {
-    @apply text-primary hover:text-primary-hover;
+    @apply text-primary underline hover:text-primary-hover;
   }
   :focus-visible {
     outline: 2px solid #1d4ed8;

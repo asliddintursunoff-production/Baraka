@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
+import "./fonts.css";
 import "./index.css";
 import { appConfig } from "./lib/config";
 import { router } from "./router";

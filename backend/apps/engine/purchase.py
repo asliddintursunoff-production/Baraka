@@ -1,7 +1,7 @@
 """Purchase decision: "Can I spend X?" -> verdict + recommended option + alternatives.
 
 Alternatives searched when buying as requested is not `yes`:
-  (a) the earliest date within the horizon on which buying gives `yes`
+  (a) the earliest date within a 120-day horizon on which buying gives `yes`
       (only dates with at least 35 days of forecast after them, so a payroll day after
       the purchase is always visible);
   (b) 3 monthly instalments, rounded down to whole millions, remainder on the first
@@ -29,7 +29,7 @@ from .types import (
     PurchaseOption,
 )
 
-PURCHASE_HORIZON_DAYS = 90
+PURCHASE_HORIZON_DAYS = 120
 MIN_DAYS_AFTER_PURCHASE = 35
 INSTALLMENT_MONTHS = 3
 MLN = Decimal(1_000_000)

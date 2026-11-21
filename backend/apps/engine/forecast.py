@@ -20,6 +20,7 @@ from decimal import ROUND_HALF_EVEN, Decimal
 
 import numpy as np
 
+from .deferral import suggest_deferrals
 from .history import HISTORY_WEEKS, revenue_model, weekday_revenue_decimal
 from .money import from_tiyin, to_tiyin
 from .rules import apply_rules
@@ -57,6 +58,10 @@ def validate_input(inp: EngineInput, horizon_days: int) -> None:
             raise EngineError(f"obligation {o.title!r}: amount must be Decimal")
     if inp.staff_count is not None and inp.staff_count <= 0:
         raise EngineError("staff_count must be positive")
+    if inp.last_payroll_amount is not None and (
+        not isinstance(inp.last_payroll_amount, Decimal) or inp.last_payroll_amount <= 0
+    ):
+        raise EngineError("last_payroll_amount must be a positive Decimal")
 
 
 def compute_verdict(close: IntArray, critical_mask: BoolArray, safe_min_tiyin: int) -> Verdict:
@@ -132,6 +137,12 @@ def forecast(inp: EngineInput, horizon_days: int) -> ForecastResult:
     shortage = np.flatnonzero(close < 0)
     insufficient = model.insufficient
     verdict = None if insufficient else compute_verdict(close, critical, safe_t)
+    obligations_in_window = tuple(in_window)
+    deferrals = (
+        suggest_deferrals(close, critical, obligations_in_window, today)
+        if verdict == "risky" and shortage.size
+        else ()
+    )
     return ForecastResult(
         today=today,
         horizon_days=horizon_days,
@@ -142,7 +153,7 @@ def forecast(inp: EngineInput, horizon_days: int) -> ForecastResult:
         close=close,
         band=band,
         critical_mask=critical,
-        obligations=tuple(in_window),
+        obligations=obligations_in_window,
         weekday_revenue=weekday_revenue_decimal(model),
         min_balance=from_tiyin(int(close[min_i])),
         min_date=today + timedelta(days=min_i),
@@ -155,6 +166,7 @@ def forecast(inp: EngineInput, horizon_days: int) -> ForecastResult:
         weeks_of_history=model.weeks,
         segment_weight=model.segment_weight,
         variable_cost_ratio=vcr,
+        deferrals=deferrals,
     )
 
 

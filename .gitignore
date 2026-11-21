@@ -27,3 +27,6 @@ backend/spike_out/
 # misc
 *.log
 .DS_Store
+
+# visual checks
+visual_out/

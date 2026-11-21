@@ -240,3 +240,22 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
    - `EngineInput.staff_count`.
    - `PreparedObligation.date_fixed`: rules never move a payment whose date came explicitly from the sheet.
    - `serialize.py`: canonical input JSON + `inputs_hash`, for `ForecastSnapshot.inputs/inputs_hash`.
+
+### M2 — Data + tenancy + dashboard (done 2026-11-21)
+- All §5.2 models + migrations (HNSW cosine index); `TenantScopedManager` raises without a context; isolation tests per app; tampered sessions are ignored.
+- `seed_demo [--reset] [--export x.xlsx]`, data relative to today. Navro'z variable cost is **42 %** (45 % fails "safe date exists" on 22/186 days, mainly in February).
+- 62-day tests in two windows (Nov–Jan and Jan–Mar): lowest 18–20 mln, buy 25 → no, a safe date exists.
+- Engine changes:
+  - a purchase must be covered on its own day (shortage there → `no`);
+  - `deferrals` advice for `risky`;
+  - `spend_limit_until(purchase_date=)`;
+  - salary = last payroll ÷ staff_count;
+  - `StaffCountUnknown` → ask the user;
+  - purchase search horizon 120 days.
+- Pages: Main, Forecast (3 presets + free text, parsed deterministically), Calendar (+ add payment, reminder). Each is one API call.
+- Warm latency: dashboard p50 9.9 ms (≤ 10 queries), forecast 4.7 ms, calendar 3.9 ms. Snapshot cache: hit = 1 SELECT, miss = 2.
+- Visual check: `scripts/visual_check.py` (Playwright + system Chrome) at 1440 / 390 px, no page overflow.
+- Decisions:
+  - tailwind-merge is configured with the design tokens;
+  - segment news shows its real usage ("Maslahatlarda hisobga olinadi"), not the mockup's "Prognozga hisobga olindi";
+  - openpyxl and playwright are dev-only dependencies.

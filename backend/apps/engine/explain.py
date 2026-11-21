@@ -33,16 +33,19 @@ def explain_day(base: ForecastResult, day: date) -> DayBreakdown:
     )
 
 
-def spend_limit_until(base: ForecastResult, until: date) -> Decimal:
-    """How much can be spent on extras between today and `until`.
+def spend_limit_until(
+    base: ForecastResult, until: date, *, purchase_date: date | None = None
+) -> Decimal:
+    """How much can be spent on extras (one purchase) until `until`.
 
-    A purchase lowers every later balance, so the binding constraint is the lowest balance
-    from today to the end of the forecast: limit = lowest - safe_min, rounded down to
-    1 mln, never below 0 (18,8 - 10 = 8,8 -> 8 000 000).
+    limit = lowest balance from the purchase date to the end of the forecast - safe_min,
+    rounded down to 1 mln, never below 0. A purchase lowers every later balance, so days
+    after `until` still count. Golden case: 18,8 - 10 = 8,8 -> 8 000 000.
     """
     base.index(until)  # validates the date is in the window
-    if until < base.today:
-        raise EngineError("until must not be in the past")
-    lowest = from_tiyin(int(base.close.min()))
+    start = purchase_date or base.today
+    if not base.today <= start <= until:
+        raise EngineError("purchase_date must be between today and `until`")
+    lowest = from_tiyin(int(base.close[base.index(start) :].min()))
     limit = floor_to_step(lowest - base.safe_min, SPEND_LIMIT_STEP)
     return max(limit, Decimal("0.00"))

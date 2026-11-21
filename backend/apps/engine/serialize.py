@@ -35,6 +35,9 @@ def input_to_dict(inp: EngineInput) -> dict[str, Any]:
         "opening_balance": _money(inp.opening_balance),
         "safe_min": _money(inp.safe_min),
         "staff_count": inp.staff_count,
+        "last_payroll_amount": _money(inp.last_payroll_amount)
+        if inp.last_payroll_amount is not None
+        else None,
         "history": [[h.date.isoformat(), _money(h.inflow), _money(h.outflow)] for h in inp.history],
         "obligations": [
             {
@@ -81,6 +84,9 @@ def input_from_dict(data: dict[str, Any]) -> EngineInput:
         opening_balance=Decimal(data["opening_balance"]),
         safe_min=Decimal(data["safe_min"]),
         staff_count=data.get("staff_count"),
+        last_payroll_amount=Decimal(data["last_payroll_amount"])
+        if data.get("last_payroll_amount")
+        else None,
         history=[
             DailyActual(date=date.fromisoformat(d), inflow=Decimal(i), outflow=Decimal(o))
             for d, i, o in data["history"]
