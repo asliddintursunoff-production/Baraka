@@ -14,6 +14,14 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
+def enforce_budget(monkeypatch):
+    """Limits are off in production by the owner's choice; the mechanism itself stays tested."""
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "AI_BUDGET_ENFORCED", True)
+
+
+@pytest.fixture(autouse=True)
 def clean_usage():
     AiUsage.objects.all().delete()
     yield

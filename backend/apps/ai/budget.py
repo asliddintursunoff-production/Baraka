@@ -76,6 +76,8 @@ def spent() -> tuple[Decimal, Decimal]:
 
 
 def over_limit() -> str | None:
+    if not cfg.AI_BUDGET_ENFORCED:  # owner turned the limits off (2026-11-22); usage still logged
+        return None
     today, total = spent()
     if total >= cfg.AI_TOTAL_BUDGET_USD:
         return "total"

@@ -95,6 +95,8 @@ AI_PROFILES: dict[str, tuple[str, ...]] = {
 }
 AI_DAILY_BUDGET_USD = Decimal("0.50")
 AI_TOTAL_BUDGET_USD = Decimal("4.00")
+# Owner request 2026-11-22: "limit qo'yma, umuman" -> no blocking; every call is still logged in AiUsage.
+AI_BUDGET_ENFORCED = False
 # Estimated USD per 1M tokens (input, output); Live per minute of session. Estimates only.
 AI_PRICES_PER_M_TOKENS: dict[str, tuple[Decimal, Decimal]] = {
     "gemini-3.8-flash": (Decimal("0.50"), Decimal("3.00")),
@@ -149,7 +151,7 @@ AI_ANALYST_CHAIN = ("gemini-3.8-flash", "gemini-3.1-pro-preview")  # simple ques
 AI_ANALYST_DEEP_CHAIN = ("gemini-3.1-pro-preview", "gemini-3.8-flash")
 AI_ANALYST_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "LOW"}
 AI_ANALYST_DEEP_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "HIGH"}
-AI_ANALYST_DAILY_BUDGET_USD = 1.00
+AI_ANALYST_DAILY_BUDGET_USD = 1_000_000.00  # effectively off (owner request 2026-11-22)
 # Prices may change on 2026-12-01; keep them updated here.
 AI_PRICES_PER_M_TOKENS.update(
     {
