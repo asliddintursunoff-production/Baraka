@@ -234,14 +234,18 @@ def compute(
     if p.exit_only:
         ex = [c for c in aggs if p.exit_only in c.name.lower()]
         if ex:
+            c = ex[0]
+            mig = Decimal("0.4")  # 40 % of its customers move to own delivery with the discount
+            rev = c.revenue * mig * (1 - p.discount_pct)
+            gain = rev - c.cost * mig - p.fuel_per_order * (c.orders * mig) - rev * pack_rate
             scen.insert(
                 1,
                 Scenario(
                     "exit_one",
-                    f"{ex[0].name}'dan chiqish",
-                    f"Faqat {ex[0].name}'ni o'chirish",
-                    -ex[0].profit,
-                    "Shu kanal mijozlari ketadi",
+                    f"{c.name}'dan chiqish",
+                    f"{c.name}'ni o'chirish, mijozlarning 40% i o'zimizga o'tadi",
+                    gain - c.profit,
+                    "Shu kanal mijozlarining ko'pi ketadi",
                 ),
             )
     cap = p.capacity * p.couriers

@@ -76,9 +76,15 @@ def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         p.couriers = int(args["couriers"])
     if args.get("exit"):
         p.exit_only = str(args["exit"]).lower()
+    if args.get("markup_pct") is not None:
+        p.markup_drop_pct = (Decimal(str(args["markup_pct"])) * Decimal("0.6")).quantize(
+            Decimal(1)
+        ) / 100
     if isinstance(args.get("orders"), dict):
         p.orders = {k: Decimal(str(v)) for k, v in args["orders"].items()}
     e = CH.compute(s, p)
+    changed = any(args.get(k) is not None for k in ("shift_pct", "markup_pct", "couriers", "exit"))
+    e0 = CH.compute(s, CH.Params(orders=p.orders)) if changed else None
     own, aggs = e.own, sorted(e.aggregators, key=lambda c: -c.keep100k)
     if own is None or not aggs:
         miss = ", ".join(e.missing) or "agregator yoki o'z dostavka kanali"
@@ -316,6 +322,32 @@ def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         },
         {"id": "actions", "title": "Nima qilish kerak (shu hafta)", "actions": actions},
     ]
+    if e0 is not None and e0.own_plan is not None and plan is not None:
+        rows = [
+            ["Tavsiya natijasi (oyiga)", S(e0.best.delta), S(rec.delta)],
+            ["O'z dostavka buyurtmalari (reja)", N(e0.orders_plan), N(e.orders_plan)],
+            [
+                "Kuryer yuklamasi (reja)",
+                f"{int((e0.load_plan * 100).quantize(Decimal(1)))}%",
+                f"{load_plan}%",
+            ],
+        ]
+        ex1 = next((sc for sc in e.scenarios if sc.key == "exit_one"), None)
+        if ex1:
+            rows.append([ex1.title + " (oyiga)", "—", S(ex1.delta)])
+            verdict = f"{ex1.title} oyiga {MLN(ex1.delta)} — chiqmang. " + verdict
+        sections.insert(
+            0,
+            {
+                "id": "compare",
+                "title": "Oldin → Yangi",
+                "table": {"columns": ["Ko'rsatkich", "Oldin", "Yangi"], "rows": rows},
+            },
+        )
+        if e.load_plan > Decimal("0.85") and p.couriers == 1:
+            sections[0]["note"] = (
+                f"Kuryer {load_plan}% band bo'lib qoladi — chegarada, sifat tushishi mumkin; avval 30% dan boshlang."
+            )
     report = {
         "type": "report",
         "id": "q1_channel_economics",
@@ -436,6 +468,366 @@ def channel_economics_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
     )
 
 
+# --- Q2 hire_payback -------------------------------------------------------------------------
+ROLE_UZ = {
+    "ofitsiant": "ofitsiant",
+    "oshpaz": "oshpaz (lavash ustasi)",
+    "kassir": "kassir",
+    "kuryer": "kuryer",
+    "farrosh": "farrosh",
+}
+
+
+def hire_payback_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from apps.engine import hiring as HR
+
+    s = _summary()
+    if not s or not (s.get("details") or {}).get("channels"):
+        md = "**Hisoblash uchun sotuv va ish haqi ma'lumoti kerak.** Sotuv (Kanal ustuni bilan) va Ish haqi varaqlarini to'ldiring — darhol hisoblayman. Qaysi lavozim va qancha oylik?"
+        return envelope(
+            ok=True,
+            facts={},
+            md=md,
+            say=md.strip("*"),
+            answer={"headline": md.strip("*"), "reason": ""},
+        )
+    role_given = args.get("role")
+    p = HR.Params(role=str(role_given or "ofitsiant"))
+    if args.get("salary"):
+        p.salary = Decimal(str(args["salary"]))
+    if args.get("official") is not None:
+        p.official = bool(args["official"])
+    # courier orders: from the channel economics model (estimate when the file has no counts)
+    try:
+        e1 = CH.compute(s)
+        if e1.own is not None:
+            p.courier_orders = e1.own.orders
+    except Exception:
+        pass
+    h = HR.compute(s, p)
+    role = ROLE_UZ.get(h.role, h.role)
+    net, cost = h.net, h.cost
+    ok = net > 0
+    mon = month_label(h.month)
+    loads = [
+        ("Oshxona — shanba", h.sat_checks, Decimal(90), "chek"),
+        ("Oshxona — ish kunlari", h.weekday_checks, Decimal(90), "chek"),
+        ("Kassa — eng band soat", h.peak_checks, Decimal(60), "chek/soat"),
+        ("Kuryer", h.courier_orders, Decimal(450), "buyurtma"),
+    ]
+    pct = lambda v, c: int((v / c * 100).quantize(Decimal(1), ROUND_HALF_UP)) if c else 0
+    dec = lambda v: str(Decimal(v).quantize(Decimal("0.1"))).replace(".", ",")
+    lost_txt = f"navbat sababli yo'qotilgan kunlar oxirgi 3 oyda: {h.lost_days_recent}" + (
+        f" (oxirgisi {h.last_lost_day})" if h.last_lost_day else ""
+    )
+    if ok:
+        verdict = f"Yangi {role} o'zini oqlaydi — oyiga +{N(net, 1000)} so'm, {dec(h.payback_months or 0)} oyda qoplaydi."
+        hl = ""
+    else:
+        verdict = (
+            f"Hozir yangi {role} o'zini oqlamaydi — har oy ~{N(-net, 10_000)} so'm zarar. Oshxona va kassa hali bo'sh quvvatda"
+            + (
+                ", oxirgi 3 oyda navbat sababli birorta buyurtma yo'qolmagan."
+                if h.lost_days_recent == 0
+                else "."
+            )
+        )
+        hl = f"Buning o'rniga kassirlarga qo'shimcha sotuv bonusi bering — oyiga +{str((h.alt_net / 1_000_000).quantize(Decimal('0.01'))).replace('.', ',')} mln so'm."
+    kpis = [
+        {
+            "label": f"{role.capitalize()}: oylik natija",
+            "value": S(net) if net >= 0 else "−" + N(-net, 1000),
+            "sub": f"narxi {MLN(cost)} · foyda {MLN(h.gain_gp)}",
+            "tone": "good" if ok else "bad",
+        },
+        {
+            "label": "Qoplash muddati",
+            "value": (dec(h.payback_months or 0) + " oy") if ok else "Qoplamaydi",
+            "sub": f"12 oyda {MLN(h.cumulative[-1])}",
+            "tone": "good" if ok else "bad",
+        },
+        {
+            "label": "Yaxshiroq variant",
+            "value": S(h.alt_net),
+            "sub": f"kassirga {int(p.bonus_pct * 100)}% bonus · so'm/oy",
+            "tone": "good",
+        },
+        {
+            "label": "Ishchi kerak bo'ladi",
+            "value": f"~{h.hire_month}" if h.hire_month else "—",
+            "sub": f"shanba ≥ {int(h.sat_threshold)} chek bo'lganda",
+        },
+    ]
+    cost_rows = [
+        [
+            "Oklad" + (f" ({h.salary_source})" if "taxmin" in h.salary_source else ""),
+            N(h.salary, 1000),
+        ]
+    ]
+    if h.sales_share:
+        cost_rows.append(
+            [
+                f"Zal savdosidan {str(p.sales_pct * 100).rstrip('0').rstrip('.').replace('.', ',')}%",
+                N(h.sales_share, 1000),
+            ]
+        )
+    if h.social_tax:
+        cost_rows.append(["Ijtimoiy soliq 12%", N(h.social_tax, 1000)])
+    cost_rows += [
+        [f"Xodim ovqati (12 × {h.meal_dish})", N(h.meals, 1000)],
+        ["**Jami narxi**", f"**{N(cost, 1000)}**"],
+        [
+            f"{'Zal cheki +' + str(int(p.uplift * 100)) + '% → yalpi foyda' if h.role == 'ofitsiant' else 'Qo‘shimcha yalpi foyda'}",
+            "+" + N(h.gain_gp, 1000),
+        ],
+        ["**Sof natija**", f"**{S(net) if net >= 0 else '−' + N(-net, 1000)}**"],
+    ]
+    sections = [
+        {
+            "id": "chart_cumulative",
+            "title": "12 oyda yig'ma natija (mln so'm)",
+            "chart": {
+                "type": "line_multi",
+                "x_labels": h.months_labels,
+                "zero_line": True,
+                "unit": "mln so'm",
+                "series": [
+                    {
+                        "name": f"Yangi {role}",
+                        "color": "#F87171",
+                        "data": [
+                            float((v / 1_000_000).quantize(Decimal("0.01"))) for v in h.cumulative
+                        ],
+                    },
+                    {
+                        "name": "Kassirga bonus (tavsiya)",
+                        "color": "#14B8A6",
+                        "data": [
+                            float((v / 1_000_000).quantize(Decimal("0.01")))
+                            for v in h.alt_cumulative
+                        ],
+                    },
+                ],
+            },
+        },
+        {
+            "id": "load",
+            "title": "Xodimlaringiz yuklamasi (oxirgi 3 oy)",
+            "chart": {
+                "type": "progress_list",
+                "threshold": 0.85,
+                "items": [
+                    {
+                        "label": lb,
+                        "value": float(v / c) if c else 0,
+                        "note": f"{dec(v)} / {int(c)} {u} · {pct(v, c)}%",
+                    }
+                    for lb, v, c, u in loads
+                ],
+                "note": f"Qizil chiziq — 85%: undan oshsa ishchi olish vaqti. {lost_txt.capitalize()}.",
+            },
+        },
+        {
+            "id": "cost",
+            "title": f"{role.capitalize()}: oyiga narxi va foydasi",
+            "table": {"columns": ["Modda", "So'm / oy"], "rows": cost_rows},
+            "note": (
+                f"O'zini oqlashi uchun: zal cheki +{dec(h.breakeven_uplift * 100)}% yoki zal savdosi {MLN(h.breakeven_hall_rev)}/oy"
+                + (
+                    f" (~{h.months_to_breakeven} oyda, o'sish oyiga {dec(h.hall_growth * 100)}%)."
+                    if h.months_to_breakeven
+                    else "."
+                )
+            )
+            if h.role == "ofitsiant"
+            else None,
+        },
+        {
+            "id": "alternative",
+            "title": "Shu pulga yaxshiroq variant",
+            "table": {
+                "columns": ["Variant", "Oylik xarajat", "Oylik sof natija", "12 oyda"],
+                "rows": [
+                    [
+                        f"❌ Yangi {role}",
+                        N(cost, 1000),
+                        S(net) if net >= 0 else "−" + N(-net, 1000),
+                        MLN(h.cumulative[-1]),
+                    ],
+                    [
+                        f"✅ Kassirlarga qo'shimcha sotuv bonusi ({int(p.bonus_pct * 100)}%)",
+                        N(h.alt_cost, 1000),
+                        S(h.alt_net),
+                        MLN(h.alt_cumulative[-1]),
+                    ],
+                ],
+            },
+            "note": f'Kassir har buyurtmada bitta taklif qiladi ("Kombo qilib beraymi?", "Sous qo\'shaymi?"). Zal va olib ketish tushumi {int(p.uplift * 100)}% oshsa: +{MLN(h.alt_revenue)} tushum → +{MLN(h.alt_gp)} yalpi foyda; bonus {N(h.alt_cost, 1000)} so\'m.',
+        },
+        {
+            "id": "signals",
+            "title": "Qachon ishchi olish kerak — signallar",
+            "table": {
+                "columns": ["Signal", "Hozir", "Chegara"],
+                "rows": [
+                    [
+                        "Shanba cheklari",
+                        dec(h.sat_checks),
+                        f"≥ {int(h.sat_threshold)}"
+                        + (f" (~{h.hire_month})" if h.hire_month else ""),
+                    ],
+                    ['"Ulgurmadi" kunlari', f"{h.lost_days_recent} / 3 oy", "≥ 2 / oy"],
+                    ["Pik soat cheklari", dec(h.peak_checks), "≥ 45"],
+                    ["Zal savdosi", MLN(h.hall_revenue), f"≥ {MLN(h.breakeven_hall_rev)}"],
+                ],
+            },
+            "note": "AI signallarni har kuni kuzatadi va vaqti kelganda xabar beradi.",
+        },
+        {
+            "id": "actions",
+            "title": "Nima qilish kerak",
+            "actions": (
+                [f"**Hozir {role} olmang.**"]
+                if not ok
+                else [f"**{role.capitalize()}ni sinov muddati bilan oling.**"]
+            )
+            + [
+                f'**Kassirlarga "bitta taklif" qoidasi + {int(p.bonus_pct * 100)}% bonus**: "Kombo qilib beraymi? Sous qo\'shaymi?" — shu haftadan.',
+                f"**30 kundan keyin tekshiring:** zal va olib ketishda o'rtacha chek +{int(p.uplift * 100)}% bo'ldimi.",
+                f"**Signal kuzatuvini yoqing** — shanba {int(h.sat_threshold)} chekdan oshsa, lavash ustasi olish vaqti.",
+            ],
+        },
+    ]
+    if role_given is None:
+        sections.insert(
+            0,
+            {
+                "id": "role_note",
+                "title": "Lavozim",
+                "note": f"Lavozim aytilmadi — {role} uchun hisobladim (fast food'da u taomni stolga olib boradi va qo'shimcha taom tavsiya qiladi). Boshqa lavozimmi: oshpaz, kassir, kuryer?",
+            },
+        )
+    assumptions = (
+        f"Taxminlar: {role} oklad {MLN(h.salary)} ({h.salary_source}) · zal cheki +{int(p.uplift * 100)}% · kassir quvvati {int(p.cashier_cap)} chek/soat · "
+        f"oshxona {int(p.kitchen_cap)} chek/kun · zal savdosi o'sishi {dec(h.hall_growth * 100)}%/oy · kuryer buyurtmalari {N(h.courier_orders)}"
+        + (" (taxmin)" if e1.own is not None and e1.own.orders_estimated else "")
+        + ". O'zgartirsangiz, qayta hisoblanadi."
+    )
+    report = {
+        "type": "report",
+        "id": "q2_hire_payback",
+        "intent": "hire_payback",
+        "period": mon,
+        "verdict": verdict,
+        "verdict_highlight": hl,
+        "kpis": kpis,
+        "sections": sections,
+        "assumptions": assumptions,
+    }
+    sat_pct = pct(h.sat_checks, Decimal(90))
+    speech = [
+        {
+            "cue": "verdict+kpi",
+            "text": f"Qisqasi: hozir {role} olmang — u o'zini oqlamaydi, har oy {say(-net, 100_000)} so'mga yaqin zarar qiladi."
+            if not ok
+            else f"Qisqasi: {role} o'zini oqlaydi — oyiga {say(net, 100_000)} so'm foyda beradi.",
+        },
+        {
+            "cue": "load",
+            "text": f"Sababi: oshxonangiz shanba kuni {say(sat_pct, 1)} foiz band, kassa eng band soatda ham deyarli bo'sh."
+            + (
+                " Oxirgi uch oyda birorta mijoz navbat sababli ketmagan."
+                if h.lost_days_recent == 0
+                else ""
+            ),
+        },
+        {
+            "cue": "chart_cumulative",
+            "text": (
+                f"{role.capitalize()} bir yilda {say(-h.cumulative[-1], 100_000)} zarar keltiradi. "
+                if h.cumulative[-1] < 0
+                else ""
+            )
+            + f"Uning o'rniga kassirlaringizga har qo'shimcha sotuvdan {say(p.bonus_pct * 100, 1)} foiz bonus bering — oyiga {say(h.alt_net, 100_000)} foyda.",
+        },
+        {
+            "cue": "signals",
+            "text": (
+                f"Ishchi taxminan {h.hire_month.split()[0].lower()} oyida kerak bo'ladi, shanba kunlari {say(h.sat_threshold, 1)} chekdan oshganda. "
+                if h.hire_month
+                else ""
+            )
+            + "Men buni kuzatib, vaqti kelganda sizga o'zim aytaman.",
+        },
+        {"cue": "approve_button", "text": "Bonus rejasini tasdiqlaysizmi?"},
+    ]
+    short = (
+        f"Hozir {role} olmang — oyiga {say(-net, 100_000)} zarar qiladi, chunki xodimlaringiz hali to'liq band emas. "
+        if not ok
+        else f"{role.capitalize()} oyiga {say(net, 100_000)} foyda beradi. "
+    ) + f"Kassirlarga qo'shimcha sotuv bonusi bering — oyiga {say(h.alt_net, 100_000)} foyda."
+    due = ctx.base.today if not ctx.base.insufficient_data else None
+    plan_obj = propose(
+        ctx,
+        "reminder",
+        {
+            "summary": f"Kassirlarga {int(p.bonus_pct * 100)}% qo'shimcha sotuv bonusi; 30 kundan keyin o'rtacha chekni tekshirish; signal: shanba ≥ {int(h.sat_threshold)} chek",
+            "note": "golden:Q2 hire_payback",
+            "steps": [re.sub(r"\*\*", "", a) for a in sections[-1]["actions"]],
+        },
+        (due + timedelta(days=30)) if due else None,
+    )
+    md = "\n".join(
+        [
+            f"**Xulosa: {verdict} {hl}**",
+            "",
+            f"### {role.capitalize()}: oyiga narxi va foydasi ({mon})",
+            "| Modda | So'm / oy |",
+            "|---|---:|",
+            *[f"| {a} | {b} |" for a, b in cost_rows],
+            "",
+            f"_{assumptions}_",
+            "",
+            "CHIPS: Oshpaz olsam-chi? | 3 mln oylik bilan? | Kassir olsam?",
+        ]
+    )
+    facts = {
+        "net": str(net.quantize(Decimal(1))),
+        "cost": str(cost.quantize(Decimal(1))),
+        "alt_net": str(h.alt_net.quantize(Decimal(1))),
+        "payback": str(h.payback_months),
+        "hire_month": h.hire_month,
+        "sat_load": f"{sat_pct}%",
+        "role": h.role,
+    }
+    return envelope(
+        ok=True,
+        facts=facts,
+        md=md,
+        say=" ".join(x["text"] for x in speech),
+        speech_segments=speech,
+        speech_short=short,
+        ui_blocks=[report],
+        proposed_plan=plan_obj,
+        answer={"headline": f"{verdict} {hl}".strip(), "reason": ""},
+    )
+
+
+def _q2_params(t: str) -> dict[str, Any]:
+    from apps.engine.hiring import role_of
+
+    out: dict[str, Any] = {}
+    r = role_of(t)
+    if r:
+        out["role"] = r
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(mln|million)", t)
+    if m:
+        out["salary"] = int(float(m.group(1).replace(",", ".")) * 1_000_000)
+    if re.search(r"rasmiy", t):
+        out["official"] = True
+    return out
+
+
 # --- registry -----------------------------------------------------------------------------------
 @dataclass
 class Intent:
@@ -451,9 +843,13 @@ def _q1_params(t: str) -> dict[str, Any]:
     m = re.search(r"(\d{1,3})\s*%\s*(?:i|ini|ni)?\s*(?:o'tkaz|ko'chir)", t)
     if m:
         out["shift_pct"] = int(m.group(1))
-    m = re.search(r"narx\w*\s+\+?(\d{1,2})\s*%", t)
+    m = re.search(r"narx\w*\s+\+?(\d{1,2})\s*%", t) or re.search(
+        r"(\d{1,2})\s*%\s*(?:qilsam|qo'ysam|oshirsam)", t
+    )
     if m:
         out["markup_pct"] = int(m.group(1))
+    if re.search(r"narx\w*\s+oshirmasam|faqat\s+mijoz", t):
+        out["markup_pct"] = 0
     if re.search(r"(2|ikkinchi|yana bitta)\s*-?\s*kuryer", t):
         out["couriers"] = 2
     m = re.search(r"(uzum|yandex)\w*\s*(?:dan|'dan)?\s+chiq", t)
@@ -463,6 +859,16 @@ def _q1_params(t: str) -> dict[str, Any]:
 
 
 INTENTS = [
+    Intent(
+        "hire_payback",
+        "golden/Q2_ishchi_olsam_oqlaydimi.md",
+        "hire_payback",
+        re.compile(
+            r"(ishchi|xodim|ofitsiant|ofitsam|oshpaz|lavash\s+usta|kassir|farrosh|odam)\w*\s+(olsam|qo'shsam|kerak|olaymi|olish|yetishma)|ikkinchi\s+kuryer\s+olsam|smenaga\s+odam|o'zini\s+(necha\s+oyda\s+)?oqla|millionlik\s+ishchi|ishchi\s+olish\s+vaqti",
+            re.I,
+        ),
+        _q2_params,
+    ),
     Intent(
         "channel_economics",
         "golden/Q1_agregator_vs_ozdostavka.md",
@@ -491,22 +897,50 @@ def match(text: str, prev_intent: str | None = None) -> tuple[Intent, dict[str, 
     return None
 
 
+_SIDE = re.compile(
+    r"\bnega\b|nima\s+uchun|qanday\s+(hisob|chiqdi|chiqar)|qayerdan\s+(oldi|chiqdi)|qachon\s+(olaman|tushadi|keladi)|qancha\s+turadi|arziydimi|kamaytirsa|tushuntir|formula",
+    re.I,
+)
+
+
+def is_side_question(text: str) -> bool:
+    """Explanation / follow-up about the report itself (not a parameter change)."""
+    return bool(_SIDE.search(re.sub(r"[‘’ʻʼ`]", "'", text).lower()))
+
+
 def last_intent(conversation_id: int) -> str | None:
+    """The golden intent of the conversation's latest report (looks back 4 answers)."""
     from .models import Message
 
-    m = (
+    for m in (
         Message.objects.filter(conversation_id=conversation_id, role="assistant")
         .order_by("-created_at")
-        .values("model", "tool_calls")
-        .first()
-    )
-    if not m or m["model"] != "golden":
-        return None
-    names = {c.get("name") for c in (m["tool_calls"] or []) if isinstance(c, dict)}
-    return next((i.id for i in INTENTS if i.tool in names), None)
+        .values("model", "tool_calls")[:4]
+    ):
+        names = {c.get("name") for c in (m["tool_calls"] or []) if isinstance(c, dict)}
+        hit = next((i.id for i in INTENTS if i.tool in names), None)
+        if hit:
+            return hit
+    return None
 
 
 GOLDEN_TOOLS = [
+    Tool(
+        "hire_payback",
+        "Yana ishchi olsam o'zini oqlaydimi (golden Q2): ishchi narxi, foyda mexanizmi (lavozim bo'yicha), qoplash muddati, 12 oylik yig'ma, xodimlar yuklamasi, signallar, yaxshiroq alternativa.",
+        {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": ["ofitsiant", "oshpaz", "kassir", "kuryer", "farrosh"],
+                },
+                "salary": {"type": "integer", "minimum": 100000},
+                "official": {"type": "boolean"},
+            },
+        },
+        hire_payback_tool,
+    ),
     Tool(
         "channel_economics",
         "Savdo kanallari iqtisodi (golden Q1): Yandex/Uzum/O'z dostavka — har 100 000 so'mdan qoladi, kanal foydasi, variantlar (chiqish, mijozni o'tkazish, narx ustamasi), kuryer yuklamasi, agregatorda turgan pul. To'liq hisobot + reja.",

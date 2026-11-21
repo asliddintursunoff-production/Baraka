@@ -240,6 +240,7 @@ def _texts_of(result: dict[str, Any]) -> list[str]:
     return [
         json.dumps(for_model(result), ensure_ascii=False, default=str),
         json.dumps(result.get("answer") or {}, ensure_ascii=False),
+        json.dumps(result.get("ui_blocks") or [], ensure_ascii=False, default=str),
     ]
 
 
@@ -378,7 +379,8 @@ FULL_CONTEXT_RULES = """Sen — egasining shaxsiy CFO'si va biznes maslahatchisi
 - Faqat aniq aloqasiz mavzularni (tarix, mashhurlar, uy vazifasi) bitta gap bilan rad et va biznes tomonini taklif qil.
 - Hissiy xabar ("xafa bo'ldim"): bitta iliq, hamdard gap, keyin yordamni davom ettir (holat, bitta ijobiy fakt, bitta aniq qadam).
 - Prognoz "TAXMINIY" bo'lsa, buni bir gap bilan ayt, lekin javob berishdan bosh tortma.
-- Tool natijasida tayyor hisobot (golden report, "md") bo'lsa: uni o'zgartirmasdan asos qil — xulosa va raqamlar aynan shu yerdan; o'zingdan raqam qo'shma, jadvallarni saqlab qol."""
+- Tool natijasida tayyor hisobot (golden report, "md") bo'lsa: uni o'zgartirmasdan asos qil — xulosa va raqamlar aynan shu yerdan; o'zingdan raqam qo'shma, jadvallarni saqlab qol.
+- Hisobotdan keyingi qo'shimcha savollar SHU hisobot kontekstida: "nega?" — sababini hisobot raqamlari bilan; "qanday hisobladi?" — formulani oddiy tilda (manba varaqlari bilan); "qachon pul tushadi?" — kontragent/sanalar; bozor narxi ("Telegram-bot qancha turadi?") — taxmin (belgilangan) + qoplash muddati hisobot foydasi bilan; muzokara ("komissiyani kamaytirsa?") — hajm × punkt. Qisqa (3–6 qator), aniq; hech qachon "javob bera olmayman" dema."""
 
 
 def recent_dialogue(business: Any, exclude: int | None = None, n: int = 12) -> str:
@@ -472,6 +474,16 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
 
             prev = await db(b, lambda: last_intent(turn.conversation.pk))
             routed = await db(b, lambda: route(turn.text, prev))
+            from .golden_tools import INTENTS as _GI
+            from .golden_tools import is_side_question
+
+            if prev and (not routed or is_side_question(turn.text)):
+                # side question about the last golden report ("nega?", "qanday hisobladi?"):
+                # the report is recomputed as context and the model answers from it
+                g_tool = next((i.tool for i in _GI if i.id == prev), None)
+                if g_tool:
+                    routed = [(g_tool, {})]
+                    turn.golden_context = True  # type: ignore[attr-defined]
             routed_blocks: list[dict[str, Any]] = []
             for name, args in routed:
                 try:
@@ -541,8 +553,10 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
                 ),
                 None,
             )
-            if gres is not None and any(
-                bl.get("type") == "report" for bl in gres.get("ui_blocks", [])
+            if (
+                gres is not None
+                and not getattr(turn, "golden_context", False)
+                and any(bl.get("type") == "report" for bl in gres.get("ui_blocks", []))
             ):
                 # golden report: the deterministic card IS the answer (no LLM, every number from the tool)
                 final = finalize(turn, template_answer(gres), "golden")
@@ -762,13 +776,16 @@ async def llm_loop(
                         await check_answer(turn, answer2, lines, guard_ctx) if answer2 else None
                     )
                     model = res2.model
-                    if checked is None and answer2 and not turn.results:
+                    side = getattr(turn, "golden_context", False)
+                    if checked is None and answer2 and (not turn.results or side):
                         log.info("guard still unhappy, no tool data: answering anyway")
                         checked = answer2
                 except (AllModelsFailed, genai_errors.APIError):
                     checked = None
-            if checked is None and not turn.results:
-                checked = answer  # nothing to fall back on: never refuse
+            if checked is None and (not turn.results or getattr(turn, "golden_context", False)):
+                checked = (
+                    answer  # side question / no tool data: never refuse (estimates are labelled)
+                )
             if checked is None:
                 return  # invented numbers: the tool-built template answer is used instead
             yield (finalize(turn, checked, model), model)

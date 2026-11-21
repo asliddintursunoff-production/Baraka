@@ -21,9 +21,13 @@ import { cn } from "@/lib/utils";
 
 type Row = Record<string, string | number>;
 export interface ReportChart {
-  type: "stacked_bar_horizontal" | "bar" | "progress" | "line";
+  type: "stacked_bar_horizontal" | "bar" | "progress" | "line" | "line_multi" | "progress_list";
+  x_labels?: string[];
+  zero_line?: boolean;
+  threshold?: number;
+  items?: { label: string; value: number; note?: string }[];
   unit?: string;
-  series?: string[];
+  series?: string[] | { name: string; color: string; data: number[] }[];
   colors?: string[];
   x?: string;
   y?: string;
@@ -59,7 +63,7 @@ const fmt = (v: number) => Math.round(v).toLocaleString("ru-RU").replace(/,/g, "
 const short = (v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(v));
 
 function StackedH({ c }: { c: ReportChart }) {
-  const series = c.series ?? [];
+  const series = (c.series ?? []).filter((x): x is string => typeof x === "string");
   const data = c.data ?? [];
   const keep = c.highlight ?? series[series.length - 1] ?? "";
   return (
@@ -159,7 +163,62 @@ function Progress({ c }: { c: ReportChart }) {
   );
 }
 
+function LineMulti({ c }: { c: ReportChart }) {
+  const series = (c.series ?? []).filter((x): x is { name: string; color: string; data: number[] } => typeof x !== "string");
+  const data = (c.x_labels ?? []).map((x, i) => {
+    const row: Row = { x };
+    for (const s of series) row[s.name] = s.data[i] ?? 0;
+    return row;
+  });
+  return (
+    <div className="h-[240px] w-full">
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ left: 0, right: 24, top: 12 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+          <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} width={40} />
+          <Tooltip formatter={(v) => `${String(v).replace(".", ",")} ${c.unit ?? ""}`} />
+          {series.map((s) => (
+            <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2.5} dot={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-4 text-13 text-text-3">
+        {series.map((s) => (
+          <span key={s.name} className="inline-flex items-center gap-1">
+            <span className="h-3 w-3 rounded-[3px]" style={{ background: s.color }} />
+            {s.name} ({String(s.data[s.data.length - 1] ?? 0).replace(".", ",")} mln)
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProgressList({ c }: { c: ReportChart }) {
+  const thr = c.threshold ?? 0.85;
+  return (
+    <div className="flex flex-col gap-3">
+      {(c.items ?? []).map((it) => (
+        <div key={it.label} className="flex flex-col gap-1">
+          <div className="flex justify-between text-14">
+            <span className="font-semibold">{it.label}</span>
+            <span className="text-text-3">{it.note}</span>
+          </div>
+          <div className="relative h-3 w-full rounded-full bg-[#F2F4F7]">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, it.value * 100)}%`, background: it.value >= 0.8 ? "#F59E0B" : "#14B8A6" }} />
+            <span className="absolute top-[-3px] h-[18px] w-[2px] bg-danger" style={{ left: `${thr * 100}%` }} />
+          </div>
+        </div>
+      ))}
+      {c.note && <span className="text-13 text-text-3">{c.note}</span>}
+    </div>
+  );
+}
+
 function Chart({ c }: { c: ReportChart }) {
+  if (c.type === "line_multi") return <LineMulti c={c} />;
+  if (c.type === "progress_list") return <ProgressList c={c} />;
   if (c.type === "stacked_bar_horizontal") return <StackedH c={c} />;
   if (c.type === "bar") return <BarV c={c} />;
   if (c.type === "line") return <LineC c={c} />;

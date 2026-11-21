@@ -251,7 +251,35 @@ o'tkazib, agregatorda narxni sakkiz foiz oshirsangiz, oyiga yana ikki million fo
 - Raqamlar faqat fayldan; taxminlar alohida "Taxminlar" qatorida, foydalanuvchi o'zgartira oladi.
 - Davrni aniq yoz: "oktyabr 2026 (oxirgi to'liq oy)". Noyabr qisman — ishlatma.
 
----
+## 7. Qo'shimcha (side) savollar — Q1 dan keyin
+
+
+### 7.0 Umumiy qoida (barcha golden javoblar uchun)
+- Hisobotdan keyingi savollar **shu hisobot kontekstida** qabul qilinadi: oxirgi intent va parametrlar xotirada turadi
+  (masalan, "50% qilsam-chi?" → Q1 ni s=50% bilan qayta hisobla).
+- Parametr o'zgarsa: **qayta hisobla** va kichik "Oldin → Yangi" jadvalini ko'rsat (asosiy KPI'lar), karta yangilanadi.
+- Tushuntirish so'ralsa ("nega?", "qanday hisobladi?"): retseptdagi formulani oddiy tilda, aniq raqamlar bilan ko'rsat.
+- Yaqin, lekin boshqa savol bo'lsa: to'liq-kontekst chat javob beradi, hisobot raqamlariga tayanib; kerak bo'lsa boshqa golden intentga o'tadi.
+- Live'da: 1–2 gaplik og'zaki javob + kartaning tegishli bo'limi yangilanadi/belgilanadi.
+- Hech qachon "bu savolga javob bera olmayman" dema — kamida taxmin (belgilangan) va keyingi qadamni ber.
+
+### 7.1 Tayyor javoblar (Lazzat, oktyabr 2026 — raqamlar hisoblab tekshirilgan)
+
+| Foydalanuvchi so'raydi | Nima qilinadi | Javob (qisqa) |
+|---|---|---|
+| "30% emas, 50% ini o'tkazsam-chi?" | s=0.5 qayta hisob | Oyiga **+2,37 mln** (30% da +2,01). Kuryer 404/450 = **90%** — chegarada, sifat tushishi mumkin. 2-kuryer olsangiz natija **−0,13 mln** — hali erta. |
+| "2-kuryer olsam-chi?" | kur=2 | 30% rejada 2-kuryer bilan **−0,49 mln/oy** — olmang. Yuklama 70% dan oshib, o'z dostavka buyurtmalari ~450 ga yetganda oling. |
+| "Narxni oshirmasam, faqat mijozni o'tkazsam?" | up=0 | **+0,99 mln/oy** (narx bilan +2,01). |
+| "Narxni 8% emas, 5% qilsam?" | up=0.05, vol=0.97 | **+1,67 mln/oy**. Xavf kamroq, foyda biroz kam. |
+| "Uzum'dan butunlay chiqsam-chi?" | Uzum=0, 40% mijoz o'zimizga o'tadi | **−4,65 mln/oy**. Uzum oyiga 8,56 mln foyda beradi — chiqmang. |
+| "Nega Uzum Yandex'dan foydaliroq?" | tushuntirish | Komissiya 18% vs 20% va o'rtacha chek 99 500 vs 92 800. |
+| "Bu raqamlar qanday chiqdi?" | formula | Tushum − masalliq − komissiya − qadoq (2,2%) − (o'z dostavka uchun: kuryer 2,5 mln + yoqilg'i 1,7 mln). Manba: Sotuv, Ish haqi, Kassa (oktyabr). |
+| "Agregatordagi pulni qachon olaman?" | Kontragentlar | Yandex — har oyning ~8-sanasi, Uzum — ~10-sanasi; 31-oktyabrda jami 33,3 mln turgan edi. |
+| "Telegram-bot qilish qancha turadi, arziydimi?" | taxmin + qoplash | Oddiy bot/sayt ~3–5 mln (taxmin). Oyiga +0,99 mln foyda bilan **3–5 oyda** qoplaydi. |
+| "Yandex komissiyasini kamaytirsa bo'ladimi?" | maslahat | Muzokara: hajm 24 mln/oy; 2 punkt chegirma = oyiga ~0,48 mln. Alternativa — narx ustamasi (variant 2). |
+
+Live misol (side): "Ellik foiz o'tkazsangiz, oyiga ikki million uch yuz ming bo'ladi, lekin kuryer to'qson foiz band bo'lib
+qoladi — hozircha o'ttiz foizdan boshlang."
 
 ## Implementation notes (agent)
 - Tool: `channel_economics` (`backend/apps/ai/golden_tools.py`, engine `backend/apps/engine/channels.py`).

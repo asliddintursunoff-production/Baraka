@@ -504,6 +504,52 @@ def counterparties(sheets: list[SheetData], today: date) -> list[dict[str, str]]
     return out
 
 
+def smena_days(sheets: list[SheetData], today: date) -> list[list[Any]]:
+    """Smena: [[date, checks, note], ...] — daily load and 'ulgurmadi' notes."""
+    t = _table(_sheet(sheets, "smena"), "sana", "cheklar")
+    if t is None:
+        return []
+    header, rows = t
+    i_d, i_c, i_n = _col(header, "sana"), _col(header, "cheklar"), _col(header, "izoh")
+    out = []
+    for r in rows:
+        d = _date(_cell(r, i_d), today)
+        if d is not None:
+            out.append([d.isoformat(), str(_num(_cell(r, i_c))), _txt(r, i_n)[:120]])
+    return out
+
+
+def hourly(sheets: list[SheetData], today: date) -> dict[str, Any]:
+    """Soatlik savdo, last 92 days: {"weekday|hour": [checks sum, days]} (+ the period)."""
+    t = _table(_sheet(sheets, "soatlik"), "sana", "soat", "cheklar")
+    if t is None:
+        return {}
+    header, rows = t
+    i_d, i_h, i_c = _col(header, "sana"), _col(header, "soat"), _col(header, "cheklar")
+    recs = []
+    for r in rows:
+        d = _date(_cell(r, i_d), today)
+        if d is not None:
+            recs.append((d, int(_num(_cell(r, i_h))), _num(_cell(r, i_c))))
+    if not recs:
+        return {}
+    last = max(d for d, _, _ in recs)
+    # the last three calendar months (e.g. 21-Nov -> from 1-Sep)
+    m0 = last.month - 2
+    since = date(last.year + (m0 - 1) // 12, (m0 - 1) % 12 + 1, 1)
+    acc: dict[str, list[Decimal]] = defaultdict(lambda: [Decimal(0), Decimal(0)])
+    for d, h, c in recs:
+        if d >= since:
+            a = acc[f"{d.weekday()}|{h}"]
+            a[0] += c
+            a[1] += 1
+    return {
+        "from": since.isoformat(),
+        "to": last.isoformat(),
+        "cells": {k: [str(v[0]), str(v[1])] for k, v in acc.items()},
+    }
+
+
 def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, fn in (
@@ -511,6 +557,8 @@ def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
         ("dish_sales", dish_sales),
         ("channels", channels),
         ("counterparties", counterparties),
+        ("smena_days", smena_days),
+        ("hourly", hourly),
         ("menu_analysis", menu_analysis),
         ("writeoffs", writeoffs),
         ("stock_counts", stock_counts),
