@@ -85,10 +85,17 @@ def test_index_injection(tmp_path, settings):
 
 @pytest.mark.django_db
 def test_spa_route_without_build_explains(client, settings, tmp_path):
+    from config import views
+
     settings.FRONTEND_DIST = tmp_path  # empty: no build
+    views._cached_index.cache_clear()
+    settings.DEBUG = True  # dev: explain how to build or open Vite
     r = client.get("/forecast")
-    assert r.status_code == 503
-    assert settings.APP_NAME.encode() in r.content
+    assert r.status_code == 503 and settings.APP_NAME.encode() in r.content
+    settings.DEBUG = False  # API-only deploy (frontend on Vercel): plain status page
+    r = client.get("/forecast")
+    assert r.status_code == 200 and "API ishlayapti" in r.content.decode()
+    views._cached_index.cache_clear()
 
 
 @pytest.mark.django_db
