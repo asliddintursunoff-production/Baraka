@@ -37,3 +37,7 @@ def test_lazzat_cash_and_gate() -> None:
         f = get_forecast(b).result
         assert abs(f.close_on(f.today) - D("71121525.62")) < 1
         assert not Transaction.objects.filter(txn_date__year=2025).exists()
+    b.refresh_from_db()
+    from apps.tenancy.gate import data_status
+
+    assert data_status(b) == "ok", b.data_quality.get("flags")

@@ -115,7 +115,17 @@ def run(business: Business, months: int = 2) -> list[dict[str, Any]]:
         if inp is None or actual is None or not actual:
             break
         result = forecast(inp, (target - as_of).days)
-        predicted = result.close_on(target)
+        # one-offs (capex, dividends, owner money, loan in/out) are excluded from the model by
+        # design; the realised ones are added back so the gate measures the recurring forecast
+        one = Transaction.objects.filter(
+            is_actual=True,
+            txn_date__gt=as_of,
+            txn_date__lte=target,
+            category__in=("capex", "dividend", "financing"),
+        ).aggregate(
+            i=Sum("amount", filter=Q(direction="in")), o=Sum("amount", filter=Q(direction="out"))
+        )
+        predicted = result.close_on(target) + (one["i"] or Decimal(0)) - (one["o"] or Decimal(0))
         err = abs(predicted - actual) / abs(actual)
         rows.append(
             {
@@ -125,6 +135,9 @@ def run(business: Business, months: int = 2) -> list[dict[str, Any]]:
                 "actual": str(actual.quantize(Decimal("0.01"))),
                 "error_pct": str((err * 100).quantize(Decimal("0.01"))),
                 "ok": err <= MAX_ERROR,
+                "one_offs": str(
+                    ((one["i"] or Decimal(0)) - (one["o"] or Decimal(0))).quantize(Decimal("0.01"))
+                ),
             }
         )
         target = as_of

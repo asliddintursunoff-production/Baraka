@@ -364,7 +364,16 @@ class DashboardView(BusinessAPIView):
                 "sync": _sync_status(b.pk),
                 "alerts": {"new": Alert.objects.filter(status="new").count()},
                 "banner": {
-                    "label": f"Bugungi maslahat · keyingi 60 kun · {snap_time}",
+                    "label": f"Bugungi maslahat · keyingi 60 kun · {snap_time}"
+                    + (
+                        f" · TAXMINIY ({(b.data_quality or {}).get('accuracy', {}).get('text', '')})"
+                        if (b.data_quality or {}).get("approximate")
+                        else (
+                            f" · {(b.data_quality or {}).get('accuracy', {}).get('text', '')}"
+                            if (b.data_quality or {}).get("accuracy")
+                            else ""
+                        )
+                    ),
                     **advice.banner(base),
                     "beyond": (
                         f"60 kundan keyin: {uz.format_date(base.beyond[0])} {base.beyond[0].year} kuni kassa "

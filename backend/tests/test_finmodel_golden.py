@@ -209,7 +209,7 @@ def test_unreconciled_data_blocks_forecasts_and_advice(namuna, client):
 def test_backtest_sep_and_oct_within_5_percent(namuna):
     b, src = namuna
     bt = b.data_quality.get("backtest")
-    assert bt and [r["target"] for r in bt] == ["2026-09-30", "2026-10-31"], bt
+    assert bt and [r["target"] for r in bt][-2:] == ["2026-09-30", "2026-10-31"], bt
     for r in bt:
         assert r["ok"] and Decimal(r["error_pct"]) <= 5, r
     rec = {(r["month"], r["metric"]): r for r in src.summary["recon"]}

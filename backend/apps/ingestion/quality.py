@@ -11,6 +11,7 @@ While `needs_review`, forecasts, verdicts and advice are blocked (apps.tenancy.g
 from __future__ import annotations
 
 import itertools
+import logging
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -31,6 +32,9 @@ METRIC_UZ = {
     "payroll_accrued": "Ish haqi (hisoblangan)",
 }
 FRESH_DAYS = 1
+
+
+log = logging.getLogger(__name__)
 
 
 def freshness(last: date, today: date) -> dict[str, Any]:
@@ -209,7 +213,7 @@ def forecast_check(business: Business, q: dict[str, Any]) -> None:
         if any(s.summary.get("has_reports") for s in DataSource.objects.exclude(summary={})):
             from apps.insights.backtest import run as backtest
 
-            q["backtest"] = backtest(business)
+            q["backtest"] = backtest(business, months=5)
         last = date.fromisoformat(q["last_date"])
         hist = Transaction.objects.filter(
             direction="in",
@@ -229,15 +233,33 @@ def forecast_check(business: Business, q: dict[str, Any]) -> None:
             }
         )
         q["status"] = "needs_review"
-    for b in q.get("backtest", []):
-        if not b["ok"]:
+    bt = q.get("backtest") or []
+    if bt:
+        errs = sorted(Decimal(b["error_pct"]) for b in bt)
+        median = errs[len(errs) // 2]
+        worst = max(bt, key=lambda b: Decimal(b["error_pct"]))
+        q["accuracy"] = {
+            "months": len(bt),
+            "median_pct": str(median),
+            "max_pct": worst["error_pct"],
+            "text": f"O'tgan {len(bt)} oyda prognozning o'rtacha xatosi {str(median).replace('.', ',')}%",
+        }
+        # gate: median <= 5 % and max <= 10 %; failing it never hides the forecast silently:
+        # it is shown as "taxminiy" with a wide band and the miss is logged
+        if median > 5 or Decimal(worst["error_pct"]) > 10:
+            q["approximate"] = True
             q["flags"].append(
                 {
                     "code": "backtest",
-                    "text": f"Prognoz modeli {uz.format_date(date.fromisoformat(b['target']))} uchun kassani {b['error_pct']}% xato bilan bashorat qildi (ruxsat 5%) — prognozni hozircha ko'rsatmayman.",
+                    "text": f"Prognoz taxminiy: o'tgan {len(bt)} oyda o'rtacha xato {str(median).replace('.', ',')}%, eng kattasi {worst['error_pct'].replace('.', ',')}% ({uz.format_date(date.fromisoformat(worst['target']))}).",
                 }
             )
-            q["status"] = "needs_review"
+            log.warning(
+                "backtest gate failed: median %s%% max %s%% at %s",
+                median,
+                worst["error_pct"],
+                worst["target"],
+            )
     if low < -rev * 3:
         q["flags"].append(
             {
