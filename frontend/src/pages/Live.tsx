@@ -572,7 +572,7 @@ export default function LivePage() {
 
       <div className="mx-auto box-border flex w-full max-w-[1360px] grow flex-wrap gap-8 p-4 sm:p-8">
         <section aria-label="Ovozli suhbat" className="flex min-w-0 flex-[1_1_460px] flex-col items-center gap-[26px] pt-2">
-          <LiveOrb speaking={aiSpeaking} />
+          <LiveOrb speaking={aiSpeaking} level={level} listening={gateOpen && !aiSpeaking} thinking={toolsPending > 0} />
 
           <div className="flex flex-col items-center gap-[6px] text-center">
             <span className="font-display text-22 font-bold" role="status">

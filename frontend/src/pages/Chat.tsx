@@ -175,7 +175,8 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
       setBusy(true);
       const userKey = nextKey();
       const botKey = nextKey();
-      const base = { serverId: null, answer: null, status: null, blocks: null, error: null, time: "", stream: "" };
+      const now = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", hour12: false });
+      const base = { serverId: null, answer: null, status: null, blocks: null, error: null, time: now, stream: "" };
       setLocal((prev) => [
         ...prev,
         { ...base, key: userKey, role: "user", author: "Siz", text: display, voice: payload.voice ?? null, live: false, pending: false },
@@ -265,9 +266,25 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
 
   // Keep the newest bubble visible above the sticky composer. A bubble taller than the
   // screen is scrolled to its top so the verdict is read first.
+  const [newPill, setNewPill] = useState(false);
+  const nearBottom = useRef(true);
+  useEffect(() => {
+    const onScroll = () => {
+      const room = window.innerHeight - (composerRef.current?.offsetHeight ?? 0);
+      const el = lastTurnRef.current;
+      nearBottom.current = !el || el.getBoundingClientRect().top < room + 120;
+      if (nearBottom.current) setNewPill(false);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   useEffect(() => {
     const el = lastTurnRef.current;
     if (!el) return;
+    if (scrolledOnce.current && !nearBottom.current) {
+      setNewPill(true); // the user scrolled up to read: don't yank the page
+      return;
+    }
     const smooth = scrolledOnce.current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     scrolledOnce.current = true;
     const room = window.innerHeight - (composerRef.current?.offsetHeight ?? 0);
@@ -322,6 +339,19 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
           ))}
         </div>
 
+        {newPill && (
+          <button
+            type="button"
+            onClick={() => {
+              setNewPill(false);
+              nearBottom.current = true;
+              lastTurnRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            }}
+            className="fixed bottom-28 left-1/2 z-20 -translate-x-1/2 rounded-pill bg-ink px-4 py-2 text-14 font-semibold text-white shadow-lg"
+          >
+            ↓ yangi xabar
+          </button>
+        )}
         <Composer
           chips={boot.chips ?? []}
           busy={busy}

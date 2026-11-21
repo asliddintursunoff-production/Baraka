@@ -7,6 +7,17 @@ import { Fragment, useMemo } from "react";
 import { parseMarkdown, type Inline, type MdBlock } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
+function plain(items: Inline[]): string {
+  return items.map((i) => ("text" in i ? String((i as { text: string }).text) : "")).join("");
+}
+
+/** A numeric cell ("71 121 526", "−4,2 mln", "36,2%") is right-aligned; a negative is red. */
+function numCell(items: Inline[]): { num: boolean; neg: boolean } {
+  const t = plain(items).trim();
+  const num = /^[−\-+]?[\d\s.,]+(\s*(mln|mlrd|ming|so'm|%|oy|kun|dona|porsiya))?(\s*\/\s*\w+)?$/i.test(t) && /\d/.test(t);
+  return { num, neg: num && /^[−-]/.test(t) };
+}
+
 function Inlines({ items }: { items: Inline[] }) {
   return (
     <>
@@ -91,9 +102,9 @@ function Block({ block }: { block: MdBlock }) {
       );
     case "table":
       return (
-        <div className="overflow-x-auto rounded-inner border border-border-subtle">
-          <table className="w-full border-collapse text-14">
-            <thead>
+        <div className="max-h-[520px] max-w-full overflow-auto rounded-inner border border-border-subtle">
+          <table className="w-full border-collapse text-14 tabular-nums">
+            <thead className="sticky top-0 z-[1]">
               <tr className="bg-surface-muted">
                 {block.header.map((c, i) => (
                   <th
@@ -112,11 +123,21 @@ function Block({ block }: { block: MdBlock }) {
             <tbody>
               {block.rows.map((r, ri) => (
                 <tr key={ri} className="border-t border-border-subtle">
-                  {r.map((c, ci) => (
-                    <td key={ci} className={cn("px-3 py-2", ALIGN[block.align[ci] ?? "left"])}>
-                      <Inlines items={c} />
-                    </td>
-                  ))}
+                  {r.map((c, ci) => {
+                    const n = numCell(c);
+                    return (
+                      <td
+                        key={ci}
+                        className={cn(
+                          "px-3 py-2",
+                          n.num ? "whitespace-nowrap text-right" : ALIGN[block.align[ci] ?? "left"],
+                          n.neg && "text-danger",
+                        )}
+                      >
+                        <Inlines items={c} />
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

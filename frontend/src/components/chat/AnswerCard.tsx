@@ -1,5 +1,5 @@
-import { Check, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, FileDown, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { Markdown } from "@/components/Markdown";
 import { RichText } from "@/components/RichText";
@@ -77,13 +77,39 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
   const followUps = (answer.chips ?? []).length > 0 ? answer.chips : plan ? [ALTERNATIVE] : [];
   const hasActions =
     steps.length > 0 || timeline.length > 0 || risks.length > 0 || question != null || plan != null || followUps.length > 0;
+  const cardRef = useRef<HTMLElement>(null);
+  const [copied, setCopied] = useState(false);
   const planNote = approved ? (planState?.summary ?? plan?.summary ?? "") : "";
 
   return (
-    <article className="min-w-0 flex-[1_1_auto] overflow-hidden rounded-[4px_16px_16px_16px] border border-border bg-surface [overflow-wrap:anywhere]">
+    <article
+      ref={cardRef}
+      className="min-w-0 flex-[1_1_auto] overflow-hidden rounded-[4px_16px_16px_16px] border border-border bg-surface [overflow-wrap:anywhere]"
+    >
       {markdown ? (
         <div className="px-[22px] pb-[18px] pt-[22px]">
           <Markdown text={markdown} />
+          <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(markdown).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+              className="inline-flex items-center gap-1 rounded-pill border border-border px-3 py-1 text-13 text-text-3 hover:text-ink"
+            >
+              <Copy size={14} /> {copied ? "Nusxa olindi" : "Nusxa olish"}
+            </button>
+            <button
+              type="button"
+              onClick={() => exportPdf(cardRef.current)}
+              className="inline-flex items-center gap-1 rounded-pill border border-border px-3 py-1 text-13 text-text-3 hover:text-ink"
+            >
+              <FileDown size={14} /> Hisobot (PDF)
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-[10px] px-[22px] pb-[18px] pt-[22px]">
@@ -223,4 +249,24 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
       )}
     </article>
   );
+}
+
+/** "Hisobot": the answer (tables + charts as rendered) in a print window -> "Save as PDF". */
+function exportPdf(el: HTMLElement | null): void {
+  if (!el) return;
+  const w = window.open("", "_blank", "width=900,height=1000");
+  if (!w) return;
+  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((n) => n.outerHTML)
+    .join("");
+  w.document.write(
+    `<!doctype html><html><head><meta charset="utf-8"><title>Baraka — hisobot</title>${styles}` +
+      `<style>body{padding:24px;background:#fff} .print\\:hidden{display:none!important} table{page-break-inside:avoid}</style>` +
+      `</head><body><h2 style="font-family:sans-serif">Baraka · AI CFO hisobot · ${new Date().toLocaleString("uz-UZ")}</h2>${el.outerHTML}</body></html>`,
+  );
+  w.document.close();
+  w.onload = () => {
+    w.focus();
+    w.print();
+  };
 }

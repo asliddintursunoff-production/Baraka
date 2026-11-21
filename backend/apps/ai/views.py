@@ -8,6 +8,7 @@ import logging
 import time
 import wave
 from collections import OrderedDict
+from datetime import datetime
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -106,6 +107,19 @@ def basis_payload(business: Any) -> dict[str, Any]:
     }
 
 
+def _msg_time(dt: Any) -> str:
+    """Business-local (Asia/Tashkent) time; the date too when it is not today."""
+    from zoneinfo import ZoneInfo
+
+    local = dt.astimezone(ZoneInfo("Asia/Tashkent"))
+    today = datetime.now(ZoneInfo("Asia/Tashkent")).date()
+    return (
+        local.strftime("%H:%M")
+        if local.date() == today
+        else f"{uz.format_date(local.date())}, {local.strftime('%H:%M')}"
+    )
+
+
 def message_payload(m: Message) -> dict[str, Any]:
     is_ai = m.role == "assistant"
     voice = (m.answer or {}).get("voice") if not is_ai else None
@@ -113,7 +127,7 @@ def message_payload(m: Message) -> dict[str, Any]:
         "id": m.pk,
         "role": m.role,
         "author": "AI CFO" if is_ai else (m.author_name or "Siz"),
-        "time": m.created_at.astimezone().strftime("%H:%M"),
+        "time": _msg_time(m.created_at),
         "text": m.content,
         "voice": voice,
         "answer": m.answer if is_ai and m.answer and "headline" in m.answer else None,

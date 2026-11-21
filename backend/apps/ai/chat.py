@@ -674,7 +674,7 @@ async def llm_loop(
     config = types.GenerateContentConfig(
         system_instruction=system,
         tools=[types.Tool(function_declarations=decls)],
-        max_output_tokens=4000,
+        max_output_tokens=8192,  # thinking counts too: 4000 cut long answers mid-sentence
     )
     model = "template"
     gen_kw: dict[str, Any] = {
