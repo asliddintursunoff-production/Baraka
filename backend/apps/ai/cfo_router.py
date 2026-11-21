@@ -99,7 +99,7 @@ _STOP = {"yana", "bitta", "yangi", "ikkinchi", "pul", "kredit", "qarz", "sotib",
 _NOT_ITEM = ("ishchi", "xodim", "ofitsiant", "oshpaz", "kassir", "odam", "bank", "kredit", "qarz")
 
 
-def route(text: str) -> list[tuple[str, dict[str, Any]]]:
+def route(text: str, prev_intent: str | None = None) -> list[tuple[str, dict[str, Any]]]:
     """Inside the tenant context. Empty when the workbook has no reports or item details."""
     src = DataSource.objects.exclude(summary={}).first()
     summary = (src.summary or {}) if src else {}
@@ -107,6 +107,11 @@ def route(text: str) -> list[tuple[str, dict[str, Any]]]:
     if not details and not (summary.get("reports") or {}).get("pl"):
         return []
     t = _APOS.sub("'", text).lower()
+    from .golden_tools import match as golden_match
+
+    g = golden_match(t, prev_intent)
+    if g is not None:  # a golden report owns this question: one deterministic tool, full report
+        return [(g[0].tool, g[1])]
     out: list[tuple[str, dict[str, Any]]] = []
     for name in find_names(t, list(details.get("purchases") or {}))[:2]:
         out.append(("product_costs", {"product": name}))

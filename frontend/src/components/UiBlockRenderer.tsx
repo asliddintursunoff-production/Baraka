@@ -4,6 +4,7 @@
  * from tool results.
  */
 import { lazy, Suspense } from "react";
+import { ReportCard, type Report } from "@/components/report/ReportCard";
 
 import type { SeriesPoint, Verdict } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export interface TimelineStep {
 export type UiBlock = UiBlockBody & { caption?: string };
 
 type UiBlockBody =
+  | (Report & { type: "report" })
   | { id: string; type: "verdict"; status: Verdict | "info"; headline: string; reason?: string }
   | { id: string; type: "compare_bars"; title: string; rows: CompareRow[] }
   | { id: string; type: "steps"; items: (string | { text: string; label?: string; severity?: "success" | "warning" | "danger" })[] }
@@ -238,11 +240,16 @@ export interface BlockHandlers {
   onAlternative?: () => void;
   approved?: Set<string>;
   dark?: boolean;
+  /** Live: the report section being spoken now; reports start collapsed. */
+  activeCue?: string | null;
+  compactReports?: boolean;
 }
 
 export function UiBlockView({ block, handlers = {} }: { block: UiBlock; handlers?: BlockHandlers }) {
   const dark = handlers.dark ?? false;
   switch (block.type) {
+    case "report":
+      return <ReportCard report={block} activeCue={handlers?.activeCue ?? null} compact={!!handlers?.compactReports} />;
     case "verdict":
       return <VerdictHeader status={block.status} headline={block.headline} reason={block.reason} />;
     case "compare_bars":

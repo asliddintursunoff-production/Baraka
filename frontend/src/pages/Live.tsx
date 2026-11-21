@@ -239,7 +239,8 @@ export default function LivePage() {
     const items = plan ? planItems(result, plan.summary) : [];
     setCards((prev) => {
       const next = [...prev];
-      if (blocks.length > 0) next.push({ kind: "blocks", key: `g${group}`, group, blocks });
+      const segs = Array.isArray(result.speech_segments) ? (result.speech_segments as { cue: string; text: string }[]) : undefined;
+      if (blocks.length > 0) next.push({ kind: "blocks", key: `g${group}`, group, blocks, segments: segs });
       if (plan && !prev.some((c) => c.kind === "plan" && c.planId === plan.id)) {
         next.push({ kind: "plan", key: `plan-${plan.id}`, group, planId: plan.id, summary: plan.summary, items });
       }
@@ -570,18 +571,22 @@ export default function LivePage() {
     <div className="flex min-h-screen flex-col bg-live-bg font-sans text-white">
       <LiveHeader businessName={session?.business_name ?? ""} onClose={() => void finish()} />
 
-      <div className="mx-auto box-border flex w-full max-w-[1360px] grow flex-wrap gap-8 p-4 sm:p-8">
-        <section aria-label="Ovozli suhbat" className="flex min-w-0 flex-[1_1_460px] flex-col items-center gap-[26px] pt-2">
-          <LiveOrb speaking={aiSpeaking} level={level} listening={gateOpen && !aiSpeaking} thinking={toolsPending > 0} />
-
-          <div className="flex flex-col items-center gap-[6px] text-center">
-            <span className="font-display text-22 font-bold" role="status">
-              {status}
-            </span>
-            {hint && <span className="text-14 text-[#98A2B3]">{hint}</span>}
+      <div className="mx-auto box-border flex w-full max-w-[980px] grow flex-col gap-6 p-4 sm:p-8">
+        <div className="flex min-w-0 grow flex-col justify-end gap-4">
+          <LiveCaptions user={lastUser?.text ?? ""} ai={ai} />
+          <LiveCardStack cash={session?.cash ?? null} cards={cards} plans={plans} onApprove={approve} aiText={ai?.text ?? ""} />
+        </div>
+        <section aria-label="Ovozli suhbat" className="sticky bottom-0 flex min-w-0 flex-col items-center gap-3 bg-live-bg/95 pb-2 pt-2">
+          <div className="-my-[50px] scale-[0.56]">
+            <LiveOrb speaking={aiSpeaking} level={level} listening={gateOpen && !aiSpeaking} thinking={toolsPending > 0} />
           </div>
 
-          <LiveCaptions user={lastUser?.text ?? ""} ai={ai} />
+          <div className="flex flex-col items-center gap-[6px] text-center">
+            <span className="font-display text-15 font-bold uppercase tracking-[0.08em] text-[#5EEAD4]" role="status">
+              {status}
+            </span>
+            {hint && <span className="text-13 text-[#98A2B3]">{hint}</span>}
+          </div>
 
           {phase === "error" && (
             <div role="alert" className={NOTICE}>
@@ -686,7 +691,6 @@ export default function LivePage() {
           {textOpen && connected && <LiveTextForm onSend={sendText} />}
         </section>
 
-        <LiveCardStack cash={session?.cash ?? null} cards={cards} plans={plans} onApprove={approve} />
       </div>
 
       <LiveControls

@@ -377,7 +377,8 @@ FULL_CONTEXT_RULES = """Sen — egasining shaxsiy CFO'si va biznes maslahatchisi
 - Qat'iy bo'l: avval verdikt (qalin), keyin raqamlar, keyin reja. Har qanday solishtirish, reja, jadval, variantlar — markdown jadval bilan.
 - Faqat aniq aloqasiz mavzularni (tarix, mashhurlar, uy vazifasi) bitta gap bilan rad et va biznes tomonini taklif qil.
 - Hissiy xabar ("xafa bo'ldim"): bitta iliq, hamdard gap, keyin yordamni davom ettir (holat, bitta ijobiy fakt, bitta aniq qadam).
-- Prognoz "TAXMINIY" bo'lsa, buni bir gap bilan ayt, lekin javob berishdan bosh tortma."""
+- Prognoz "TAXMINIY" bo'lsa, buni bir gap bilan ayt, lekin javob berishdan bosh tortma.
+- Tool natijasida tayyor hisobot (golden report, "md") bo'lsa: uni o'zgartirmasdan asos qil — xulosa va raqamlar aynan shu yerdan; o'zingdan raqam qo'shma, jadvallarni saqlab qol."""
 
 
 def recent_dialogue(business: Any, exclude: int | None = None, n: int = 12) -> str:
@@ -467,7 +468,10 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
         else:
             speculative: dict[str, dict[str, Any]] = {}
             turn.mode = classify(turn.text)
-            routed = await db(b, lambda: route(turn.text))
+            from .golden_tools import last_intent
+
+            prev = await db(b, lambda: last_intent(turn.conversation.pk))
+            routed = await db(b, lambda: route(turn.text, prev))
             routed_blocks: list[dict[str, Any]] = []
             for name, args in routed:
                 try:
@@ -526,12 +530,36 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
                 except ToolArgError:
                     pass
             final, _model = None, "template"
+            from .golden_tools import GOLDEN_TOOLS
+
+            golden = {t.name for t in GOLDEN_TOOLS}
+            gres = next(
+                (
+                    turn.results[k]
+                    for k in reversed(list(turn.results))
+                    if any(k.startswith(g) for g in golden)
+                ),
+                None,
+            )
+            if gres is not None and any(
+                bl.get("type") == "report" for bl in gres.get("ui_blocks", [])
+            ):
+                # golden report: the deterministic card IS the answer (no LLM, every number from the tool)
+                final = finalize(turn, template_answer(gres), "golden")
+                final["markdown"] = ""
+                md = str(gres.get("md") or "")
+                last = md.rstrip().splitlines()[-1] if md.strip() else ""
+                if last.upper().startswith("CHIPS:"):
+                    final["chips"] = [
+                        c.strip() for c in last.split(":", 1)[1].split("|") if c.strip()
+                    ][:3]
             try:
-                async for item in llm_loop(turn, ctx, lines, speculative):
-                    if isinstance(item, bytes):
-                        yield item
-                    else:
-                        final, _model = item
+                if final is None:
+                    async for item in llm_loop(turn, ctx, lines, speculative):
+                        if isinstance(item, bytes):
+                            yield item
+                        else:
+                            final, _model = item
             except (genai_errors.APIError, ValueError) as exc:  # never break the stream
                 log.warning("llm loop failed, using template: %s", str(exc)[:200])
             if final is None:

@@ -18,7 +18,8 @@ LIVE_RULES = f"""Qat'iy qoidalar:
 9. Tool javobida "say" bo'lsa, uni deyarli so'zma-so'z ayt: hech narsa qo'shma, raqamlarni o'zgartirma.
 10. Xodimlar sonini so'rasang va foydalanuvchi aytsa, set_staff_count ni chaqir.
 11. Batafsil savollarda tegishli tool'ni chaqir: mahsulot (un, kartoshka, go'sht...) -> product_costs; taom, retsept, tannarx -> menu_analysis; isrof, kamomad -> losses; xodimlar ish haqi -> staff_costs; KPI, food cost -> kpi_scorecard; zararsizlik -> break_even; savdo tushsa -> stress_test; kredit -> debt_schedule; pul qayerdan -> cash_sources; qarzlar -> net_position; xarajatlar -> get_expenses.
-12. Tool natijasida jadval ("md") bo'lsa, uni o'qima: eng muhim 2–3 raqamni ayt (summalarni "speech" dagi so'zlar bilan), keyin "Batafsil jadval chatda" de. """
+12. Tool natijasida jadval ("md") bo'lsa, uni o'qima: eng muhim 2–3 raqamni ayt (summalarni "speech" dagi so'zlar bilan), keyin "Batafsil jadval chatda" de.
+13. Tool natijasida "speech_segments" bo'lsa (tayyor hisobot): ularni AYNAN tartib bilan, o'z so'zlaring bilan qo'shmasdan ayt — har bo'lak ekrandagi kartaning bir qismini ochadi. Foydalanuvchi "qisqaroq" desa, "speech_short" ni ayt. Hisobot kartasi ekranda turadi; jadvalni o'qima. """
 
 
 def live_system_instruction(

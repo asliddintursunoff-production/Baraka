@@ -389,6 +389,7 @@ def payroll(sheets: list[SheetData], today: date) -> dict[str, Any]:
         _col(header, "jami xarajat"),
         _col(header, "qo'lga"),
     )
+    i_ok = _col(header, "oklad")
     out: dict[str, dict[str, list[str]]] = defaultdict(dict)
     for r in rows:
         d, name = _date(_cell(r, i_m), today), _txt(r, i_x)
@@ -401,6 +402,7 @@ def payroll(sheets: list[SheetData], today: date) -> dict[str, Any]:
             _s(acc_),
             _s(_num(_cell(r, i_tot)) or acc_),
             _s(_num(_cell(r, i_net))),
+            _s(_num(_cell(r, i_ok))),  # [5] monthly base salary (oklad)
         ]
     return dict(out)
 
@@ -435,11 +437,80 @@ def assets(sheets: list[SheetData], today: date) -> list[dict[str, str]]:
     return out
 
 
+def channels(sheets: list[SheetData], today: date) -> dict[str, Any]:
+    """Sotuv per channel per month: revenue (Summa), cost (Tannarx jami), commission, portions,
+    rows; plus the commission rate per channel."""
+    t = _table(_sheet(sheets, "sotuv"), "sana", "taom", "miqdor")
+    if t is None:
+        return {}
+    header, rows = t
+    i_d, i_q = _col(header, "sana"), _col(header, "miqdor")
+    i_rev = _col(header, "summa qqs", "summa")
+    i_ch, i_com, i_cost = (
+        _col(header, "kanal"),
+        _col(header, "komissiya so'm"),
+        _col(header, "tannarx jami"),
+    )
+    i_pct = _col(header, "komissiya %")
+    acc: dict[str, dict[str, list[Decimal]]] = defaultdict(
+        lambda: defaultdict(lambda: [Decimal(0)] * 5)
+    )
+    rate: dict[str, Decimal] = {}
+    for r in rows:
+        d = _date(_cell(r, i_d), today)
+        ch = _txt(r, i_ch)
+        if d is None or not ch:
+            continue
+        a = acc[_month(d)][ch]
+        a[0] += _num(_cell(r, i_rev))
+        a[1] += _num(_cell(r, i_cost))
+        a[2] += _num(_cell(r, i_com))
+        a[3] += _num(_cell(r, i_q))
+        a[4] += 1
+        if i_pct is not None and ch not in rate:
+            pct = _raw(_cell(r, i_pct))
+            if pct:
+                rate[ch] = pct
+    return {
+        "months": {
+            m: {
+                ch: {
+                    "revenue": _s(v[0]),
+                    "cost": _s(v[1]),
+                    "commission": _s(v[2]),
+                    "qty": _s(v[3]),
+                    "rows": int(v[4]),
+                }
+                for ch, v in chs.items()
+            }
+            for m, chs in sorted(acc.items())
+        },
+        "commission_rate": {k: str(v) for k, v in rate.items()},
+    }
+
+
+def counterparties(sheets: list[SheetData], today: date) -> list[dict[str, str]]:
+    """Kontragentlar: name, type, month-end saldo (+ we owe, − they owe us)."""
+    t = _table(_sheet(sheets, "kontragent"), "nomi", "turi")
+    if t is None:
+        return []
+    header, rows = t
+    i_n, i_t, i_s = _col(header, "nomi"), _col(header, "turi"), _col(header, "saldo tanl", "saldo")
+    out = []
+    for r in rows:
+        name = _txt(r, i_n)
+        if name:
+            out.append({"name": name, "type": _txt(r, i_t), "balance": _s(_num(_cell(r, i_s)))})
+    return out
+
+
 def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, fn in (
         ("purchases", purchases),
         ("dish_sales", dish_sales),
+        ("channels", channels),
+        ("counterparties", counterparties),
         ("menu_analysis", menu_analysis),
         ("writeoffs", writeoffs),
         ("stock_counts", stock_counts),

@@ -8,7 +8,7 @@ import { UiBlockView, type BlockHandlers, type UiBlock } from "@/components/UiBl
 import { cn } from "@/lib/utils";
 
 export type LiveCard =
-  | { kind: "blocks"; key: string; group: number; blocks: UiBlock[] }
+  | { kind: "blocks"; key: string; group: number; blocks: UiBlock[]; segments?: { cue: string; text: string }[] }
   | { kind: "plan"; key: string; group: number; planId: number; summary: string; items: string[] };
 
 export interface PlanState {
@@ -106,11 +106,14 @@ export function LiveCardStack({
   cards,
   plans,
   onApprove,
+  aiText = "",
 }: {
   cash: { label: string; display: string } | null;
   cards: LiveCard[];
   plans: Record<number, PlanState>;
   onApprove: (planId: number) => void;
+  /** What the AI has said so far in this turn: picks the report section being spoken. */
+  aiText?: string;
 }) {
   const newestGroup = cards.reduce((g, c) => (c.kind === "blocks" ? Math.max(g, c.group) : g), -1);
   const handlers: BlockHandlers = {
@@ -148,13 +151,32 @@ export function LiveCardStack({
           card.blocks.map((b) => (
             <article
               key={`${card.key}-${b.id}`}
-              className={cn("min-w-0", blockSurface(b), ENTER, card.group === newestGroup && HIGHLIGHT)}
+              className={cn("min-w-0", b.type === "report" ? "rounded-card" : blockSurface(b), ENTER, card.group === newestGroup && b.type !== "report" && HIGHLIGHT)}
             >
-              <UiBlockView block={b} handlers={handlers} />
+              <UiBlockView
+                block={b}
+                handlers={
+                  b.type === "report"
+                    ? { ...handlers, compactReports: true, activeCue: card.group === newestGroup ? cueFor(card.segments, aiText) : null }
+                    : handlers
+                }
+              />
             </article>
           ))
         ),
       )}
     </section>
   );
+}
+
+/** The segment whose text the AI is speaking now (by transcript length). */
+function cueFor(segments: { cue: string; text: string }[] | undefined, said: string): string | null {
+  if (!segments?.length) return null;
+  const n = said.length;
+  let acc = 0;
+  for (const s of segments) {
+    acc += s.text.length;
+    if (n <= acc) return s.cue;
+  }
+  return segments[segments.length - 1]?.cue ?? null;
 }
