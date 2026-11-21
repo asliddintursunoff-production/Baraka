@@ -328,7 +328,12 @@ Not added: `dj-database-url` (parsed by hand), `django-cors-headers` (same domai
 - 19:35 M7: Knowledge page on real data (`GET /api/knowledge`: weekly accuracy, AI candidates "Ha, to'g'ri / Yo'q", rules with author · date · effect, segment insights). "+ Qoida yozish" (`POST /api/knowledge/rules`: parser first, light LLM only if needed → rule → forecast refresh), rule on/off toggle (forecast refresh). `build_segment_stats` (6 demo cafés → weekday_shape + variable_cost_ratio, k ≥ 5, no names or amounts), run by `seed_demo`.
 - Decision: a rule toggle rebuilds the forecast (`refresh_forecast`); `invalidate` alone reuses the snapshot's stored inputs.
 - Decision: the chat correction flow (candidate card → "Eslab qol" → rule → forecast) is unchanged from M3; "Tushundim, eslab qoldim." is the design's own wording.
+- 19:49 M8: `make latency` (`latency_report`: page APIs in-process, recorded chat/voice events, AiUsage cost table), `railway.json` + `railway.scheduler.json`, README deploy + AI budget sections, demo path run end to end in the browser (chat: cards 44 ms, answer 2.8 s → "Ha" → reminder → correction → "Eslab qol" → banner includes Agro Go'sht), `seed_demo --reset` + `demo_navroz.xlsx` exported, `make test` green (pytest 904, vitest 31, ruff, mypy, tsc, eslint).
+- Decision: oauthlib env flags moved from `integrations/google.py` to `settings.py` (apps must not touch `os.environ`).
+- Decision: Railway runs `migrate` inside `start-web.sh` (one web replica), so no pre-deploy command is needed.
 
 ## 8. Deferred
 - Sources page: per-sheet "Yangi · +N" and row counts for non-transaction sheets (they show the file-level state / 0).
 - Nightly learning job (03:00: accuracy backtest, pattern → RuleCandidate); accuracy and the "Svet" candidate come from seed data.
+- Browser fake-mic e2e of /live (blocked by the tool permission check); voice is tested by hand.
+- Embedding cache by `text_hash`: no runtime embeddings yet.

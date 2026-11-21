@@ -91,3 +91,41 @@ The Live server's end-of-turn detection does not end the turn on a 600 ms mid-se
 `make smoke-ai` (new key, paid tier) Live check: Q3 "25 millionga jihoz olsam, oylikka yetadimi?" → tool called, speech end → first audio 851 ms, answer audio after the tool 2 920 ms.
 
 **Live limits (budget rules):** the page closes the session and releases the mic after 30 s with no speech in either direction, when the tab is hidden, when the user leaves the page, or after 5 min. Each token mint reserves 60 s of Live cost, and `/live/finish` replaces it with the real duration.
+
+## M8 — `make latency` (final, 19:38)
+| Page API (in-process, n=20) | p50 ms | p95 ms |
+|---|---|---|
+| `/api/dashboard` | 16 | 20 |
+| `/api/forecast` | 9 | 12 |
+| `/api/calendar` | 8 | 10 |
+| `/api/knowledge` | 13 | 17 |
+| `/api/sources` | 16 | 18 |
+| `/api/alerts` | 8 | 10 |
+| `/api/simulate` (25 mln preset, n=10, HTTP 200) | 10 | 12 |
+| Recorded event (7 days) | n | p50 ms | p95 ms |
+|---|---|---|---|
+| chat · send_to_answer | 2 | 4563 | 6443 |
+| chat · send_to_blocks | 2 | 28 | 32 |
+| voice · interrupted | 1 | 0 | 0 |
+| voice · session_ready | 9 | 2271 | 3027 |
+| voice · speech_end_to_first_audio | 11 | 1443 | 3128 |
+| voice · token_ready | 9 | 680 | 1864 |
+| voice · tool_call_to_response | 5 | 10 | 22 |
+| voice · tool_http | 5 | 6 | 8 |
+| voice · tool_response_to_card | 5 | 2 | 14 |
+| voice · tool_response_to_first_audio | 5 | 1521 | 2194 |
+| voice · ws_open | 9 | 514 | 740 |
+
+| AI usage (all time) | calls | in tok | out tok | sec | cost $ |
+|---|---|---|---|---|---|
+| live · gemini-3.8-live | 1 | 0 | 0 | 9 | 0.0038 |
+| chat · gemini-3.5-flash-lite | 13 | 25323 | 1277 | 0 | 0.0030 |
+| mapping · gemini-3.5-flash-lite | 4 | 6688 | 5173 | 0 | 0.0027 |
+| check · gemini-3.8-flash | 2 | 58 | 14 | 0 | 0.0001 |
+| check · gemini-3.5-flash-lite | 1 | 16 | 3 | 0 | 0.0000 |
+| embedding · gemini-embedding-001 | 1 | 12 | 0 | 0 | 0.0000 |
+| tts · gemini-3.8-flash-tts | 1 | 0 | 0 | 0 | 0.0000 |
+
+**AI spend:** today $0.0096 / $0.50 · total $0.0096 / $4.00 (estimated from `AI_PRICES_PER_M_TOKENS`, profile `dev`)
+
+Chat 'send → cards' p50 28 ms (budget 1.2 s). 'Send → answer' in the dev profile (3.5-flash-lite) is 2.8–4.6 s with the browser e2e. Voice speech end → first audio p50 1.4 s; after a tool, p50 1.5 s from tool response to audio. Page APIs are ≤ 20 ms p95 in-process.

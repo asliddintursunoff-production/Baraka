@@ -10,7 +10,7 @@ Spec: `docs/BUILD_PROMPT.md` · Plan and status: `docs/PLAN.md` · Gemini notes:
 - For local development without Docker: Python 3.12, Node 22, GNU make
 
 ## Configuration
-Copy `.env.example` to `.env` and fill it in. These 8 variables are the only ones the app reads:
+Copy `.env.example` to `.env` and fill it in. These 9 variables are the only ones the app reads:
 
 | Variable | Meaning |
 |---|---|
@@ -70,5 +70,36 @@ Demo file: `make seed` then `backend/.venv/bin/python backend/manage.py seed_dem
 
 `drive.file` is not a sensitive scope, so verification is a brand review only (days, not weeks). While in Testing, refresh tokens expire after 7 days; the app then shows "Qayta ulash".
 
+## AI budget
+- Every Gemini call (chat, mapping, TTS/STT, Live, embeddings) is logged in `AiUsage` with an estimated cost. Prices are estimates in `backend/config/app_settings.py`.
+- Limits: `AI_DAILY_BUDGET_USD = 0.50`, `AI_TOTAL_BUDGET_USD = 4.00`. When a limit is reached, chat answers from templates (engine numbers + prepared text) and voice shows "Bugungi ovoz limiti tugadi".
+- `DEBUG=true` (dev profile): chat uses only `gemini-3.5-flash-lite`. `DEBUG=false` (demo profile): `gemini-3.8-flash` → `3.6-flash` → `3.5-flash-lite`.
+- Tests never call Gemini. The only paid commands are `make check-ai` and `make smoke-ai` (5 chat turns + 1 Live session, about $0.01).
+- `make latency` prints page/voice/chat p50/p95 and the AI spend table.
+
 ## Deploy (Railway)
-Step-by-step instructions are added in M8.
+The repo has one image (`Dockerfile`: React build + Django) and two services: **web** and **scheduler**.
+
+1. **New project → Deploy from GitHub repo** (push the repo to GitHub first).
+2. **Database:** add PostgreSQL with pgvector. Use the *pgvector* template (`pgvector/pgvector:pg16`); the first migration runs `CREATE EXTENSION vector`.
+3. **web service** (from the repo):
+   - Settings → Config-as-code: `railway.json` (Dockerfile build, start `/app/docker/start-web.sh`, health check `/api/health`).
+   - `start-web.sh` runs `migrate` and then gunicorn + uvicorn workers on `$PORT`.
+   - Settings → Networking → **Generate domain**, e.g. `bizpilot.up.railway.app`.
+4. **scheduler service:** add the same repo again as a second service, with Config-as-code `railway.scheduler.json` (start `python manage.py run_scheduler`, no HTTP health check). It runs the 15-minute sync and the 08:00 brief. It never calls an LLM.
+5. **Variables** (both services; use Railway's *Shared variables*):
+
+   | Variable | web | scheduler | Value |
+   |---|---|---|---|
+   | `APP_NAME` | ✓ | ✓ | `BizPilot AI` |
+   | `APP_URL` | ✓ | ✓ | `https://<your-domain>` (exact, no trailing slash) |
+   | `DEBUG` | ✓ | ✓ | `false` |
+   | `DJANGO_SECRET_KEY` | ✓ | ✓ | the same long random string in both (it also derives the token-encryption key) |
+   | `DATABASE_URL` | ✓ | ✓ | `${{Postgres.DATABASE_URL}}` (reference to the DB service) |
+   | `GEMINI_API_KEY` | ✓ | – | Gemini key (billing enabled) |
+   | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | ✓ | ✓ | the OAuth web client |
+   | `GOOGLE_PICKER_API_KEY` | ✓ | – | Picker API key |
+
+6. **Google Cloud:** add `https://<your-domain>` to the OAuth client's *Authorized JavaScript origins*. Add `https://<your-domain>/api/integrations/google/callback` to *Authorized redirect URIs*. Add `https://<your-domain>/*` to the Picker API key's HTTP referrers.
+7. **Demo data (once):** in the web service shell, `python manage.py seed_demo --reset`. Log in with `demo@demo.uz` / `demo12345`.
+8. **Check:** `https://<your-domain>/api/health?deep=1` returns `{"ok": true, ...}`.

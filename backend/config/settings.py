@@ -69,6 +69,11 @@ def _parse_database_url(url: str) -> dict[str, object]:
 
 APP_NAME = _env("APP_NAME", "BizPilot AI") or "BizPilot AI"
 APP_URL = (_env("APP_URL", "http://localhost:8000") or "http://localhost:8000").rstrip("/")
+# oauthlib library flags (not secrets): plain http only for a local APP_URL; Google answers
+# the "email" scope with "userinfo.email", which oauthlib must accept.
+if APP_URL.startswith("http://"):
+    os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 DEBUG = _env("DEBUG", "false").lower() in ("1", "true", "yes", "on")
 SECRET_KEY = _env("DJANGO_SECRET_KEY")
 if not SECRET_KEY:

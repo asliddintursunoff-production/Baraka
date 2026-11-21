@@ -7,7 +7,6 @@ Access tokens are minted on demand and cached in memory until shortly before exp
 from __future__ import annotations
 
 import logging
-import os
 import secrets
 import threading
 import time
@@ -28,9 +27,7 @@ from .models import DataSource, GoogleCredential
 
 log = logging.getLogger(__name__)
 
-if settings.APP_URL.startswith("http://"):
-    os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")  # local http://localhost only
-os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")  # Google adds userinfo.email to "email"
+# oauthlib flags (OAUTHLIB_INSECURE_TRANSPORT / OAUTHLIB_RELAX_TOKEN_SCOPE) are set in settings.py
 
 TOKEN_URI = "https://oauth2.googleapis.com/token"  # noqa: S105 (public endpoint)
 AUTH_URI = "https://accounts.google.com/o/oauth2/auth"

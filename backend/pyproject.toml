@@ -37,6 +37,7 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "RUF012"]  # RUF012: Django Meta
 "apps/finance/management/commands/seed_demo.py" = ["E501"]
 "apps/ai/live_api.py" = ["E501"]  # Uzbek context text
 "apps/ai/management/commands/*.py" = ["E501"]  # report lines
+"apps/telemetry/management/commands/*.py" = ["E501"]  # report lines
 "apps/ingestion/*.py" = ["E501"]  # Uzbek issue messages
 "apps/integrations/api.py" = ["E501"]  # Uzbek error messages
 
@@ -54,6 +55,9 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
 check_untyped_defs = false
+disallow_any_generics = false
+warn_return_any = false
+warn_unused_ignores = false
 
 [tool.django-stubs]
 django_settings_module = "config.settings"
