@@ -43,8 +43,8 @@ LIVE_TOKEN_USES = 1
 LIVE_TOKEN_TTL_MIN = 30  # session messages rejected after this
 LIVE_NEW_SESSION_WINDOW_S = 600  # P3: a prefetched token stays usable for 10 min
 LIVE_VOICE_NAME = "Kore"
-LIVE_SILENCE_DURATION_MS = 300  # P2 (approved): 300 ms; back to 500 if >1/10 real questions get cut
-LIVE_PREFIX_PADDING_MS = 100
+LIVE_SILENCE_DURATION_MS = 800  # kitchens are noisy: don't cut the user off at short pauses
+LIVE_PREFIX_PADDING_MS = 300  # speech must last >= 300 ms before it counts
 LIVE_TRANSCRIPTION_LANGUAGE_HINTS = ["uz"]
 LIVE_INPUT_RATE = 16_000
 LIVE_OUTPUT_RATE = 24_000

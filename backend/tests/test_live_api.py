@@ -42,7 +42,9 @@ def test_session_token_with_context_and_tools(owner_client, demo, captured):
     names = {f.name for f in conf.tools[0].function_declarations}
     assert names == {t.name for t in TOOLS.values() if t.voice}
     assert all(f.behavior == "BLOCKING" for f in conf.tools[0].function_declarations)
-    assert conf.realtime_input_config.automatic_activity_detection.silence_duration_ms == 300
+    aad = conf.realtime_input_config.automatic_activity_detection
+    assert aad.silence_duration_ms == 800 and aad.prefix_padding_ms == 300
+    assert aad.start_of_speech_sensitivity == "START_SENSITIVITY_LOW"
     text = conf.system_instruction
     assert "say" in text and "Navro'z Kafe" in text and "so'm" in text
     assert len(text) / 4 < cfg.LIVE_CONTEXT_MAX_TOKENS  # rough token estimate

@@ -74,10 +74,17 @@ export interface VoiceClientOptions {
   onUserSpeaking?: (speaking: boolean) => void;
   /** A model turn ended (`turnComplete` or `interrupted`); `turn` is the finished turn. */
   onTurnComplete?: (turn: number, interrupted: boolean) => void;
+  /** Mic level 0..1 (after the noise gate decision) for the level meter. */
+  onLevel?: (level: number, gateOpen: boolean) => void;
 }
 
-const VOICE_RMS = 0.02; // frame RMS above this counts as speech (for speech_end timing)
 const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
+// Noise gate (kitchens, fans, door clicks): ambient is measured in the first second;
+// the gate opens only for >= 250 ms of sound above ambient x 2.5 (x 2 more while the AI talks).
+const CALIBRATE_MS = 1000;
+const GATE_MIN_RMS = 0.012;
+const GATE_OPEN_MS = 250;
+const GATE_CLOSE_MS = 500;
 
 export class VoiceClient {
   private opts: VoiceClientOptions;
@@ -88,12 +95,26 @@ export class VoiceClient {
   private player: AudioWorkletNode | null = null;
   private mic: AudioWorkletNode | null = null;
   private tOpen = 0;
+  private tMicStart = 0;
   private ready = false;
   private resumeHandle: string | undefined;
 
   // per-turn measurement state
   private lastVoiceAt = 0;
   private userSpokeSinceModel = false;
+  // noise gate state
+  private ambientSamples: number[] = [];
+  private gateRms = GATE_MIN_RMS;
+  private gateOpen = false;
+  private aboveSince = 0;
+  private belowSince = 0;
+  private pending: ArrayBuffer[] = [];
+  private aiSpeaking = false;
+  private heardSinceInterrupt = "";
+  private resumeOnEmpty = false;
+  /** Push-to-talk: mic frames go out only while `talking` is true. */
+  pushToTalk = false;
+  talking = false;
   private modelAudioThisTurn = false;
   private toolRespondedAt = 0;
   private turn = 0;
@@ -256,8 +277,14 @@ export class VoiceClient {
     this.player = new AudioWorkletNode(this.playCtx, "pcm-player", { outputChannelCount: [1] });
     this.player.connect(this.playCtx.destination);
     this.player.port.onmessage = (e: MessageEvent<{ type: string }>) => {
-      if (e.data.type === "playing") this.opts.onSpeaking?.(true);
-      if (e.data.type === "drained" || e.data.type === "cleared") this.opts.onSpeaking?.(false);
+      if (e.data.type === "playing") {
+        this.aiSpeaking = true;
+        this.opts.onSpeaking?.(true);
+      }
+      if (e.data.type === "drained" || e.data.type === "cleared") {
+        this.aiSpeaking = false;
+        this.opts.onSpeaking?.(false);
+      }
     };
   }
 
@@ -269,7 +296,28 @@ export class VoiceClient {
     });
     this.mic.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
       const now = performance.now();
-      if (e.data.rms > VOICE_RMS) {
+      const rms = e.data.rms;
+      if (this.tMicStart === 0) this.tMicStart = now;
+      if (now - this.tMicStart < CALIBRATE_MS) {
+        this.ambientSamples.push(rms);
+        const sorted = [...this.ambientSamples].sort((a, b) => a - b);
+        const ambient = sorted[Math.floor(sorted.length / 2)] ?? 0;
+        this.gateRms = Math.max(GATE_MIN_RMS, ambient * 2.5);
+      }
+      const threshold = this.aiSpeaking ? this.gateRms * 2 : this.gateRms; // duck during playback
+      const loud = rms > threshold;
+      if (loud) {
+        this.belowSince = 0;
+        if (this.aboveSince === 0) this.aboveSince = now;
+        if (!this.gateOpen && now - this.aboveSince >= GATE_OPEN_MS) this.gateOpen = true;
+      } else {
+        this.aboveSince = 0;
+        if (this.belowSince === 0) this.belowSince = now;
+        if (this.gateOpen && now - this.belowSince >= GATE_CLOSE_MS) this.gateOpen = false;
+      }
+      const open = this.pushToTalk ? this.talking : this.gateOpen;
+      this.opts.onLevel?.(Math.min(1, rms / Math.max(threshold * 3, 0.0001)), open);
+      if (open) {
         this.lastVoiceAt = now;
         this.userSpokeSinceModel = true;
         if (!this.userVoice) {
@@ -281,9 +329,19 @@ export class VoiceClient {
         this.opts.onUserSpeaking?.(false);
       }
       if (!this.session || !this.ready) return;
-      this.session.sendRealtimeInput({
-        audio: { data: bufferToBase64(e.data.pcm), mimeType: "audio/pcm;rate=16000" },
-      });
+      let frames: ArrayBuffer[];
+      if (open) {
+        frames = [...this.pending, e.data.pcm]; // keep the first 250 ms of the word
+        this.pending = [];
+      } else {
+        // not speech: keep a short pre-roll and send silence so the server VAD sees no voice
+        this.pending.push(e.data.pcm);
+        if (this.pending.length > GATE_OPEN_MS / 20 + 2) this.pending.shift();
+        frames = [new ArrayBuffer(e.data.pcm.byteLength)];
+      }
+      for (const f of frames) {
+        this.session.sendRealtimeInput({ audio: { data: bufferToBase64(f), mimeType: "audio/pcm;rate=16000" } });
+      }
     };
     src.connect(this.mic);
     // The worklet must be pulled by the graph; route it to a muted gain so nothing is heard.
@@ -303,6 +361,17 @@ export class VoiceClient {
       if (sc.interrupted) {
         this.player?.port.postMessage({ type: "clear" });
         this.metric("interrupted", 0, { turn: this.turn });
+        this.heardSinceInterrupt = "";
+        this.resumeOnEmpty = !this.muteTurn; // not the "To'xtatish" button
+        window.setTimeout(() => {
+          // an interruption with no real words (noise, cough): continue the previous answer
+          if (this.resumeOnEmpty && this.heardSinceInterrupt.trim().length < 2 && !this.userVoice) {
+            this.session?.sendRealtimeInput({
+              text: "(Bu shovqin edi, savol emas.) Oldingi javobingizni to'xtagan joyidan davom ettiring.",
+            });
+          }
+          this.resumeOnEmpty = false;
+        }, 1800);
       }
       for (const part of sc.modelTurn?.parts ?? []) {
         const data = part.inlineData?.data;
@@ -333,6 +402,7 @@ export class VoiceClient {
           this.utteranceTurn = this.turn;
         }
         this.utterance += heard;
+        this.heardSinceInterrupt += heard;
         this.opts.onCaption("user", heard, this.turn);
       }
       if (sc.outputTranscription?.text) this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);

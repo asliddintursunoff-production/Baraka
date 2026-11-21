@@ -178,6 +178,10 @@ export default function LivePage() {
   const [audioSuspended, setAudioSuspended] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
+  const [level, setLevel] = useState(0);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [ptt, setPtt] = useState(false);
+  const [talking, setTalking] = useState(false);
   const [toolsPending, setToolsPending] = useState(0);
   const [turn, setTurn] = useState(0);
   const [captions, setCaptions] = useState<Caption[]>([]);
@@ -351,6 +355,10 @@ export default function LivePage() {
       onCaption,
       onMetric,
       onSpeaking,
+      onLevel: (lv, open) => {
+        setLevel(Math.round(lv * 20) / 20);
+        setGateOpen(open);
+      },
       onUserSpeaking: (speaking) => {
         userVoice.current = speaking;
         lastActivity.current = performance.now();
@@ -462,6 +470,27 @@ export default function LivePage() {
   useEffect(() => () => window.clearTimeout(speakTimer.current), []);
 
   // --- user actions ---
+  useEffect(() => {
+    if (!ptt) return;
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat || (e.target as HTMLElement)?.tagName === "INPUT") return;
+      e.preventDefault();
+      setTalking(true);
+      if (clientRef.current) clientRef.current.talking = true;
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      setTalking(false);
+      if (clientRef.current) clientRef.current.talking = false;
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [ptt]);
+
   const stopPlayback = useCallback(() => {
     clientRef.current?.stopPlayback();
     window.clearTimeout(speakTimer.current);
@@ -602,6 +631,55 @@ export default function LivePage() {
             <div role="status" className={NOTICE}>
               <WarnIcon />
               <span>Ovozni yoqish uchun ekranning istalgan joyiga bosing.</span>
+            </div>
+          )}
+
+          {connected && (
+            <div className="flex w-full max-w-[600px] flex-col items-center gap-2">
+              <div className="flex w-full items-center gap-2 text-12 text-[#98A2B3]">
+                <span>Mikrofon</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#1D2939]" aria-label="Mikrofon darajasi">
+                  <div
+                    className={gateOpen ? "h-full bg-[#32D583]" : "h-full bg-[#475467]"}
+                    style={{ width: `${Math.round(level * 100)}%`, transition: "width 80ms linear" }}
+                  />
+                </div>
+                <span>{gateOpen ? "eshityapman" : "shovqin e'tiborsiz"}</span>
+              </div>
+              <label className="flex items-center gap-2 text-13 text-[#D0D5DD]">
+                <input
+                  type="checkbox"
+                  checked={ptt}
+                  onChange={(e) => {
+                    setPtt(e.target.checked);
+                    if (clientRef.current) clientRef.current.pushToTalk = e.target.checked;
+                  }}
+                />
+                Bosib gapirish (shovqinli joy, masalan oshxona)
+              </label>
+              {ptt && (
+                <button
+                  type="button"
+                  onPointerDown={() => {
+                    setTalking(true);
+                    if (clientRef.current) clientRef.current.talking = true;
+                  }}
+                  onPointerUp={() => {
+                    setTalking(false);
+                    if (clientRef.current) clientRef.current.talking = false;
+                  }}
+                  onPointerLeave={() => {
+                    setTalking(false);
+                    if (clientRef.current) clientRef.current.talking = false;
+                  }}
+                  className={
+                    "rounded-full px-6 py-3 text-15 font-semibold " +
+                    (talking ? "bg-[#32D583] text-[#0C111D]" : "bg-[#1D2939] text-white")
+                  }
+                >
+                  {talking ? "Gapiring…" : "Bosib turing va gapiring (yoki Probel)"}
+                </button>
+              )}
             </div>
           )}
 

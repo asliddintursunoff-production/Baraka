@@ -71,6 +71,8 @@ def live_config(
         ),
         realtime_input_config=types.RealtimeInputConfig(
             automatic_activity_detection=types.AutomaticActivityDetection(
+                start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_LOW,
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW,
                 silence_duration_ms=silence_ms,
                 prefix_padding_ms=cfg.LIVE_PREFIX_PADDING_MS,
             )
