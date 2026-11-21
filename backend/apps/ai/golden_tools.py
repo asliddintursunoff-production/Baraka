@@ -104,6 +104,11 @@ def pinned_answer(
         if extra.get("role") not in allowed_roles:
             return None
         extra.pop("role", None)
+    for k, allowed in (d.get("pin_args") or {}).items():
+        if k in extra:
+            if extra[k] not in allowed:
+                return None
+            extra.pop(k)
     if extra:
         return None  # a parameter variant without a pinned answer: recompute
     due = ctx.base.today if not ctx.base.insufficient_data else None
@@ -1304,6 +1309,259 @@ def _q4_params(t: str) -> dict[str, Any]:
     return out
 
 
+# --- Q3 equipment_investment -----------------------------------------------------------------
+def _annuity(principal: Decimal, rate_y: Decimal, n: int) -> Decimal:
+    r = rate_y / 12
+    return principal * r / (1 - (1 + r) ** -n) if r else principal / n
+
+
+def equipment_investment_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from apps.engine import hiring as HR
+    from apps.engine.cfo import last_month, pl_value
+
+    s = _summary()
+    pa = (
+        pinned_answer("equipment_investment", s or {}, args, ctx.last_user_text or "", ctx)
+        if s
+        else None
+    )
+    if pa is not None:
+        return pa
+    equipment = str(args.get("equipment") or "lavash apparati")
+    if not args.get("price"):
+        md = f"**{equipment.capitalize()} necha pul turadi?** Narxini ayting (masalan: 25 mln) — investitsiyami yoki zararmi, qachon olish va qanday moliyalashni hisoblab beraman."
+        return envelope(
+            ok=True,
+            facts={},
+            md=md,
+            say=md.split("**")[1],
+            answer={"headline": md.split("**")[1], "reason": ""},
+        )
+    if not s or not (s.get("details") or {}).get("smena_days"):
+        md = "**Hisoblash uchun Smena (kunlik cheklar) ma'lumoti kerak.** Smena varag'ini to'ldiring — darhol hisoblayman."
+        return envelope(
+            ok=True,
+            facts={},
+            md=md,
+            say=md.strip("*"),
+            answer={"headline": md.strip("*"), "reason": ""},
+            golden_failed=True,
+        )
+    price = Decimal(str(args["price"]))
+    replace = str(args.get("reason") or "") == "almashtirish"
+    h = HR.compute(s, HR.Params())
+    m = last_month(s)
+    rev = pl_value(s, "sof tushum", m) or Decimal(
+        str((s.get("months") or {}).get(m, {}).get("revenue") or 0)
+    )
+    opex = Decimal(10) * 30 * Decimal(1100) + Decimal(100_000)
+    pay = (s.get("details") or {}).get("payroll", {}).get(m) or {}
+    cooks = [
+        max(Decimal(str(v[5])) if len(v) > 5 else Decimal(0), Decimal(str(v[2])))
+        for k, v in pay.items()
+        if "lavash" in str(v[0]).lower()
+    ]
+    cook = (min(cooks) if cooks else Decimal(3_300_000)) + h.meals
+    gain = (rev * Decimal("0.075") * h.hall_margin).quantize(
+        Decimal(1)
+    )  # lost orders returned at full capacity (estimate)
+    net_full = gain - opex - cook
+    payback = (price / net_full).quantize(Decimal("0.1")) if net_full > 0 else None
+    buy = h.hire_month or "—"
+    sat_pct = int((h.sat_checks / 90 * 100).quantize(Decimal(1)))
+    full_now = sat_pct >= 95 or h.lost_days_recent > 0 or replace
+    inst_m = ((price * Decimal("0.8")) * (1 + Decimal("0.2") * 6 / 12) / 6).quantize(Decimal(1))
+    inst_over = (price * Decimal("0.8") * Decimal("0.2") * 6 / 12).quantize(Decimal(1))
+    loan_m = _annuity(price, Decimal("0.24"), 12).quantize(Decimal(1))
+    loan_over = loan_m * 12 - price
+    dep = (price / 84).quantize(Decimal(1))
+    if full_now:
+        verdict = f"Oling — quvvat to'lgan ({sat_pct}%), {equipment} darhol investitsiya: oyiga +{MLN(net_full)}, ~{str(payback or '—').replace('.', ',')} oyda qoplaydi."
+        hl = "Kassa uchun bo'lib to'lash (20% + 6 oy) eng xavfsiz."
+    else:
+        verdict = f"Hozir olsangiz — zarariga ishlaydi: oshxona hali to'lmagan (shanba {sat_pct}%)."
+        hl = f"{equipment.capitalize()} {buy} da investitsiyaga aylanadi: oyiga +{MLN(net_full)} va ~{str(payback or '—').replace('.', ',')} oyda qoplaydi. Hozirdan jamg'aring."
+    rows_fin = [
+        ["✅ Jamg'arma", "0", "—", "—", "0", S(net_full)],
+        [
+            "Bo'lib to'lash (20% + 6 oy)",
+            N(price * Decimal("0.2"), 1000),
+            N(inst_m, 1000),
+            "6 oy",
+            N(inst_over, 1000),
+            S(net_full - inst_m),
+        ],
+        [
+            "Bank krediti (24%, 12 oy)",
+            "0",
+            N(loan_m, 1000),
+            "12 oy",
+            N(loan_over, 1000),
+            S(net_full - loan_m),
+        ],
+    ]
+    report = {
+        "type": "report",
+        "id": "q3_equipment_investment",
+        "intent": "equipment_investment",
+        "period": month_label(m),
+        "verdict": verdict,
+        "verdict_highlight": hl,
+        "source": "Smena (shanba cheklari, izohlar) · Foyda-zarar · Ish haqi (lavash ustasi) · Menyu",
+        "kpis": [
+            {
+                "label": "Hozir olsangiz",
+                "value": S(net_full) if full_now else "−" + N(opex, 1000),
+                "sub": "so'm/oy",
+                "tone": "good" if full_now else "bad",
+            },
+            {
+                "label": "Olish vaqti",
+                "value": "Hozir" if full_now else buy,
+                "sub": "shanba yuklamasi 95% ga yetganda",
+            },
+            {
+                "label": "O'shanda foyda",
+                "value": S(net_full),
+                "sub": "so'm/oy · ustasi bilan",
+                "tone": "good",
+            },
+            {
+                "label": "Qoplash",
+                "value": f"~{str(payback).replace('.', ',')} oy" if payback else "—",
+                "sub": "",
+            },
+        ],
+        "sections": [
+            {
+                "id": "now_table",
+                "title": "Hozir olsangiz nima bo'ladi",
+                "table": {
+                    "columns": ["", "Oyiga"],
+                    "rows": [
+                        ["Qo'shimcha savdo", "~0 (quvvat yetarli)" if not full_now else S(gain)],
+                        ["Elektr + servis", "−" + N(opex, 1000)],
+                        [f"Amortizatsiya ({MLN(price)} ÷ 84 oy)", "−" + N(dep, 1000)],
+                    ],
+                },
+            },
+            {
+                "id": "may_table",
+                "title": f"{buy if not full_now else 'Hozir'} olsangiz (quvvat to'lganda)",
+                "table": {
+                    "columns": ["", "Oyiga"],
+                    "rows": [
+                        ["Qo'shimcha yalpi foyda (taxmin: tushumning 7,5%)", S(gain)],
+                        ["Elektr + servis", "−" + N(opex, 1000)],
+                        ["Yangi lavash ustasi (oylik + ovqat)", "−" + N(cook, 1000)],
+                        ["**Sof naqd natija**", f"**{S(net_full)}**"],
+                    ],
+                },
+            },
+            {
+                "id": "financing",
+                "title": f"Pul yetmasa — qanday olish ({MLN(price)})",
+                "table": {
+                    "columns": [
+                        "Variant",
+                        "Hozir to'laysiz",
+                        "Oyiga",
+                        "Muddati",
+                        "Ortiqcha to'lov",
+                        "Apparat foydasidan keyin oyiga",
+                    ],
+                    "rows": rows_fin,
+                },
+            },
+            {
+                "id": "actions",
+                "title": "Nima qilish kerak",
+                "actions": (
+                    ["**Oling**, bo'lib to'lashga."]
+                    if full_now
+                    else ["**Hozir olmang.**", f"**Jamg'arma:** {buy} gacha har oy jamg'aring."]
+                )
+                + [
+                    '**Signal:** shanba cheklari 85 dan oshsa yoki "ulgurmadi" kunlari oyiga 2 tadan ko\'paysa — AI xabar beradi.',
+                    "**Apparat bilan birga lavash ustasi** oling.",
+                ],
+            },
+        ],
+        "assumptions": "Taxminlar: oshxona quvvati 90 chek/kun · elektr 10 kVt·soat/kun × 1 100 · servis 100 000/oy · qo'shimcha foyda — tushumning 7,5% (taxmin) · bo'lib to'lash ~20%/yil · kredit 24%.",
+    }
+    speech = [
+        {"cue": "verdict+kpi", "text": f"Qisqasi: {verdict}"},
+        {
+            "cue": "may_table",
+            "text": f"Quvvat to'lganda oyiga {say(net_full, 100_000)} foyda beradi.",
+        },
+        {"cue": "financing", "text": f"Kreditga olsangiz oyiga {say(loan_m, 100_000)} to'laysiz."},
+        {"cue": "approve_button", "text": "Rejani tasdiqlaysizmi?"},
+    ]
+    md = "\n".join(
+        [
+            f"**Xulosa: {verdict} {hl}**",
+            "",
+            "CHIPS: Eski apparat buzilsa-chi? | Kreditga olsam? | Bo'lib to'lasam oyiga qancha?",
+        ]
+    )
+    due = ctx.base.today if not ctx.base.insufficient_data else None
+    plan_obj = propose(
+        ctx,
+        "reminder",
+        {"summary": f"{equipment}: jamg'arma + signal kuzatuvi (shanba ≥ 85)", "note": "golden:Q3"},
+        (due + timedelta(days=30)) if due else None,
+    )
+    return envelope(
+        ok=True,
+        facts={"net_full": S(net_full), "buy": buy, "loan_m": N(loan_m)},
+        md=md,
+        say=" ".join(x["text"] for x in speech),
+        speech_segments=speech,
+        speech_short=speech[0]["text"],
+        ui_blocks=[report],
+        proposed_plan=plan_obj,
+        answer={"headline": f"{verdict} {hl}", "reason": ""},
+    )
+
+
+EQUIP = (
+    "lavash apparat",
+    "lavash stansiya",
+    "stansiya",
+    "shaurma apparat",
+    "fritur",
+    "gril",
+    "pech",
+    "muzlatgich",
+    "apparat",
+    "jihoz",
+    "uskuna",
+)
+
+
+def _q3_params(t: str) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    e = next((x for x in EQUIP if x in t), None)
+    if e:
+        out["equipment"] = {
+            "lavash apparat": "lavash apparati",
+            "lavash stansiya": "lavash apparati",
+            "stansiya": "lavash apparati",
+            "apparat": "lavash apparati",
+        }.get(e, e)
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(mln|million|millionga|mlnga)", t)
+    if m:
+        out["price"] = int(float(m.group(1).replace(",", ".")) * 1_000_000)
+    if re.search(r"buzil|almashtir", t):
+        out["reason"] = "almashtirish"
+    if re.search(r"bo'lib\s+to'la", t):
+        out["financing"] = "installment"
+    elif re.search(r"kredit", t):
+        out["financing"] = "loan"
+    return out
+
+
 # --- registry -----------------------------------------------------------------------------------
 @dataclass
 class Intent:
@@ -1335,6 +1593,16 @@ def _q1_params(t: str) -> dict[str, Any]:
 
 
 INTENTS = [
+    Intent(
+        "equipment_investment",
+        "golden/Q3_lavash_aparat_olsam.md",
+        "equipment_investment",
+        re.compile(
+            r"(apparat|stansiya|fritur|gril|pech|muzlatgich|jihoz|uskuna)\w*.{0,60}(olsam|olmoqchi|olay|sarflasam|arziydi|qoplaydi|investitsiya|zarar|kreditga|bo'lib)|(apparat|stansiya)\w*\s+olganim",
+            re.I,
+        ),
+        _q3_params,
+    ),
     Intent(
         "revenue_growth_plan",
         "golden/Q4_daromad_10_foiz_strategiya.md",
@@ -1411,6 +1679,23 @@ def last_intent(conversation_id: int) -> str | None:
 
 
 GOLDEN_TOOLS = [
+    Tool(
+        "equipment_investment",
+        "Uskuna/apparat (lavash apparati, fritur, gril, pech...) X so'mga olsam investitsiyami yoki zarariga ishlaydimi (golden Q3): bo'sh quvvat, qachon olish, foyda va qoplash, J-egri chiziq, jamg'arma / bo'lib to'lash / kredit.",
+        {
+            "type": "object",
+            "properties": {
+                "price": {"type": "integer", "minimum": 100000},
+                "equipment": {"type": "string", "maxLength": 60},
+                "reason": {
+                    "type": "string",
+                    "enum": ["quvvat", "almashtirish", "yangi mahsulot", "ish haqi"],
+                },
+                "financing": {"type": "string", "enum": ["own", "installment", "loan"]},
+            },
+        },
+        equipment_investment_tool,
+    ),
     Tool(
         "revenue_growth_plan",
         "Daromadni qisqa muddatda X% (standart 10%) oshirish strategiyasi (golden Q4): 5 ta richag (narx, qo'shimcha sotuv, lanch-set, reklama), tushum va foyda, 8 haftalik reja, dalillar.",

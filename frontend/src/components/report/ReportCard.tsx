@@ -28,6 +28,7 @@ export interface ReportChart {
   steps?: { label: string; value: number }[];
   target_line?: number;
   ref_lines?: { y: number; label: string; color: string }[];
+  marker?: { x: string; label: string };
   group_colors?: Record<string, string>;
   x_labels?: string[];
   zero_line?: boolean;
@@ -190,6 +191,7 @@ function LineMulti({ c }: { c: ReportChart }) {
             <ReferenceLine key={r.label} y={r.y} stroke={r.color} strokeDasharray="5 4" label={{ value: r.label, position: "insideTopLeft", fontSize: 11, fill: r.color }} />
           ))}
           {c.zero_line && <ReferenceLine y={0} stroke="#98A2B3" />}
+          {c.marker && <ReferenceLine x={c.marker.x} stroke="#0F766E" label={{ value: c.marker.label, position: "insideTopRight", fontSize: 11, fill: "#0F766E" }} />}
           {series.map((s) => (
             <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2.5} dot={!!c.ref_lines} />
           ))}
