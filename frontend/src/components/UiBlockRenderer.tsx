@@ -13,6 +13,7 @@ import { CompareBars, type CompareRow } from "./CompareBars";
 import { KpiCard } from "./KpiCard";
 import { RichText } from "./RichText";
 import { VerdictHeader } from "./VerdictHeader";
+import { BlockBoundary } from "@/components/ErrorFallbacks";
 
 const ForecastChart = lazy(() => import("./ForecastChart"));
 
@@ -167,7 +168,9 @@ export function UiBlockRenderer({ blocks, handlers }: { blocks: UiBlock[]; handl
   return (
     <div className="flex flex-col gap-4">
       {blocks.map((b) => (
-        <UiBlockView key={b.id} block={b} handlers={handlers} />
+        <BlockBoundary key={b.id}>
+          <UiBlockView block={b} handlers={handlers} />
+        </BlockBoundary>
       ))}
     </div>
   );

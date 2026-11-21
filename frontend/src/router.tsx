@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, type RouteObject } from "react-router-dom";
 
 import { PublicOnly, RequireAuth } from "./lib/auth";
 import LandingPage from "./pages/Landing";
@@ -7,6 +7,7 @@ import LoginPage from "./pages/Login";
 import MainPage from "./pages/Main";
 import Placeholder from "./pages/Placeholder";
 import RegisterPage from "./pages/Register";
+import { RouteError } from "@/components/ErrorFallbacks";
 
 // Route-level code splitting (spec §6): heavy pages and voice code load on demand.
 const ForecastPage = lazy(() => import("./pages/Forecast"));
@@ -40,7 +41,7 @@ const onboarding = (node: ReactNode) => (
 
 const publicOnly = (node: ReactNode) => <PublicOnly>{node}</PublicOnly>;
 
-export const router = createBrowserRouter([
+const ROUTES: RouteObject[] = [
   { path: "/", element: publicOnly(<LandingPage />) },
   { path: "/login", element: publicOnly(<LoginPage />) },
   { path: "/register", element: publicOnly(<RegisterPage />) },
@@ -57,4 +58,7 @@ export const router = createBrowserRouter([
   { path: "/live", element: authed(<LivePage />) },
   { path: "/dev/voice", element: <Lazy><DevVoice /></Lazy> },
   { path: "*", element: authed(<Placeholder active="main" title="Sahifa topilmadi" />) },
-]);
+];
+
+// every route: a friendly Uzbek error page instead of the developer one
+export const router = createBrowserRouter(ROUTES.map((r) => ({ ...r, errorElement: <RouteError /> })));

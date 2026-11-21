@@ -556,7 +556,7 @@ def get_expenses(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     {
                         "label": CATEGORY_UZ.get(c, c),
                         "text": uz.format_mln(v),
-                        "severity": "warning" if i < 3 else "info",
+                        "severity": "warning" if i < 3 else "success",
                     }
                     for i, (c, v) in enumerate(cats[:8])
                 ],

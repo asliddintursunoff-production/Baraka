@@ -18,7 +18,7 @@ export function ActionSteps({ items, compact = false }: { items: StepItem[]; com
   return (
     <ol className="m-0 flex list-none flex-col gap-[10px] p-0">
       {items.map((s, i) => {
-        const tone = TONE[s.severity ?? "success"];
+        const tone = TONE[s.severity ?? "success"] ?? TONE.success; // unknown severity: neutral, never crash
         return (
           <li
             key={i}
