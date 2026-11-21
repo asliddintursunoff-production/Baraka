@@ -31,6 +31,7 @@ from apps.knowledge.models import MemoryItem
 from apps.telemetry import timing
 from apps.tenancy.api import BusinessAPIView
 from apps.tenancy.context import today_for
+from apps.tenancy.models import Business
 
 from . import advice
 from .forecasting import CachedForecast, get_forecast
@@ -169,7 +170,9 @@ def _news() -> list[dict[str, str]]:
     return out
 
 
-def _kpis(base: ForecastResult, today: date) -> list[dict[str, str]]:
+def _kpis(
+    base: ForecastResult, today: date, real_today: date | None = None
+) -> list[dict[str, str]]:
     d30, d60 = today - timedelta(days=29), today - timedelta(days=59)
     agg = Transaction.objects.filter(
         txn_date__gte=d60, txn_date__lte=today, is_actual=True
@@ -198,7 +201,9 @@ def _kpis(base: ForecastResult, today: date) -> list[dict[str, str]]:
             "label": "Hozir qo'lingizdagi pul",
             "value": uz.format_mln_number(base.close_on(base.today)),
             "unit": "mln so'm",
-            "note": "Naqd + bank hisobi",
+            "note": "Naqd + bank hisobi"
+            if not real_today or real_today <= base.today + timedelta(days=1)
+            else f"{uz.format_date(base.today)} holati",
             "tone": "muted",
         },
         {
@@ -280,6 +285,18 @@ def _monthly(today: date) -> list[dict[str, str]]:
     return out
 
 
+def _freshness(b: Business) -> dict[str, Any] | None:
+    q = b.data_quality or {}
+    if b.is_demo or not q.get("stale"):
+        return None
+    return {
+        "as_of": q.get("as_of"),
+        "missing_from": q.get("missing_from"),
+        "missing_to": q.get("missing_to"),
+        "text": q.get("text", "")[:1].upper() + q.get("text", "")[1:],
+    }
+
+
 class DashboardView(BusinessAPIView):
     requires_data = True  # 409 no_data until a source is synced
 
@@ -297,7 +314,10 @@ class DashboardView(BusinessAPIView):
                 "sync": _sync_status(b.pk),
                 "alerts": {"new": Alert.objects.filter(status="new").count()},
                 "banner": {"label": f"Bugungi maslahat · {snap_time}", **advice.banner(base)},
-                "kpis": _kpis(base, today),
+                "kpis": _kpis(
+                    base, base.today, today
+                ),  # as of the last actual day when data is stale
+                "freshness": _freshness(b),
                 "forecast": forecast_block(base),
                 "steps": advice.steps(base),
                 "news": _news(),

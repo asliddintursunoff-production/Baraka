@@ -16,6 +16,7 @@ import {
 import { ErrorState, PageSkeleton } from "@/components/States";
 import { apiGet } from "@/lib/api";
 import type { SourcesPage } from "@/lib/sourcesTypes";
+import { type QualityPayload, ReconPanel } from "@/components/Reconciliation";
 
 function normalize(d: Partial<SourcesPage>): SourcesPage {
   return {
@@ -77,6 +78,7 @@ export default function SourcesPageView() {
       ) : (
         <>
           <SyncStatusCard data={d} onSynced={onSynced} />
+          <ReconPanel q={(d as { quality?: QualityPayload }).quality} />
           <div className="flex flex-wrap items-start gap-5">
             <FilesTable files={d.files} />
             {(d.issues.length > 0 || d.log.length > 0) && (

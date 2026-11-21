@@ -21,6 +21,26 @@ from .models import Business
 NO_DATA_BODY = {"code": "no_data", "message": "Avval jadvallaringizni ulang."}
 
 
+class NeedsReview(APIException):
+    status_code = 409
+    default_code = "needs_review"
+
+    def __init__(self, b: Business) -> None:
+        super().__init__(detail=review_body(b))
+
+
+def review_body(b: Business) -> dict[str, Any]:
+    q = b.data_quality or {}
+    from apps.ingestion.quality import summary_line
+
+    return {
+        "code": "needs_review",
+        "message": summary_line(q) or "Ma'lumotni tekshirish kerak.",
+        "recon": [r for r in q.get("recon", []) if not r.get("ok")][:8],
+        "flags": q.get("flags", []),
+    }
+
+
 class NoData(APIException):
     status_code = 409
     default_code = "no_data"
@@ -48,13 +68,20 @@ def history_days(b: Business) -> int:
 
 
 def data_status(b: Business | None) -> str:
+    """no_data | needs_review | short_history | ok (demo businesses are always ok)."""
     if b is None:
         return "no_data"
     if b.is_demo:
         return "ok"
     if not has_synced_source(b):
         return "no_data"
-    return "short_history" if history_days(b) < cfg.MIN_HISTORY_DAYS else "ok"
+    q = b.data_quality or {}
+    days = history_days(b)
+    if q.get("status") == "no_data" or days == 0:
+        return "no_data"  # e.g. an empty template: no numbers anywhere
+    if q.get("status") == "needs_review":
+        return "needs_review"  # does not reconcile / implausible: no forecasts, no advice
+    return "short_history" if days < cfg.MIN_HISTORY_DAYS else "ok"
 
 
 def onboarding_step(b: Business | None) -> str:
@@ -75,14 +102,24 @@ def onboarding_step(b: Business | None) -> str:
 
 
 def require_data(b: Business) -> None:
-    if data_status(b) == "no_data":
+    st = data_status(b)
+    if st == "no_data":
         raise NoData
+    if st == "needs_review":
+        raise NeedsReview(b)
 
 
 def status_payload(b: Business | None) -> dict[str, Any]:
     st = data_status(b)
+    q = (b.data_quality or {}) if b is not None and not b.is_demo else {}
     return {
         "onboarding_step": onboarding_step(b),
         "data_status": st,
         "history_days": history_days(b) if b is not None and st != "no_data" else 0,
+        "freshness": {
+            k: q.get(k)
+            for k in ("as_of", "stale", "missing_from", "missing_to", "missing_days", "text")
+        }
+        if q.get("as_of")
+        else None,
     }

@@ -25,6 +25,8 @@ class DataSource(TenantScopedModel):
     auto_sync = models.BooleanField(default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
+    # accounting figures computed from the file (financial-model workbooks): months, loan, balances
+    summary = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

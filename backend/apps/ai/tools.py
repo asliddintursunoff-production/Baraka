@@ -212,6 +212,19 @@ def insufficient() -> dict[str, Any]:
     )
 
 
+def freshness_note(business: Business) -> str:
+    """ "31-oktabr holati; 1–21-noyabr kunlik hisobotlari hali kiritilmagan" (stale data only)."""
+    q = business.data_quality or {}
+    return str(q.get("text") or "") if q.get("stale") and not business.is_demo else ""
+
+
+def cash_prefix(business: Business) -> str:
+    q = business.data_quality or {}
+    if q.get("stale") and not business.is_demo and q.get("as_of"):
+        return f"{uz.format_date(date.fromisoformat(q['as_of']))} holatiga kassada"
+    return "Hozir kassada"
+
+
 def explain_lines(ctx: ToolContext, *extra: str) -> list[str]:
     n_crit = sum(
         1
@@ -222,6 +235,17 @@ def explain_lines(ctx: ToolContext, *extra: str) -> list[str]:
         f"Sizning {ctx.history_months()} oylik jadvalingiz va {n_crit} ta majburiy to'lov sanasi",
         "Har bir kunning qoldig'i alohida hisoblandi, AI raqamni o'zi o'ylab topmaydi",
     ]
+    q = ctx.business.data_quality or {}
+    if q.get("first_date") and q.get("last_date"):
+        a, b = date.fromisoformat(q["first_date"]), date.fromisoformat(q["last_date"])
+        lines.append(f"Ma'lumot davri: {uz.format_date(a)} – {uz.format_date(b)} {b.year}")
+    if q.get("recon"):
+        lines.append(
+            "Faylning o'z hisobotlari (Pul oqimi, Foyda-zarar) bilan solishtirildi: "
+            + ("hammasi mos ✓" if q.get("recon_ok") else "mos kelmagan oylar bor ✗")
+        )
+    if note := freshness_note(ctx.business):
+        lines.append(note[0].upper() + note[1:])
     return lines + [e for e in extra if e]
 
 
@@ -280,10 +304,10 @@ def cash_only(ctx: ToolContext) -> dict[str, Any]:
                 for o in pays
             ],
         },
-        say=f"Hozir kassada {uz.speech_amount(cash)} bor. {note}",
+        say=f"{cash_prefix(ctx.business)} {uz.speech_amount(cash)} bor. {note}",
         answer={
             "verdict": "info",
-            "headline": f"Hozir kassada {uz.format_mln(cash)}",
+            "headline": f"{cash_prefix(ctx.business)} {uz.format_mln(cash)}",
             "reason": reason,
             "steps": [],
         },
@@ -300,7 +324,7 @@ def get_cash_status(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     words = advice.join_uz([advice.payment_word(p) for p in pays])
     s60 = advice.horizon_summary(base, 60)
     say = (
-        f"Hozir kassada {uz.speech_amount(cash)} bor. "
+        f"{cash_prefix(ctx.business)} {uz.speech_amount(cash)} bor. "
         f"Eng qiyin kun {uz.uz_ordinal_date(d)}, o'shanda {uz.speech_amount(low)} qoladi."
     )
     headline = (
@@ -337,7 +361,7 @@ def get_cash_status(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         ],
         answer={
             "verdict": base.verdict or "info",
-            "headline": f"Hozir kassada {uz.format_mln(cash)} bor.",
+            "headline": f"{cash_prefix(ctx.business)} {uz.format_mln(cash)} bor.",
             "reason": f"{headline} Eng qiyin kun — **{uz.format_date(d)}**: kassada {uz.format_mln(low)} qoladi"
             + (f" ({words})." if words else "."),
             "steps": [

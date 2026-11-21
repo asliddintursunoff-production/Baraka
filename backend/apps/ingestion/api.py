@@ -223,8 +223,35 @@ class SourcesView(BusinessAPIView):
                     }
                     for r in runs
                 ],
+                "quality": _quality_payload(self.business),
             }
         )
+
+
+def _quality_payload(b: Any) -> dict[str, Any]:
+    """Reconciliation panel: per month computed vs the file's own report, plus failed checks."""
+    from apps.ai import uz_format as uz
+
+    q = b.data_quality or {}
+    rows = []
+    for r in q.get("recon", []):
+        m = date.fromisoformat(r["month"])
+        rows.append(
+            {
+                "month": f"{uz.MONTHS[m.month - 1].capitalize()} {m.year}",
+                "metric": r.get("label") or r["metric"],
+                "computed": uz.format_mln(Decimal(r["computed"])),
+                "reported": uz.format_mln(Decimal(r["reported"])),
+                "ok": bool(r["ok"]),
+            }
+        )
+    return {
+        "status": q.get("status"),
+        "freshness": q.get("text") if q.get("stale") else "",
+        "period": [q.get("first_date"), q.get("last_date")],
+        "recon": rows,
+        "flags": [f["text"] for f in q.get("flags", [])],
+    }
 
 
 class RemapView(BusinessAPIView):

@@ -25,7 +25,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from django.db.models import Max
+from django.db.models import Max, Q
 
 from apps.finance.models import CashAccount, Obligation, Transaction
 
@@ -239,6 +239,9 @@ def _facts(
             "paid_from": ("darhol to'langan",),
             "paid": ("to'lov so'm",),
             "product": ("mahsulot",),
+            "received": ("qabul so'm",),
+            "naqd_pos": ("naqd pos",),
+            "naqd_till": ("naqd kassaga",),
         }.items()
     }
 
@@ -253,13 +256,35 @@ def _facts(
     ]
     for offset, row in enumerate(sheet.rows[h + 1 :]):
         row_no = h + 2 + offset
+        fields: dict[str, Any]
         d = _date(cell(row, "date"), ing.today)
         if d is None:
             continue
         if kind == KASSA:
             turi = str(cell(row, "turi") or "")
             signed = parse_amount(cell(row, "signed"))
-            if text_key(turi).startswith("o'tkazma") or not signed:
+            if text_key(turi).startswith("o'tkazma"):
+                # transfer between own accounts: only a difference (fee / exchange) is real money
+                received = parse_amount(cell(row, "received"))
+                net = (
+                    (received + signed)
+                    if (received is not None and signed is not None)
+                    else Decimal(0)
+                )
+                if abs(net) < 1:
+                    continue
+                fields = {
+                    "amount": abs(net),
+                    "direction": "in" if net > 0 else "out",
+                    "category": "bank komissiyasi",
+                    "counterparty": None,
+                    "method": str(cell(row, "hisob") or "")[:32],
+                    "note": "O'tkazma farqi",
+                }
+                fields["txn_date"] = d
+                out.append((row_no, row, fields))
+                continue
+            if not signed:
                 continue
             modda = str(cell(row, "modda") or "")
             fields = {
@@ -282,6 +307,9 @@ def _facts(
                     (parse_amount(row[i]) or Decimal(0) for i in pay_cols if i < len(row)),
                     Decimal(0),
                 )
+            pos, till = parse_amount(cell(row, "naqd_pos")), parse_amount(cell(row, "naqd_till"))
+            if total is not None and pos is not None and till is not None:
+                total = total - pos + till  # the counted cash that really went into the till
             if not total or total <= 0:
                 continue
             fields = {
@@ -454,8 +482,10 @@ def project_recurring(ing: Ingestor) -> None:
         key = (r["category"], r["counterparty_id"] if r["category"] in ("rent", "loan") else None)
         groups[key][r["txn_date"].replace(day=1)].append((r["txn_date"].day, r["amount"]))
         names[key] = r["counterparty__name"] or ""
-    today = ing.today
+    # stale data: payments due since the last actual day are part of the forecast (estimates)
+    today = min(ing.today, last)
     horizon = today + timedelta(days=125)
+    loan = loan_info(ing.source.pk)
 
     def make() -> list[Obligation]:
         out: list[Obligation] = []
@@ -463,6 +493,8 @@ def project_recurring(ing: Ingestor) -> None:
             if len(per_month) < 2:
                 continue
             cat, cp_id = key
+            if cat == "loan" and loan:
+                continue  # scheduled from the loan terms below
             amount = Decimal(
                 statistics.median([sum((a for _, a in v), Decimal(0)) for v in per_month.values()])
             ).quantize(Decimal(1))
@@ -493,6 +525,256 @@ def project_recurring(ing: Ingestor) -> None:
                         )
                     )
                 m = _month_add(m, 1)
+        if loan and Decimal(loan["balance"]) > 0:
+            balance = Decimal(loan["balance"])
+            principal = Decimal(loan["principal_monthly"] or 0)
+            rate = Decimal(loan["rate_pct"] or 0) / 1200
+            last_interest = Decimal(loan["last_interest"] or 0)
+            m = today.replace(day=1)
+            for _ in range(PROJECT_MONTHS + 1):
+                due = m.replace(day=min(loan["pay_day"], calendar.monthrange(m.year, m.month)[1]))
+                if today < due <= horizon and balance > 0:
+                    interest = (balance * rate).quantize(Decimal(1)) if rate else last_interest
+                    pay = min(principal, balance)
+                    out.append(
+                        Obligation(
+                            business=ing.business,
+                            title=f"Kredit to'lovi · {loan['lender']}"[:160],
+                            amount=pay + interest,
+                            due_date=due,
+                            category="loan",
+                            status="planned",
+                            source="sheet",
+                            priority="critical",
+                            recurrence={
+                                "pattern": "loan",
+                                "principal": str(pay),
+                                "interest": str(interest),
+                            },
+                        )
+                    )
+                    balance -= pay
+                m = _month_add(m, 1)
         return out
 
     ing._regenerate("Kassa · takroriy to'lovlar", make)
+
+
+# --- loan, monthly summary and reconciliation ---------------------------------------------------
+MONTH_ABBR = ("yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek")
+RECON_TOLERANCE = Decimal("0.01")  # 1 %
+
+
+def _num(v: Any) -> Decimal:
+    return parse_amount(v) or Decimal(0)
+
+
+def loan_info(source_id: int) -> dict[str, Any] | None:
+    """Bank loan from Kassa rows: received / repaid / interest, terms parsed from the note."""
+    import re
+
+    rows = list(
+        Transaction.objects.filter(raw_row__source_id=source_id)
+        .filter(Q(note__istartswith="Kredit") | Q(category="loan"))
+        .values("txn_date", "direction", "amount", "note", "counterparty__name")
+        .order_by("txn_date")
+    )
+    received = [r for r in rows if r["direction"] == "in" and "olindi" in r["note"].lower()]
+    if not received:
+        return None
+    repaid = [r for r in rows if r["direction"] == "out" and "qaytarildi" in r["note"].lower()]
+    interest = [r for r in rows if r["direction"] == "out" and "foiz" in r["note"].lower()]
+    note = " ".join(r["note"] for r in received)
+    term = re.search(r"(\d+)\s*oy(?!\s*imtiyoz)", note)
+    rate = re.search(r"(\d+(?:[.,]\d+)?)\s*%", note)
+    grace = re.search(r"(\d+)\s*oy\s*imtiyoz", note)
+    total_in = sum((r["amount"] for r in received), Decimal(0))
+    total_repaid = sum((r["amount"] for r in repaid), Decimal(0))
+    principal = Decimal(statistics.median([r["amount"] for r in repaid])) if repaid else Decimal(0)
+    pay_day = (interest[-1] if interest else repaid[-1] if repaid else received[0])["txn_date"].day
+    return {
+        "lender": received[0]["counterparty__name"] or "Bank",
+        "received": str(total_in),
+        "repaid": str(total_repaid),
+        "balance": str(total_in - total_repaid),
+        "principal_monthly": str(principal),
+        "rate_pct": rate.group(1).replace(",", ".") if rate else None,
+        "term_months": int(term.group(1)) if term else None,
+        "grace_months": int(grace.group(1)) if grace else None,
+        "last_interest": str(interest[-1]["amount"]) if interest else None,
+        "pay_day": pay_day,
+        "first_date": received[0]["txn_date"].isoformat(),
+    }
+
+
+def _month_cols(rows: list[list[Any]]) -> tuple[int, dict[int, date]] | None:
+    """The header row whose cells are months ("Yan 2026" or dates): row index, {col: month}."""
+    import re
+
+    for i, row in enumerate(rows[:8]):
+        cols: dict[int, date] = {}
+        for j, v in enumerate(row):
+            k = text_key(v) if isinstance(v, str) else ""
+            m = re.match(r"^(" + "|".join(MONTH_ABBR) + r")\w*\s+(\d{4})$", k)
+            if m:
+                cols[j] = date(int(m.group(2)), MONTH_ABBR.index(m.group(1)) + 1, 1)
+        if len(cols) >= 6:
+            return i, cols
+    return None
+
+
+def _report_row(sheet: SheetData | None, *starts: str) -> dict[date, Decimal]:
+    """Values by month of the first row whose label starts with one of `starts`."""
+    if sheet is None:
+        return {}
+    found = _month_cols(sheet.rows)
+    if not found:
+        return {}
+    _, cols = found
+    for row in sheet.rows:
+        label = next((text_key(v) for v in row[:3] if isinstance(v, str) and v.strip()), "")
+        if label and any(label.startswith(s) for s in starts):
+            return {m: _num(row[j]) for j, m in cols.items() if j < len(row)}
+    return {}
+
+
+def _sheet(sheets: list[SheetData], *prefixes: str) -> SheetData | None:
+    return next((s for s in sheets if any(text_key(s.title).startswith(p) for p in prefixes)), None)
+
+
+def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str, Any]:
+    """Month-by-month figures from the cash ledger and the journals, reconciled with the
+    workbook's own reports (Pul oqimi / Balans / Foyda-zarar), tolerance 1 %."""
+    txns = list(
+        Transaction.objects.filter(raw_row__source_id=source_id, is_actual=True).values(
+            "txn_date", "direction", "category", "amount", "note"
+        )
+    )
+    if not txns:
+        return {"months": {}, "recon": [], "last_date": None}
+    cash = CashAccount.objects.order_by("-as_of_date").first()
+    months: dict[date, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    for t in txns:
+        m = t["txn_date"].replace(day=1)
+        a = t["amount"]
+        f = months[m]
+        f["net"] += a if t["direction"] == "in" else -a
+        note = t["note"].lower()
+        if t["direction"] == "out":
+            if t["category"] == "payroll":
+                f["payroll_paid"] += a
+            if note.startswith("yetkazib beruvchiga"):
+                f["supplier_payments"] += a
+            if t["category"] == "kommunal":
+                f["utilities"] += a
+            if "kredit foizi" in note:
+                f["loan_interest"] += a
+            if "qaytarildi" in note:
+                f["loan_principal"] += a
+            if t["category"] == "kunbay":
+                f["day_labour"] += a
+    last = max(t["txn_date"] for t in txns)
+    first = min(t["txn_date"] for t in txns)
+    running = Decimal(cash.opening_balance) if cash else Decimal(0)
+    for m in sorted(months):
+        running += months[m]["net"]
+        months[m]["cash_end"] = running
+    # journals: revenue (Smena Z-report), payroll accrual (Ish haqi brutto + day labour), transfers
+    smena, ish, kassa = _sheet(sheets, "smena"), _sheet(sheets, "ish haqi"), _sheet(sheets, "kassa")
+    for sh, date_col, val_col, key in (
+        (smena, "sana", "z hisobot", "revenue"),
+        (ish, "oy oxiri", "hisoblangan brutto", "payroll_accrued"),
+    ):
+        if sh is None:
+            continue
+        hv = _find_header(sh.rows, val_col)
+        if hv is None:
+            continue
+        header = sh.rows[hv]
+        ic, iv = _col(header, date_col), _col(header, val_col)
+        if ic is None or iv is None:
+            continue
+        for row in sh.rows[hv + 1 :]:
+            dd = _date(row[ic] if ic < len(row) else None, today)
+            if dd and iv < len(row):
+                months[dd.replace(day=1)][key] += _num(row[iv])
+    for m in months:
+        months[m]["payroll_accrued"] += months[m]["day_labour"]
+    if kassa is not None and (hk := _find_header(kassa.rows, "sana", "turi", "modda")) is not None:
+        header = kassa.rows[hk]
+        ic, it, ia = (
+            _col(header, "sana"),
+            _col(header, "turi"),
+            _col(header, "summa hisob valyutasida", "summa"),
+        )
+        for row in kassa.rows[hk + 1 :]:
+            dd = _date(row[ic] if ic is not None and ic < len(row) else None, today)
+            if (
+                dd
+                and it is not None
+                and it < len(row)
+                and text_key(row[it] or "").startswith("o'tkazma")
+                and ia is not None
+            ):
+                months[dd.replace(day=1)]["transfers"] += abs(_num(row[ia]))
+    # balances with counterparties (Kontragentlar: positive = we owe, negative = they owe us)
+    balances: list[dict[str, str]] = []
+    kontr = _sheet(sheets, "kontragent")
+    if kontr is not None and (hc := _find_header(kontr.rows, "nomi", "turi")) is not None:
+        header = kontr.rows[hc]
+        mc = _month_cols(kontr.rows)
+        col_last = next(
+            (j for j, m in (mc[1].items() if mc else []) if m == last.replace(day=1)), None
+        )
+        i_name, i_type, i_saldo = _col(header, "nomi"), _col(header, "turi"), _col(header, "saldo")
+        for row in kontr.rows[hc + 1 :]:
+            name = row[i_name] if i_name is not None and i_name < len(row) else None
+            j = col_last if col_last is not None else i_saldo
+            if not name or j is None or j >= len(row):
+                continue
+            bal = _num(row[j])
+            if bal:
+                balances.append(
+                    {
+                        "name": str(name),
+                        "type": str(row[i_type] or "")
+                        if i_type is not None and i_type < len(row)
+                        else "",
+                        "balance": str(bal),
+                    }
+                )
+    # reports and reconciliation
+    reported = {
+        "cash_end": _report_row(_sheet(sheets, "pul oqimi"), "hisoblar bo'yicha qoldiq")
+        or _report_row(_sheet(sheets, "balans"), "pul mablag"),
+        "revenue": _report_row(_sheet(sheets, "foyda"), "sof tushum"),
+        "payroll_accrued": _report_row(_sheet(sheets, "foyda"), "ish haqi"),
+    }
+    recon = []
+    for metric, rep_by_month in reported.items():
+        for m, rv in sorted(rep_by_month.items()):
+            if m > last.replace(day=1) or m < first.replace(day=1):
+                continue
+            cv = months.get(m, {}).get(metric, Decimal(0))
+            ok = abs(cv - rv) <= max(abs(rv) * RECON_TOLERANCE, Decimal(1000))
+            recon.append(
+                {
+                    "month": m.isoformat(),
+                    "metric": metric,
+                    "computed": str(cv.quantize(Decimal("0.01"))),
+                    "reported": str(rv.quantize(Decimal("0.01"))),
+                    "ok": ok,
+                }
+            )
+    return {
+        "first_date": first.isoformat(),
+        "last_date": last.isoformat(),
+        "months": {
+            m.isoformat(): {k: str(v.quantize(Decimal("0.01"))) for k, v in f.items()}
+            for m, f in sorted(months.items())
+        },
+        "loan": loan_info(source_id),
+        "balances": balances,
+        "recon": recon,
+        "has_reports": any(reported.values()),
+    }

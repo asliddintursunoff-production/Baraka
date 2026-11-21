@@ -120,10 +120,16 @@ def horizon_summary(base: ForecastResult, days: int) -> HorizonSummary:
     )
     pays = payments_on(base, d)
     what = labels_joined(pays)
+    # one source of truth: "eng qiyin kun" is only ever the snapshot's own hardest day;
+    # a shorter view whose lowest point differs calls it "bu davrdagi eng past nuqta"
+    hardest = d == base.min_date
+    name = "Eng qiyin kun" if hardest else f"{days} kun ichidagi eng past nuqta"
     if verdict == "no":
-        text = f"Eng qiyin kun — **{uz.format_date(d)}**: kassada {uz.format_mln(lowest)} bo'ladi."
+        text = f"{name} — **{uz.format_date(d)}**: kassada {uz.format_mln(lowest)} bo'ladi."
     else:
-        text = f"Eng qiyin kun — **{uz.format_date(d)}**: kassada {uz.format_mln(lowest)} qoladi."
+        text = f"{name} — **{uz.format_date(d)}**: kassada {uz.format_mln(lowest)} qoladi."
+    if not hardest:
+        text += f" Butun prognozdagi eng qiyin kun — **{uz.format_date(base.min_date)}** ({uz.format_mln(base.min_balance)})."
     return HorizonSummary(
         days=days,
         verdict=verdict,
@@ -131,7 +137,8 @@ def horizon_summary(base: ForecastResult, days: int) -> HorizonSummary:
         lowest_date=d,
         lowest=lowest,
         text=text,
-        callout_title=f"{uz.format_date_short(d)} · eng qiyin kun",
+        callout_title=f"{uz.format_date_short(d)} · "
+        + ("eng qiyin kun" if hardest else "eng past nuqta"),
         callout_text=(f"{what} · " if what else "") + f"{uz.format_mln(lowest)} qoladi",
     )
 

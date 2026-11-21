@@ -73,6 +73,11 @@ export default function MainPage() {
           <span className="text-15 text-text-3">
             {d.today.label} · Barcha raqamlar Financial Engine tomonidan hisoblangan
           </span>
+          {d.freshness?.text && (
+            <span className="self-start rounded-pill bg-warning-bg px-3 py-1 text-13 font-semibold text-warning">
+              {d.freshness.text}. Kiritilmagan kunlar taxmin bilan to&apos;ldirildi.
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Link

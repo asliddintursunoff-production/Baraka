@@ -42,8 +42,12 @@ def live_context(business: Business) -> list[str]:
     cash = base.close_on(base.today)
     d = base.min_date
     pays = advice.payments_on(base, d)
+    from .tools import freshness_note
+
+    fresh = freshness_note(business)
     lines = [
-        f"Hozirgi kassa: {uz.format_mln(cash)} ({uz.speech_amount(cash)}).",
+        f"Hozirgi kassa: {uz.format_mln(cash)} ({uz.speech_amount(cash)})"
+        + (f" — {fresh}. Kassa haqida gapirganda shu sanani ayt." if fresh else "."),
         f"Eng qiyin kun: {uz.format_date(d)} ({uz.uz_ordinal_date(d)}), kassada {uz.format_mln(base.min_balance)} "
         f"({uz.speech_amount(base.min_balance)}) qoladi"
         + (

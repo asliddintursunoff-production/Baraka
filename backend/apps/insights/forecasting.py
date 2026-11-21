@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from django.db.models import Q, Sum
+from django.db.models import Max, Q, Sum
 
 from apps.engine import (
     EngineInput,
@@ -41,6 +41,7 @@ from apps.tenancy.models import Business
 from .models import ForecastSnapshot
 
 HORIZON_DAYS = 120  # covers the 7..90-day views and purchase checks (engine uses 120)
+STALE_AFTER_DAYS = 1  # a gap longer than this means entries stopped: forecast from the last day
 HISTORY_DAYS = 56
 OBLIGATION_LOOKAHEAD_DAYS = HORIZON_DAYS + 60  # payments shifted into the window by rules
 
@@ -82,7 +83,7 @@ def _segment_prior(business: Business) -> SegmentPriorIn | None:
 
 def build_engine_input(business: Business) -> tuple[EngineInput, bool]:
     """Read the business tables. Returns (input, has_cash_account)."""
-    today = today_for(business)
+    today = engine_today(business)
     with tenant_context(business):
         cash = CashAccount.objects.order_by("-as_of_date", "-id").first()
         opening = Decimal("0.00")
@@ -233,9 +234,23 @@ def refresh_forecast(business: Business) -> CachedForecast:
     return cached
 
 
-def get_forecast(business: Business) -> CachedForecast:
-    """Request path: 1 indexed SELECT on a hit (see module doc)."""
+def engine_today(business: Business) -> date:
+    """Day 0 of the forecast: the real date, or the last actual data day when entries have
+    stopped (stale data). Days after it are forecast, i.e. estimates (P0-4 freshness)."""
     today = today_for(business)
+    with tenant_context(business):
+        last = Transaction.objects.filter(is_actual=True, txn_date__lte=today).aggregate(
+            m=Max("txn_date")
+        )["m"]
+    if isinstance(last, date) and (today - last).days > STALE_AFTER_DAYS:
+        return last
+    return today
+
+
+def get_forecast(business: Business) -> CachedForecast:
+    """Request path: 1 indexed SELECT on a hit (see module doc). A snapshot created today
+    already carries the right day 0 (engine_today) in its inputs; sync/refresh rebuild it."""
+    real_today = today_for(business)
     with tenant_context(business):
         row = (
             ForecastSnapshot.objects.order_by("-created_at")
@@ -245,11 +260,11 @@ def get_forecast(business: Business) -> CachedForecast:
     if row is None:
         return refresh_forecast(business)
     created_local = row["created_at"].astimezone(ZoneInfo(business.timezone)).date()
-    cached = _cache.get(business.pk)
-    if cached and cached.inputs_hash == row["inputs_hash"] and cached.today == today:
-        return cached
-    if created_local != today:
+    if created_local != real_today:
         return refresh_forecast(business)  # a new day: today's sales/dates changed
+    cached = _cache.get(business.pk)
+    if cached and cached.inputs_hash == row["inputs_hash"]:
+        return cached
     with tenant_context(business):
         data = (
             ForecastSnapshot.objects.filter(pk=row["id"]).values_list("inputs", flat=True).first()

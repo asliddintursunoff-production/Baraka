@@ -4,7 +4,7 @@ export type Verdict = "yes" | "risky" | "no";
 export type Severity = "success" | "warning" | "danger";
 
 export type OnboardingStep = "business" | "connect" | "review" | "analyzing" | "done";
-export type DataStatus = "no_data" | "short_history" | "ok";
+export type DataStatus = "no_data" | "needs_review" | "short_history" | "ok";
 
 export interface Me {
   user: { email: string; first_name: string; last_name: string };
@@ -64,6 +64,7 @@ export interface Kpi {
 }
 
 export interface Dashboard {
+  freshness?: { as_of: string; missing_from?: string; missing_to?: string; text: string } | null;
   user: { first_name: string };
   business: { id: number; name: string; city: string };
   today: { iso: string; label: string };

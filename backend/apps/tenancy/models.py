@@ -31,6 +31,8 @@ class Business(models.Model):
     is_demo = models.BooleanField(default=False)  # seeded demo: never mixed with a real business
     profile_completed = models.BooleanField(default=True)  # False right after /register
     salary_day = models.PositiveSmallIntegerField(null=True, blank=True)  # 1..31 (onboarding)
+    # reconciliation / plausibility / freshness of the connected data (apps.ingestion.quality)
+    data_quality = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

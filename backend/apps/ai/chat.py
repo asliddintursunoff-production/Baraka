@@ -122,8 +122,14 @@ def context_lines(ctx: ToolContext) -> list[str]:
     if base.insufficient_data:
         return ["Ma'lumot kam: ishonchli prognoz uchun kamida 2 haftalik tarix kerak."]
     cash = base.close_on(base.today)
+    from .tools import freshness_note
+
+    fresh = freshness_note(ctx.business)
     lines = [
-        f"Hozirgi kassa: {uz.format_mln(cash)}.",
+        f"Hozirgi kassa: {uz.format_mln(cash)}"
+        + (
+            f" ({fresh}). Kassa haqida gapirganda shu holat sanasini albatta ayt." if fresh else "."
+        ),
         f"Eng qiyin kun (90 kun): {uz.format_date(base.min_date)}, {uz.format_mln(base.min_balance)} qoladi.",
         f"Xavfsiz chegara: {uz.format_mln(base.safe_min)}.",
         "Yaqin majburiy to'lovlar: "

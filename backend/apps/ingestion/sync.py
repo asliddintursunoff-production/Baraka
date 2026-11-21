@@ -256,6 +256,11 @@ def sync_source(
                             },
                         )
             ing.finish()
+            if ing.finmodel:
+                from .finmodel import summarize
+
+                source.summary = summarize(source.pk, list(wb.sheets), today)
+                source.save(update_fields=["summary"])
             st = ing.stats
             summary.sheets += st.sheets
             summary.rows_added += st.rows_added
@@ -328,16 +333,23 @@ def sync_business(
             summary=summary,
             first=first,
         )
-    if summary.rows_added or summary.rows_deleted or first or force:
-        progress("Prognoz hisoblanmoqda…", 85)
-        invalidate(business.pk)
-        refresh_forecast(business)
-        try:
-            from apps.insights.alerts import evaluate_alerts
+    # one source of truth: snapshot, quality gate and alerts are rebuilt after every sync
+    progress("Prognoz hisoblanmoqda…", 85)
+    invalidate(business.pk)
+    refresh_forecast(business)
+    from .quality import assess
 
-            evaluate_alerts(business)
-        except ImportError:
-            pass
+    q = assess(business)
+    from apps.insights.alerts import RULE_KINDS, evaluate_alerts
+    from apps.insights.models import Alert
+
+    if q.get("status") == "ok":
+        evaluate_alerts(business)
+    else:  # no advice on data that does not reconcile
+        with tenant_context(business):
+            Alert.objects.filter(kind__in=RULE_KINDS).exclude(status=Alert.Status.DISMISSED).update(
+                status=Alert.Status.DISMISSED
+            )
     progress("Prognoz tayyor", 100)
     return summary
 

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/lib/api";
 
 import { Gate, isNoData } from "./Gate";
+import { type QualityPayload, ReviewGate } from "./Reconciliation";
 
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-inner bg-[#EAECF0] ${className}`} aria-hidden="true" />;
@@ -26,6 +27,10 @@ export function PageSkeleton() {
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   if (isNoData(error)) return <Gate state="nodata" />;
+  if (error instanceof ApiError && error.status === 409 && (error.body as { code?: string } | null)?.code === "needs_review") {
+    const body = error.body as { message?: string; recon?: QualityPayload["recon"] };
+    return <ReviewGate message={body.message} recon={body.recon} />;
+  }
   const offline = !(error instanceof ApiError);
   return (
     <section
