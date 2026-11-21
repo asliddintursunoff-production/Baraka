@@ -67,7 +67,7 @@ def _parse_database_url(url: str) -> dict[str, object]:
     }
 
 
-APP_NAME = _env("APP_NAME", "BizPilot AI") or "BizPilot AI"
+APP_NAME = _env("APP_NAME", "Baraka") or "Baraka"
 APP_URL = (_env("APP_URL", "http://localhost:8000") or "http://localhost:8000").rstrip("/")
 # oauthlib library flags (not secrets): plain http only for a local APP_URL; Google answers
 # the "email" scope with "userinfo.email", which oauthlib must accept.

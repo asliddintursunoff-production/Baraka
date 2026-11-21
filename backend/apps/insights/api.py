@@ -97,6 +97,12 @@ def summaries(base: ForecastResult) -> dict[str, Any]:
     return out
 
 
+def chart_extras(base: ForecastResult, real_today: date) -> dict[str, Any]:
+    from .charts import forecast_extras, history_block
+
+    return {"history": history_block(base), **forecast_extras(base, real_today)}
+
+
 def forecast_block(base: ForecastResult) -> dict[str, Any]:
     return {
         "series": series(base),
@@ -327,7 +333,7 @@ class DashboardView(BusinessAPIView):
                     base, base.today, today
                 ),  # as of the last actual day when data is stale
                 "freshness": _freshness(b),
-                "forecast": forecast_block(base),
+                "forecast": forecast_block(base) | chart_extras(base, today_for(self.business)),
                 "steps": advice.steps(base),
                 "news": _news(),
                 "upcoming": _upcoming(base),
@@ -399,7 +405,7 @@ class ForecastView(BusinessAPIView):
             presets.append({"id": p["id"], "label": p["label"], **result})
         return Response(
             {
-                "forecast": forecast_block(base),
+                "forecast": forecast_block(base) | chart_extras(base, today_for(self.business)),
                 "key_days": _key_days(base),
                 "presets": presets,
                 "free_text_placeholder": "Masalan: 10 mln ga reklama qilsam",

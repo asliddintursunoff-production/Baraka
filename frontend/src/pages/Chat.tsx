@@ -38,6 +38,8 @@ interface Turn {
   status: string | null;
   blocks: UiBlock[] | null;
   error: string | null;
+  /** Markdown received so far from `delta` events. */
+  stream: string;
 }
 
 let keySeq = 0;
@@ -58,6 +60,7 @@ function fromServer(m: ChatMessage): Turn {
     status: null,
     blocks: null,
     error: null,
+    stream: "",
   };
 }
 
@@ -111,8 +114,16 @@ function AssistantTurn({
     ) : (
       card
     );
-  } else if (turn.pending || turn.error || (turn.blocks?.length ?? 0) > 0) {
-    body = <StreamingCard status={turn.status} pending={turn.pending} blocks={turn.blocks} error={turn.error} />;
+  } else if (turn.pending || turn.error || (turn.blocks?.length ?? 0) > 0 || turn.stream) {
+    body = (
+      <StreamingCard
+        status={turn.status}
+        pending={turn.pending}
+        blocks={turn.blocks}
+        error={turn.error}
+        markdown={turn.stream}
+      />
+    );
   } else {
     body = (
       <AssistantText label={metaLabel(turn.author, turn.time)}>
@@ -163,7 +174,7 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
       setBusy(true);
       const userKey = nextKey();
       const botKey = nextKey();
-      const base = { serverId: null, answer: null, status: null, blocks: null, error: null, time: "" };
+      const base = { serverId: null, answer: null, status: null, blocks: null, error: null, time: "", stream: "" };
       setLocal((prev) => [
         ...prev,
         { ...base, key: userKey, role: "user", author: "Siz", text: display, voice: payload.voice ?? null, live: false, pending: false },
@@ -186,6 +197,10 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
               patch(userKey, (t) => ({ ...t, serverId: d?.user_message_id ?? null }));
             },
             status: (d) => bot((t) => ({ ...t, status: d?.text ?? t.status })),
+            delta: (d) => {
+              const chunk = typeof d?.text === "string" ? d.text : "";
+              if (chunk) bot((t) => ({ ...t, stream: t.stream + chunk }));
+            },
             blocks: (d) => {
               if (!sawBlocks) {
                 sawBlocks = true;
@@ -208,7 +223,7 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
           ctrl.signal,
         );
         // Stream closed without an answer or error: keep cards that arrived, otherwise say so.
-        if (!finished) bot((t) => ((t.blocks?.length ?? 0) > 0 ? t : { ...t, error: STREAM_FAILED }));
+        if (!finished) bot((t) => ((t.blocks?.length ?? 0) > 0 || t.stream ? t : { ...t, error: STREAM_FAILED }));
       } catch (e) {
         if (!ctrl.signal.aborted) {
           const body = e instanceof ApiError ? (e.body as { message?: string } | null) : null;
@@ -244,7 +259,7 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
 
   const last = turns[turns.length - 1];
   const scrollKey = last
-    ? `${turns.length}|${last.key}|${last.status ?? ""}|${last.blocks?.length ?? 0}|${last.answer ? 1 : 0}|${last.error ? 1 : 0}`
+    ? `${turns.length}|${last.key}|${last.status ?? ""}|${last.blocks?.length ?? 0}|${Math.floor(last.stream.length / 240)}|${last.answer ? 1 : 0}|${last.error ? 1 : 0}`
     : "";
 
   // Keep the newest bubble visible above the sticky composer. A bubble taller than the

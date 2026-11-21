@@ -66,6 +66,8 @@ export interface Answer {
   model: string;
   mode?: "quick" | "advisor";
   advisor?: Advisor | null;
+  /** Full CFO answer in Uzbek markdown; when non-empty it is the main content (blocks go below). */
+  markdown?: string;
 }
 
 export interface ChatMessage {
@@ -117,6 +119,8 @@ export type SendPayload = ({ text: string; chip?: never } | { chip: string; text
 export interface ChatStreamEvents {
   meta: { conversation_id: number; user_message_id: number };
   status: { text: string };
+  /** A markdown chunk of the answer, appended to the streaming bubble. */
+  delta: { text: string };
   blocks: { blocks: UiBlock[]; replace?: boolean };
   answer: Answer;
   done: { message_id: number; latency_ms: number; model: string };

@@ -713,6 +713,8 @@ def _sheet(sheets: list[SheetData], *prefixes: str) -> SheetData | None:
 def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str, Any]:
     """Month-by-month figures from the cash ledger and the journals, reconciled with the
     workbook's own reports (Pul oqimi / Balans / Foyda-zarar), tolerance 1 %."""
+    from . import finmodel_details
+
     txns = list(
         Transaction.objects.filter(raw_row__source_id=source_id, is_actual=True).values(
             "txn_date", "direction", "category", "amount", "note"
@@ -847,6 +849,7 @@ def summarize(source_id: int, sheets: list[SheetData], today: date) -> dict[str,
         "has_reports": any(reported.values()),
         "reports": report_tables(sheets),
         "journals": journal_breakdowns(sheets, today),
+        "details": finmodel_details.details(sheets, today),
     }
 
 

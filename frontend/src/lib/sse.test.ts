@@ -140,7 +140,8 @@ describe("postSse", () => {
   });
 
   it("skips frames with invalid JSON and unknown event names", async () => {
-    const body = "event: status\ndata: {broken\n\nevent: toString\ndata: 1\n\nevent: status\ndata: {\"text\": \"ok\"}\n\n";
+    const body =
+      'event: status\ndata: {broken\n\nevent: toString\ndata: 1\n\nevent: status\ndata: {"text": "ok"}\n\n';
     vi.stubGlobal("fetch", async () => new Response(body, { status: 200 }));
     const status = vi.fn();
     await postSse<{ status: unknown }>("/x", {}, { status });

@@ -12,7 +12,7 @@ export function PublicHeader() {
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-6 py-[14px]">
         <Link to="/" className="flex items-center gap-[10px] text-ink no-underline hover:text-ink">
           <LogoMark />
-          <span className="font-display text-[19px] font-bold">{appConfig.appName}</span>
+          <span className="font-display text-[19px] font-bold text-[#0A3B22]">{appConfig.appName}</span>
         </Link>
         <nav aria-label="Sayt menyusi" className="flex flex-wrap items-center gap-6 text-15 font-medium">
           <a className={NAV_LINK} href="/#qanday">

@@ -29,7 +29,7 @@ def test_bad_login(client, demo):
 
 def test_dashboard(owner_client, demo, django_assert_max_num_queries):
     owner_client.get("/api/dashboard")
-    with django_assert_max_num_queries(10):
+    with django_assert_max_num_queries(14):  # +4: two-panel chart history
         r = owner_client.get("/api/dashboard")
     d = r.json()
     base = get_forecast(demo).result
@@ -45,7 +45,7 @@ def test_dashboard(owner_client, demo, django_assert_max_num_queries):
 
 def test_forecast_page(owner_client, django_assert_max_num_queries):
     owner_client.get("/api/forecast")
-    with django_assert_max_num_queries(4):
+    with django_assert_max_num_queries(8):  # +4: two-panel chart history
         f = owner_client.get("/api/forecast").json()
     ids = [p["id"] for p in f["presets"]]
     assert ids == ["buy", "rev", "staff"]

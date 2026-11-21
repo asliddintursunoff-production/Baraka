@@ -40,7 +40,7 @@ export function AppSidebar({ active, locked = false }: { active: NavKey; locked?
     >
       <div className="flex items-center gap-[10px] px-2 pb-6">
         <LogoMark />
-        <span className="font-display text-[19px] font-bold">{appConfig.appName}</span>
+        <span className="font-display text-[19px] font-bold text-[#0A3B22]">{appConfig.appName}</span>
       </div>
       {NAV.map(({ key, to, label, Icon }) =>
         locked && key !== "sources" ? (

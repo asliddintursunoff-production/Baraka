@@ -1,20 +1,18 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { AppShell } from "@/components/AppShell";
 import { Gate } from "@/components/Gate";
-import { RichText } from "@/components/RichText";
-import { HorizonToggle, type Horizon } from "@/components/HorizonToggle";
+import { TwoPanelChart } from "@/components/TwoPanelChart";
 import { ErrorState, InsufficientData, PageSkeleton, Skeleton } from "@/components/States";
+import type { ForecastRange } from "@/lib/twoPanel";
 import { useMe } from "@/lib/auth";
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 import type { ForecastPage, ScenarioCard, ScenarioResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { CHIP } from "./Main";
-
-const ForecastChart = lazy(() => import("@/components/ForecastChart"));
 
 const CARD_TONE = {
   success: { box: "bg-success-bg", title: "text-success" },
@@ -45,7 +43,7 @@ export default function ForecastPageView() {
     queryFn: () => apiGet<ForecastPage>("/api/forecast"),
     enabled: !short,
   });
-  const [horizon, setHorizon] = useState<Horizon>(60);
+  const [horizon, setHorizon] = useState<ForecastRange>(60);
   const [selected, setSelected] = useState("buy");
   const [text, setText] = useState("");
   const [custom, setCustom] = useState<ScenarioResult | null>(null);
@@ -98,7 +96,6 @@ export default function ForecastPageView() {
             Kelajakda kassangizda qancha pul bo'lishi — va "agar shunday qilsam-chi?" degan savollarga javob
           </span>
         </div>
-        <HorizonToggle value={horizon} onChange={setHorizon} large />
       </header>
 
       <div className="flex flex-wrap items-stretch gap-5">
@@ -106,51 +103,27 @@ export default function ForecastPageView() {
           aria-label="Kassa prognozi grafigi"
           className="flex min-w-0 flex-[999_1_560px] flex-col gap-[14px] rounded-card border border-border bg-surface px-6 py-[22px]"
         >
-          <div className="flex flex-wrap items-center gap-[10px]">
-            {chip && (
-              <span className={cn("inline-flex items-center gap-[6px] rounded-pill px-3 py-[5px] text-14 font-bold", chip.cls)}>
-                <chip.Icon size={14} strokeWidth={2.8} aria-hidden="true" />
-                {summary.verdict === "yes" ? "Hozirgi holatda pul yetadi" : summary.chip}
-              </span>
-            )}
-            <span className="text-15 text-text-2">
-              <RichText text={summary.text} />
+          {chip && (
+            <span
+              className={cn("inline-flex items-center gap-[6px] self-start rounded-pill px-3 py-[5px] text-14 font-bold", chip.cls)}
+            >
+              <chip.Icon size={14} strokeWidth={2.8} aria-hidden="true" />
+              {summary.verdict === "yes" ? "Hozirgi holatda pul yetadi" : summary.chip}
             </span>
-          </div>
+          )}
           {d.forecast.insufficient_data ? (
             <InsufficientData />
           ) : (
-            <Suspense fallback={<Skeleton className="h-64" />}>
-              <ForecastChart
-                series={d.forecast.series}
-                days={horizon}
-                safeMin={d.forecast.safe_min}
-                safeLabel={d.forecast.safe_label}
-                lowestIndex={summary.lowest_index}
-                calloutTitle={summary.callout_title}
-                calloutText={summary.callout_text}
-                overlay={active?.overlay ?? null}
-                overlayColor={overlayColor}
-                overlayMarker={active?.marker_index != null && active.marker_index <= horizon ? active.marker_index : null}
-                ariaLabel="Kassa prognozi va tanlangan 'agar' varianti"
-                bandFill={0.08}
-              />
-            </Suspense>
+            <TwoPanelChart
+              forecast={d.forecast}
+              days={horizon}
+              onDaysChange={setHorizon}
+              overlay={active?.overlay ?? null}
+              overlayColor={overlayColor}
+              overlayMarker={active?.marker_index ?? null}
+              overlayLegend={'Tanlangan "agar"'}
+            />
           )}
-          <div className="flex flex-wrap gap-[18px] text-13 text-text-3">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-[3px] w-[18px] rounded-sm bg-primary" />
-              Hozirgi holat
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-0 w-[18px] border-t-[3px] border-dashed border-danger" />
-              Tanlangan "agar"
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-[10px] w-[18px] rounded-sm bg-[#E1E8FA]" />
-              Savdoga qarab o'zgarishi mumkin
-            </span>
-          </div>
         </section>
 
         <section

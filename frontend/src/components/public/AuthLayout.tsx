@@ -20,7 +20,7 @@ export function AuthLayout({
       <main className="box-border flex min-w-0 flex-[1_1_520px] flex-col px-4 py-10 md:px-8">
         <Link to="/" className="flex items-center gap-[10px] text-ink no-underline hover:text-ink">
           <LogoMark />
-          <span className="font-display text-[19px] font-bold">{appConfig.appName}</span>
+          <span className="font-display text-[19px] font-bold text-[#0A3B22]">{appConfig.appName}</span>
         </Link>
         <div className="flex grow items-center justify-center py-10">{children}</div>
       </main>

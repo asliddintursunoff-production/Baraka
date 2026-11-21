@@ -102,7 +102,7 @@ def onboarding_step(b: Business | None) -> str:
 
 
 def stale_banner(q: dict[str, Any]) -> str:
-    """ "Ma'lumot 21 kun eski (oxirgisi 31-oktyabr 2026). Noyabr hisobotlarini kiriting…" (> 3 days)."""
+    """Banner text when the data is more than 3 days old ("Ma'lumot 21 kun eski …")."""
     from datetime import date
 
     from apps.ai import uz_format as uz

@@ -1,5 +1,6 @@
 import { CircleAlert } from "lucide-react";
 
+import { Markdown } from "@/components/Markdown";
 import { UiBlockRenderer, type UiBlock } from "@/components/UiBlockRenderer";
 import { cn } from "@/lib/utils";
 
@@ -18,22 +19,25 @@ function Dots() {
 }
 
 /**
- * The assistant bubble before the final `answer`: status line while waiting, cards from `blocks`
- * as soon as they arrive, or the Uzbek error text from the stream.
+ * The assistant bubble before the final `answer`: status line while waiting, the markdown text
+ * from `delta` events as it arrives, cards from `blocks` below it, or the Uzbek error text.
  */
 export function StreamingCard({
   status,
   pending,
   blocks,
   error,
+  markdown = "",
 }: {
   status: string | null;
   pending: boolean;
   blocks: UiBlock[] | null;
   error: string | null;
+  markdown?: string;
 }) {
   const cards = (blocks ?? []).filter((b) => b.type !== "approval");
-  const wide = cards.length > 0;
+  const text = markdown.trim();
+  const wide = cards.length > 0 || text.length > 0;
   return (
     <div
       className={cn(
@@ -41,13 +45,14 @@ export function StreamingCard({
         wide ? "w-full p-[22px]" : "max-w-[620px] self-start px-4 py-[14px]",
       )}
     >
+      {text && <Markdown text={text} />}
       {pending && !error && (
         <span className="inline-flex items-center gap-[10px] text-14 font-semibold text-text-3">
           <Dots />
-          {status}
+          {!text && status}
         </span>
       )}
-      {wide && <UiBlockRenderer blocks={cards} />}
+      {cards.length > 0 && <UiBlockRenderer blocks={cards} />}
       {error && (
         <p className="m-0 flex items-start gap-2 text-15 font-semibold leading-normal text-danger">
           <CircleAlert size={20} className="mt-[1px] shrink-0" aria-hidden="true" />

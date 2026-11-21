@@ -1,6 +1,7 @@
 import { Check, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
 
+import { Markdown } from "@/components/Markdown";
 import { RichText } from "@/components/RichText";
 import { ChatSteps, PlanTimeline, UiBlockRenderer, type UiBlock } from "@/components/UiBlockRenderer";
 import type { Answer, AnswerVerdict } from "@/lib/chatTypes";
@@ -36,6 +37,7 @@ function approvedIds(actions: AnswerActions): Set<string> {
 export function hasCardContent(answer: Answer): boolean {
   const adv = answer.advisor;
   return (
+    Boolean(answer.markdown?.trim()) ||
     (answer.steps ?? []).length > 0 ||
     cardBlocks(answer).length > 0 ||
     answer.plan != null ||
@@ -58,10 +60,12 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
   const advisor = answer.advisor ?? null;
   /** Result of re-running a tool from an edited assumption (replaces blocks + assumptions). */
   const [recomputed, setRecomputed] = useState<Recomputed | null>(null);
-  const timeline = advisor ? (advisor.plan ?? []) : [];
-  const steps = advisor ? [] : (answer.steps ?? []);
-  const risks = advisor?.risks ?? [];
-  const question = advisor?.question ?? null;
+  /** Markdown answers carry verdict, reason, steps, risks and the question in the text itself. */
+  const markdown = (answer.markdown ?? "").trim();
+  const timeline = markdown ? [] : advisor ? (advisor.plan ?? []) : [];
+  const steps = markdown || advisor ? [] : (answer.steps ?? []);
+  const risks = markdown ? [] : (advisor?.risks ?? []);
+  const question = markdown ? null : (advisor?.question ?? null);
   const assumptions = recomputed ? recomputed.assumptions : (advisor?.assumptions ?? []);
   const explain = answer.explain ?? [];
   const blocks = cardBlocks(answer, recomputed ? recomputed.blocks : undefined);
@@ -78,19 +82,25 @@ export function AnswerCard({ answer, messageId, busy, onAsk, actions }: Props) {
 
   return (
     <article className="min-w-0 flex-[1_1_auto] overflow-hidden rounded-[4px_16px_16px_16px] border border-border bg-surface [overflow-wrap:anywhere]">
-      <div className="flex flex-col gap-[10px] px-[22px] pb-[18px] pt-[22px]">
-        <div className="flex items-center gap-3">
-          <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[20px]", v.bg, v.color)}>
-            <v.Icon size={22} strokeWidth={2.6} aria-hidden="true" />
-          </span>
-          <h2 className={cn("m-0 min-w-0 font-display text-26 font-bold leading-[1.2]", v.color)}>{answer.headline}</h2>
+      {markdown ? (
+        <div className="px-[22px] pb-[18px] pt-[22px]">
+          <Markdown text={markdown} />
         </div>
-        {answer.reason && (
-          <p className="m-0 text-17 leading-[1.6] text-text-2 [&_strong]:text-ink">
-            <RichText text={answer.reason} />
-          </p>
-        )}
-      </div>
+      ) : (
+        <div className="flex flex-col gap-[10px] px-[22px] pb-[18px] pt-[22px]">
+          <div className="flex items-center gap-3">
+            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[20px]", v.bg, v.color)}>
+              <v.Icon size={22} strokeWidth={2.6} aria-hidden="true" />
+            </span>
+            <h2 className={cn("m-0 min-w-0 font-display text-26 font-bold leading-[1.2]", v.color)}>{answer.headline}</h2>
+          </div>
+          {answer.reason && (
+            <p className="m-0 text-17 leading-[1.6] text-text-2 [&_strong]:text-ink">
+              <RichText text={answer.reason} />
+            </p>
+          )}
+        </div>
+      )}
 
       {blocks.length > 0 && (
         <div className={cn("mx-[22px]", !hasActions && assumptions.length === 0 && "mb-[22px]")}>

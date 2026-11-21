@@ -8,7 +8,7 @@ import { lazy, Suspense } from "react";
 import type { SeriesPoint, Verdict } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { ActionSteps } from "./ActionSteps";
+import { ActionSteps, StepBadge, stripLeadingIndex } from "./ActionSteps";
 import { CompareBars, type CompareRow } from "./CompareBars";
 import { KpiCard } from "./KpiCard";
 import type { PaybackPoint, PaybackSeries } from "./PaybackChart";
@@ -29,7 +29,10 @@ export interface TimelineStep {
   tone?: BlockTone;
 }
 
-export type UiBlock =
+/** Every block may carry a one-line `caption` ("what to look at"), shown under it. */
+export type UiBlock = UiBlockBody & { caption?: string };
+
+type UiBlockBody =
   | { id: string; type: "verdict"; status: Verdict | "info"; headline: string; reason?: string }
   | { id: string; type: "compare_bars"; title: string; rows: CompareRow[] }
   | { id: string; type: "steps"; items: (string | { text: string; label?: string; severity?: "success" | "warning" | "danger" })[] }
@@ -356,16 +359,9 @@ export function ChatSteps({
     <ol className="m-0 flex list-none flex-col gap-[10px] p-0">
       {items.map((it, i) => (
         <li key={i} className={cn("flex items-start gap-3 text-16 leading-normal", dark && "text-white")}>
-          <span
-            className={cn(
-              "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[13px] text-13 font-bold",
-              dark ? "bg-white text-ink" : "bg-ink text-white",
-            )}
-          >
-            {i + 1}
-          </span>
-          <span>
-            <RichText text={it.text} />
+          <StepBadge n={i + 1} className={dark ? "bg-white text-ink" : "bg-ink text-white"} />
+          <span className="min-w-0">
+            <RichText text={stripLeadingIndex(it.text)} />
           </span>
         </li>
       ))}
@@ -378,7 +374,16 @@ export function UiBlockRenderer({ blocks, handlers }: { blocks: UiBlock[]; handl
     <div className="flex flex-col gap-4">
       {blocks.map((b) => (
         <BlockBoundary key={b.id}>
-          <UiBlockView block={b} handlers={handlers} />
+          {b.caption ? (
+            <div className="flex flex-col gap-2">
+              <UiBlockView block={b} handlers={handlers} />
+              <p className={cn("m-0 text-14 leading-normal", handlers?.dark ? "text-[#D0D5DD]" : "text-text-3")}>
+                {b.caption}
+              </p>
+            </div>
+          ) : (
+            <UiBlockView block={b} handlers={handlers} />
+          )}
         </BlockBoundary>
       ))}
     </div>

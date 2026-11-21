@@ -529,6 +529,15 @@ def get_expenses(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     if one_off:
         reason += f" Bundan tashqari bir martalik to'lovlar: {uz.format_mln(one_off)}."
+    from .detail_tools import products_for_month
+
+    products = products_for_month(ctx, last_m.isoformat())
+    if products:
+        reason += (
+            " Mahsulot xaridlari: "
+            + ", ".join(f"{x['name']} {x['amount']}" for x in products[:6])
+            + "."
+        )
     return envelope(
         facts={
             "month": last_m.isoformat(),
@@ -537,6 +546,7 @@ def get_expenses(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "net": money(net),
             "avg_expenses": money(avg),
             "one_off": money(one_off),
+            "products": products,
             "by_category": [
                 {"category": CATEGORY_UZ.get(c, c), "amount": money(v)} for c, v in cats[:10]
             ],
@@ -1236,3 +1246,11 @@ def run_tool(ctx: ToolContext, name: str, raw_args: Any) -> dict[str, Any]:
 from .advisor_tools import ADVISOR_TOOLS  # noqa: E402
 
 TOOLS.update({t.name: t for t in ADVISOR_TOOLS})
+
+from .cfo_tools import CFO_TOOLS  # noqa: E402
+
+TOOLS.update({t.name: t for t in CFO_TOOLS})
+
+from .detail_tools import DETAIL_TOOLS  # noqa: E402
+
+TOOLS.update({t.name: t for t in DETAIL_TOOLS})

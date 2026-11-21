@@ -35,6 +35,7 @@ from apps.tenancy.models import Business
 from config import app_settings as cfg
 
 from . import uz_format as uz
+from .cfo_router import route
 from .guard import concrete_step, pairing_violations, payment_keys, violations
 from .llm import AllModelsFailed, generate
 from .models import Conversation, Message
@@ -76,12 +77,20 @@ Qoidalar:
 1. Faqat o'zbek tilida (lotin) yoz.
 2. Raqam, summa va sanani FAQAT tool natijasidan yoki pastdagi kontekstdan ol, o'zing hisoblama. Summalarni tool'dagi "display" ko'rinishida yoz (masalan "6,2 mln").
 3. Pul haqidagi savolda avval tegishli tool'ni chaqir: xarid yoki katta xarajat -> evaluate_purchase; "agar..." -> simulate_change; aniq kun -> explain_day; kelgusi to'lovlar yoki kelgusi xarajatlar -> get_upcoming_payments; o'tgan oylar xarajati, oylik xarajatlar, tushum, kategoriyalar -> get_expenses; kassa -> get_cash_status; prognoz -> get_forecast; foydalanuvchi biznes qoidasini yoki tuzatishni aytsa -> remember_fact; xodimlar sonini aytsa -> set_staff_count.
-4. Yakuniy javob JSON: verdict, headline (60 belgigacha, avval qaror), reason (bitta oddiy jumla, sabab), steps (ko'pi bilan 3 ta qisqa qadam), chips (ko'pi bilan 3 ta keyingi savol).
+4. Batafsil savollar uchun tool'lar: mahsulot (un, kartoshka, go'sht, yog'...) xaridi yoki narxi -> product_costs; taom, menyu, retsept, 1 porsiya tannarxi -> menu_analysis; isrof, kamomad, hisobdan chiqarish -> losses; xodimlar, kimga qancha ish haqi -> staff_costs; ombor -> stock_status; jihozlar -> fixed_assets; zararsizlik -> break_even; savdo tushsa -> stress_test; kassadagi pul qayerdan -> cash_sources; qarzlar va majburiyatlar -> net_position; kredit jadvali -> debt_schedule; KPI, food cost, marja -> kpi_scorecard; reja-fakt -> plan_vs_actual; tushum nega o'zgardi -> driver_decomposition; haftalik trend -> trend_watch.
+{md_rules}
 5. Oddiy so'zlar: kassa, majburiy to'lov, oylik, kredit, ta'minotchi, xavfsiz chegara. "stsenariy", "zaxira", "deterministik" so'zlarini ishlatma.
 6. Ma'lumot bo'lmasa: "Bu ma'lumot jadvalingizda yo'q". O'ylab topma.
 7. Reja yoki eslatmani faqat taklif qil; tasdiqlashni foydalanuvchi tugma bilan qiladi. remember_fact faqat taklif yaratadi: foydalanuvchi tasdiqlamaguncha qoida prognozga qo'shilmaydi.
 Kontekst:
 {context}"""
+MD_RULES = """Javob formati — markdown (JSON emas), o'zbek tilida:
+- 1-qator: **qalin to'g'ridan-to'g'ri javob** (summa va/yoki sana bilan). Kassa yoki hisobot haqida bo'lsa holat sanasini yili bilan yoz (masalan "31-oktyabr 2026 holatiga").
+- Keyin faqat savolga kerakli bo'limlar, "### " sarlavha bilan: ### Nima uchun (2–4 band, raqamlar tool'dan); ### Kelajakda nima bo'ladi; ### Variantlar (jadval bo'lishi mumkin); ### Tavsiyam (bitta aniq tavsiya); ### Reja (ko'pi bilan 5 ta raqamlangan qadam: sana yoki muddat + aniq harakat + summa); ### Menga kerak (faqat ma'lumot yetishmasa, aniq savol).
+- Biznes holati yoki umumiy tahlil so'ralsa yana: ### Pul manbai, ### Yashirin xavf, ### Yakuniy baho.
+- Tool natijasidagi "md" matni tayyor jadval va raqamlar: undan foydalan, jadvallarni qisqartirib bo'lsa ham ko'rsat. Mahsulot, taom, xodim nomlarini aniq yoz; "boshqa xarajatlar" deb umumlashtirma.
+- Oddiy savolga qisqa javob (3–8 qator); hisobot yoki tahlil so'ralsa to'liq.
+- Eng oxirgi qator: "CHIPS: savol 1 | savol 2 | savol 3" — shu javobga bog'liq keyingi 3 ta savol."""
 ADVISOR_SCHEMA = {
     "type": "object",
     "properties": {
@@ -124,7 +133,8 @@ Qoidalar:
 2. Har bir raqam, summa va sana FAQAT tool natijasidan. O'zing hisoblama, raqam o'ylab topma. Summalarni tool'dagi ko'rinishda yoz ("8,8 mln").
 3. Avval kerakli tool'ni chaqir: xaridni qachon qilish -> when_can_afford; pul yig'ish -> savings_goal; foydalanuvchi qarzini aytsa -> record_debt (u qarzni yozadi va to'lash variantlarini solishtiradi); qarzni to'lash -> debt_payoff; kredit -> loan_affordability (foiz noma'lum bo'lsa so'ra); uskuna yoki investitsiya -> investment_payback; savdoni oshirish -> revenue_growth_target; narx -> price_change; "biznesim qanday" -> business_snapshot; "agar..." -> simulate_change. Kerak bo'lsa bir nechta tool chaqir.
 4. Tool "needs" qaytarsa: o'sha savolni "question" ga yoz va headline'da "Buni aniq hisoblash uchun ... kerak" de. Raqamni taxmin qilma.
-5. Yakuniy javob JSON: headline (to'g'ridan-to'g'ri javob, sana va/yoki summa bilan), reason (bitta jumla), plan (yo'l xarita yoki reja so'ralsa 3–6 qadam, aks holda ko'pi bilan 3; har birida when = sana yoki davr, action = aniq harakat, amount = tool'dagi summa), numbers_block_ids (ko'rsatiladigan blok id'lari), risks (ko'pi bilan 2), question (ixtiyoriy, bitta), chips (ko'pi bilan 3 ta keyingi savol).
+5. CFO modullari ham bor: break_even, stress_test, cash_sources, net_position, debt_schedule, kpi_scorecard, plan_vs_actual, driver_decomposition, trend_watch, product_costs, menu_analysis, losses, staff_costs.
+{md_rules}
 6. Taqiqlangan: sana, summa yoki aniq ob'ektsiz umumiy qadamlar ("Kassani tekshiring", "Kuzatib boring", "Chora ko'ring").
 7. Strategiya taklif qilsang, uni shu biznes ma'lumotiga bog'la (masalan: "Dushanba savdosi shanbadan 35% past -> tushlik seti") va ta'sir raqamini faqat tool orqali ber, "taxmin" deb belgila.
 8. Qarz yoki reja faqat taklif: tasdiqlashni foydalanuvchi tugma bilan qiladi.
@@ -221,7 +231,14 @@ def _texts_of(result: dict[str, Any]) -> list[str]:
 def finalize(turn: Turn, answer: dict[str, Any], model: str) -> dict[str, Any]:
     """Merge the chosen answer with engine-made parts (blocks, plan, candidate, explain)."""
     primary = next(reversed(turn.results.values()), None) if turn.results else None
-    blocks = list(primary.get("ui_blocks", [])) if primary else []
+    blocks: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for r in turn.results.values():
+        for blk in r.get("ui_blocks", []):
+            bid = str(blk.get("id") or len(blocks))
+            if bid not in seen_ids:
+                seen_ids.add(bid)
+                blocks.append(blk)
     wanted = answer.get("show_blocks")
     if wanted:
         chosen = [b for b in blocks if b.get("id") in wanted]
@@ -247,6 +264,8 @@ def finalize(turn: Turn, answer: dict[str, Any], model: str) -> dict[str, Any]:
         "model": model,
         "mode": turn.mode,
         "advisor": None,
+        "markdown": answer.get("markdown")
+        or (template_markdown(turn) if model == "template" else ""),
     }
     if turn.mode == "advisor":
         plan = [
@@ -326,6 +345,43 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def parse_answer(text: str) -> dict[str, Any] | None:
+    """Markdown answer (the contract) or the older JSON answer; chips from the last line."""
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    if raw.startswith(("{", "```json")):
+        return _extract_json(raw)
+    chips: list[str] = []
+    lines = raw.rstrip().split("\n")
+    if lines and re.match(r"^\W*chips\W*:", lines[-1], re.IGNORECASE):
+        chips = [c.strip(" *`") for c in lines[-1].split(":", 1)[1].split("|") if c.strip(" *`")]
+        raw = "\n".join(lines[:-1]).rstrip()
+    first = next((ln for ln in raw.split("\n") if ln.strip()), "")
+    headline = re.sub(r"[*#`_]", "", first).strip()
+    return {"markdown": raw, "headline": headline, "reason": "", "steps": [], "chips": chips[:3]}
+
+
+def template_markdown(turn: Turn) -> str:
+    """The engine-made fallback: each module's own markdown, in the order they ran."""
+    return "\n\n".join(str(r["md"]) for r in turn.results.values() if r.get("md"))
+
+
+def md_chunks(md: str, size: int = 400) -> list[str]:
+    """Paragraph-sized `delta` chunks (the answer is checked by the guard before it streams)."""
+    out, buf = [], ""
+    for para in md.split("\n\n"):
+        piece = (buf + "\n\n" if buf else "") + para
+        if len(piece) > size and buf:
+            out.append(buf + "\n\n")
+            buf = para
+        else:
+            buf = piece
+    if buf:
+        out.append(buf)
+    return out
+
+
 async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
     b = turn.business
     user_msg = await db(
@@ -357,6 +413,18 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
         else:
             speculative: dict[str, dict[str, Any]] = {}
             turn.mode = classify(turn.text)
+            routed = await db(b, lambda: route(turn.text))
+            routed_blocks: list[dict[str, Any]] = []
+            for name, args in routed:
+                try:
+                    result = await run_tool_async(turn, ctx, name, dict(args), source="router")
+                except ToolArgError:
+                    continue
+                speculative[_args_key(name, dict(args))] = result
+                routed_blocks += result.get("ui_blocks", [])
+            if routed_blocks:
+                turn.blocks_sent_ms = turn.ms()
+                yield sse("blocks", {"blocks": routed_blocks, "replace": True, "speculative": True})
             hint = advisor_hint(turn.text) if turn.mode == "advisor" else None
             if hint:
                 try:
@@ -420,6 +488,8 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
         log.info("tool arg error: %s", exc)
         yield sse("error", {"message": "Savolni tushunmadim. Summa yoki sanani aniqroq yozing."})
         return
+    for chunk in md_chunks(final.get("markdown") or ""):
+        yield sse("delta", {"text": chunk})
     yield sse("answer", final)
     latency = turn.ms()
     msg = await db(
@@ -474,6 +544,7 @@ async def llm_loop(
     }
     if advisor:
         fmt["playbooks"] = await db(turn.business, lambda: playbook_text(turn.business, turn.text))
+    fmt["md_rules"] = MD_RULES
     system = (ADVISOR_SYSTEM if advisor else SYSTEM).format(**fmt)
     guard_ctx = await db(turn.business, lambda: guard_context(ctx))
     history = await db(
@@ -491,7 +562,17 @@ async def llm_loop(
         )
         for h in reversed(history)
     ]
-    contents.append(types.Content(role="user", parts=[types.Part(text=turn.text)]))
+    pre = [
+        f"{name}: {json.dumps(for_model(r), ensure_ascii=False, default=str)}"
+        for name, r in turn.results.items()
+    ]
+    user_text = turn.text
+    if pre:
+        user_text += (
+            "\n\n[Oldindan hisoblangan tool natijalari — shulardan foydalan, yetmasa boshqa tool chaqir]\n"
+            + "\n".join(pre)
+        )
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
     decls = [
         types.FunctionDeclaration(
             name=t.name, description=t.description, parameters_json_schema=t.parameters
@@ -501,9 +582,7 @@ async def llm_loop(
     config = types.GenerateContentConfig(
         system_instruction=system,
         tools=[types.Tool(function_declarations=decls)],
-        response_mime_type="application/json",
-        response_json_schema=ADVISOR_SCHEMA if advisor else ANSWER_SCHEMA,
-        max_output_tokens=1500 if advisor else 800,
+        max_output_tokens=4000,
     )
     model = "template"
     gen_kw: dict[str, Any] = (
@@ -534,7 +613,7 @@ async def llm_loop(
         parts = (cand.content.parts if cand and cand.content else None) or []
         calls = [p.function_call for p in parts if p.function_call]
         if not calls:
-            answer = _extract_json(res.response.text or "")
+            answer = parse_answer(res.response.text or "")
             if answer is None:
                 return
             checked = await check_answer(turn, answer, lines, guard_ctx)
@@ -542,7 +621,12 @@ async def llm_loop(
                 contents.append(
                     types.Content(
                         role="model",
-                        parts=[types.Part(text=json.dumps(answer, ensure_ascii=False))],
+                        parts=[
+                            types.Part(
+                                text=answer.get("markdown")
+                                or json.dumps(answer, ensure_ascii=False)
+                            )
+                        ],
                     )
                 )
                 contents.append(
@@ -550,14 +634,14 @@ async def llm_loop(
                         role="user",
                         parts=[
                             types.Part(
-                                text="Javobdagi ba'zi raqam, sana yoki to'lov-sana juftligi tool natijasiga mos emas, yoki qadam aniq emas (sana, summa yoki aniq ob'ekt yo'q). Faqat tool natijasidagi raqam va sanalar bilan, aniq qadamlar bilan qayta yoz."
+                                text="Javobdagi ba'zi raqam, sana yoki to'lov-sana juftligi tool natijasiga mos emas, yoki qadam aniq emas (sana, summa yoki aniq ob'ekt yo'q). Faqat tool natijasidagi raqam va sanalar bilan, aniq qadamlar bilan markdown javobni qayta yoz."
                             )
                         ],
                     )
                 )
                 try:
                     res2 = await generate(contents, config, **gen_kw)
-                    answer2 = _extract_json(res2.response.text or "")
+                    answer2 = parse_answer(res2.response.text or "")
                     checked = (
                         await check_answer(turn, answer2, lines, guard_ctx) if answer2 else None
                     )
@@ -647,6 +731,7 @@ async def check_answer(
         *plan_texts,
         *[str(r) for r in answer.get("risks", []) or []],
         str(answer.get("question", "") or ""),
+        str(answer.get("markdown", "") or ""),
     ]
     allowed = [turn.text, *lines]
     for r in turn.results.values():

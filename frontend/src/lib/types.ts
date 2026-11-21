@@ -40,6 +40,29 @@ export interface HorizonSummary {
   title: string;
 }
 
+/** Actual cash history for the left chart panel (docs/API_CHARTS_ANSWERS.md). */
+export interface ForecastHistory {
+  title: string;
+  points: { date: string; close: string }[];
+  weekly: { week: string; in: string; out: string }[];
+  markers: { date: string; label: string; amount: string }[];
+  last_actual: string;
+  caption: string;
+}
+
+export interface ForecastGap {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export interface HardestDay {
+  date: string;
+  label: string;
+  balance: string;
+  payments: { title: string; amount: string }[];
+}
+
 export interface ForecastBlock {
   series: SeriesPoint[];
   safe_min: string;
@@ -47,6 +70,15 @@ export interface ForecastBlock {
   summaries: Record<string, HorizonSummary>;
   default_horizon: number;
   insufficient_data: boolean;
+  /** Part B fields; optional so older payloads still render. */
+  history?: ForecastHistory | null;
+  title?: string;
+  start?: string;
+  today?: string;
+  gap?: ForecastGap | null;
+  hardest?: HardestDay | null;
+  caption?: string;
+  beyond?: string;
 }
 
 export interface Step {

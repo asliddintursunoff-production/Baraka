@@ -6,15 +6,14 @@ import { Link } from "react-router-dom";
 import { ActionSteps } from "@/components/ActionSteps";
 import { AlertsBell } from "@/components/AlertsBell";
 import { AppShell } from "@/components/AppShell";
-import { RichText } from "@/components/RichText";
-import { HorizonToggle, type Horizon } from "@/components/HorizonToggle";
 import { KpiCard } from "@/components/KpiCard";
+import { TwoPanelChart } from "@/components/TwoPanelChart";
 import { EmptyState, ErrorState, InsufficientData, PageSkeleton, Skeleton } from "@/components/States";
 import { apiGet } from "@/lib/api";
+import type { ForecastRange } from "@/lib/twoPanel";
 import type { Dashboard, Verdict } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const ForecastChart = lazy(() => import("@/components/ForecastChart"));
 const MonthlyBars = lazy(() => import("@/components/MonthlyBars"));
 
 export const CHIP: Record<Verdict, { cls: string; Icon: typeof Check }> = {
@@ -43,7 +42,7 @@ function readDismissed(day: string): boolean {
 
 export default function MainPage() {
   const q = useQuery({ queryKey: ["dashboard"], queryFn: () => apiGet<Dashboard>("/api/dashboard") });
-  const [horizon, setHorizon] = useState<Horizon>(60);
+  const [horizon, setHorizon] = useState<ForecastRange>(60);
   const [dismissed, setDismissed] = useState<string | null>(null);
 
   if (q.isPending) {
@@ -145,56 +144,23 @@ export default function MainPage() {
           aria-label="Kassa prognozi"
           className="flex min-w-0 flex-[999_1_560px] flex-col gap-[14px] rounded-card border border-border bg-surface px-6 py-[22px]"
         >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-col gap-[6px]">
-              <div className="flex flex-wrap items-center gap-[10px]">
-                <h2 className="m-0 font-display text-20 font-bold">{summary.title}</h2>
-                {chip && (
-                  <span className={cn("inline-flex items-center gap-[6px] rounded-pill px-[10px] py-1 text-13 font-bold", chip.cls)}>
-                    <chip.Icon size={14} strokeWidth={2.8} aria-hidden="true" />
-                    {summary.chip}
-                  </span>
-                )}
-              </div>
-              <span className="text-15 text-text-2">
-                <RichText text={summary.text} />
+          <div className="flex flex-wrap items-center gap-[10px]">
+            <h2 className="m-0 font-display text-20 font-bold">{summary.title}</h2>
+            {chip && (
+              <span className={cn("inline-flex items-center gap-[6px] rounded-pill px-[10px] py-1 text-13 font-bold", chip.cls)}>
+                <chip.Icon size={14} strokeWidth={2.8} aria-hidden="true" />
+                {summary.chip}
               </span>
-            </div>
-            <HorizonToggle value={horizon} onChange={setHorizon} />
+            )}
+            <Link to="/forecast" className="ml-auto text-14 font-semibold">
+              Batafsil prognoz
+            </Link>
           </div>
           {d.forecast.insufficient_data ? (
             <InsufficientData />
           ) : (
-            <Suspense fallback={<Skeleton className="h-64" />}>
-              <ForecastChart
-                series={d.forecast.series}
-                days={horizon}
-                safeMin={d.forecast.safe_min}
-                safeLabel={d.forecast.safe_label}
-                lowestIndex={summary.lowest_index}
-                calloutTitle={summary.callout_title}
-                calloutText={summary.callout_text}
-                ariaLabel={`${summary.title}: ${summary.text.replace(/\*\*/g, "")}`}
-              />
-            </Suspense>
+            <TwoPanelChart forecast={d.forecast} days={horizon} onDaysChange={setHorizon} />
           )}
-          <div className="flex flex-wrap gap-[18px] text-13 text-text-3">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-[3px] w-[18px] rounded-sm bg-primary" />
-              Kassadagi pul
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-[10px] w-[18px] rounded-sm bg-[#DCE6FB]" />
-              Savdoga qarab o'zgarishi mumkin
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-0 w-[18px] border-t-2 border-dashed border-warning" />
-              Xavfsiz chegara
-            </span>
-            <Link to="/forecast" className="ml-auto font-semibold">
-              Batafsil prognoz
-            </Link>
-          </div>
         </section>
 
         <section

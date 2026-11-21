@@ -18,7 +18,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { toMln } from "@/lib/format";
+import { formatMlnAxis, groupMlnText, toMln } from "@/lib/format";
 import type { SeriesPoint } from "@/lib/types";
 
 export interface ForecastChartProps {
@@ -162,11 +162,11 @@ export default function ForecastChart(p: ForecastChartProps) {
           <YAxis
             domain={[yMin, yMax]}
             ticks={yTicks}
-            tickFormatter={(v: number) => (v === 0 ? "0" : `${v} mln`)}
+            tickFormatter={formatMlnAxis}
             tick={{ fontSize: 12, fill: "#5D6679" }}
             axisLine={false}
             tickLine={false}
-            width={64}
+            width={72}
           />
           <ReferenceLine y={0} stroke="#98A2B3" />
           <Area
@@ -202,7 +202,7 @@ export default function ForecastChart(p: ForecastChartProps) {
             strokeWidth={1.5}
             strokeDasharray="6 5"
             label={{
-              value: p.safeLabel,
+              value: groupMlnText(p.safeLabel),
               position: "insideTopRight",
               fill: "#B54708",
               fontSize: 12,

@@ -3,6 +3,8 @@
 1. `negative_critical`: the balance goes below zero on a day with a critical payment.
 2. `below_safe_min`: the balance drops under the business's safe minimum (but not below 0).
 3. `payroll_loan_week`: salary and loan payments fall in the same week.
+4. `trend_*` (trend_watch): a weekly metric moved the wrong way 3+ weeks in a row; the key is
+   the week the streak started, so a continuing streak updates one alert.
 
 Each alert has a `dedupe_key` (business, kind, date): re-evaluation updates the text and
 amount instead of creating a duplicate, and alerts whose condition is gone are dismissed.
@@ -27,7 +29,8 @@ from .forecasting import get_forecast
 from .models import Alert
 
 log = logging.getLogger(__name__)
-RULE_KINDS = ("negative_critical", "below_safe_min", "payroll_loan_week")
+TREND_KINDS = ("trend_sales", "trend_expense_ratio", "trend_net")
+RULE_KINDS = ("negative_critical", "below_safe_min", "payroll_loan_week", *TREND_KINDS)
 
 
 @dataclass(frozen=True)
@@ -35,7 +38,7 @@ class Found:
     kind: str
     severity: str
     date: date
-    amount: Decimal
+    amount: Decimal | None
     text: str
 
 
@@ -120,6 +123,19 @@ def evaluate_alerts(business: Business) -> int:
     found = find_alerts(r)
     created = 0
     with tenant_context(business):
+        if not r.insufficient_data:
+            from .trends import find_trends, trend_text
+
+            found += [
+                Found(
+                    f"trend_{t.metric}",
+                    "warn",
+                    t.start,
+                    None if t.metric == "expense_ratio" else t.last - t.first,
+                    trend_text(t),
+                )
+                for t in find_trends(r.today)
+            ]
         keys = set()
         for f in found:
             key = f"{business.pk}:{f.kind}:{f.date.isoformat()}"

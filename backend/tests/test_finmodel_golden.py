@@ -219,6 +219,22 @@ def test_backtest_sep_and_oct_within_5_percent(namuna):
         cells = []
         for metric in ("cash_end", "revenue", "payroll_accrued"):
             r = rec.get((key, metric))
-            cells.append(f"{metric}={mln(r['computed'])}/{mln(r['reported'])}/{'OK' if r['ok'] else 'XX'}" if r else f"{metric}=-")
+            cells.append(
+                f"{metric}={mln(r['computed'])}/{mln(r['reported'])}/{'OK' if r['ok'] else 'XX'}"
+                if r
+                else f"{metric}=-"
+            )
         print(key, " ".join(cells))
-    print("BACKTEST", [(r["as_of"], r["target"], str(mln(r["predicted"])), str(mln(r["actual"])), r["error_pct"]) for r in bt])
+    print(
+        "BACKTEST",
+        [
+            (
+                r["as_of"],
+                r["target"],
+                str(mln(r["predicted"])),
+                str(mln(r["actual"])),
+                r["error_pct"],
+            )
+            for r in bt
+        ],
+    )
