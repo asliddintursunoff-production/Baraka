@@ -750,3 +750,682 @@ def daily_brief(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[
         ctx=ctx,
         facts_out={"yesterday": M(y), "pct": str(pct), "cash": M(f["cash"])},
     )
+
+
+# ===================== batch 3: reserve, loans, financing =====================================
+RATE = Decimal("0.24")
+
+
+def fixed_month(s: dict[str, Any]) -> Decimal:
+    lm = last_month(s)
+    return break_even(s, lm).fixed if (s.get("reports") or {}).get("pl") else D0
+
+
+def loan_schedule(
+    bal: Decimal, principal: Decimal, start: date, extra: Decimal = D0, rate: Decimal = RATE
+) -> list[tuple[date, Decimal, Decimal, Decimal]]:
+    rows, b, i = [], bal, 0
+    principal = principal or (bal / 24)
+    while b > 0 and i < 240:
+        mm = start.month - 1 + i
+        d = date(start.year + mm // 12, mm % 12 + 1, min(start.day, 28))
+        it = (b * rate / 12).quantize(Decimal(1))
+        pr = min(b, principal + extra)
+        b -= pr
+        rows.append((d, pr, it, b))
+        i += 1
+    return rows
+
+
+def annuity(p: Decimal, rate: Decimal, n: int) -> Decimal:
+    r = rate / 12
+    return (p * r / (1 - (1 + r) ** -n)).quantize(Decimal(1)) if r else (p / n).quantize(Decimal(1))
+
+
+def irr_monthly(flows: list[Decimal]) -> Decimal:
+    """Monthly rate r where NPV = 0 (flows from the borrower's view: +loan, −payments)."""
+    lo, hi = Decimal("0"), Decimal("1")
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        npv = sum((cf / (1 + mid) ** t for t, cf in enumerate(flows)), D0)
+        if npv < 0:  # payments still worth more than the loan: the rate is higher
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def op_cash_avg(s: dict[str, Any], n: int = 3) -> Decimal:
+    act = (s.get("journals") or {}).get("activities") or {}
+    lm = last_month(s)
+    ms = sorted(k for k in act if k <= lm)[-n:]
+    return sum((_d(act[k].get("operating")) for k in ms), D0) / len(ms) if ms else D0
+
+
+def P(x: Decimal) -> str:
+    return f"{str((x * 100).quantize(Decimal('0.1'))).replace('.', ',')}%"
+
+
+@register("cash_reserve_target")
+def cash_reserve(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    mn, rec = f["buffer"], fixed_month(f["s"])
+    k = f["cash"]
+    state = "yetarli" if k >= rec else ("minimaldan yuqori, tavsiyadan kam" if k >= mn else "kam")
+    verdict = f"Minimal {M(mn)}, tavsiya {M(rec)}. Hozir {M(k)} — {state}."
+    live = f"Kamida {say_mln(mn)}, yaxshisi {say_mln(rec)} tegmay turishi kerak."
+    return card(
+        item,
+        verdict,
+        [
+            ("Minimal zaxira", M(mn), "7 kunlik majburiy chiqim", ""),
+            ("Tavsiya zaxira", M(rec), "1 oylik doimiy xarajat", ""),
+            ("Hozirgi kassa", M(k), state, "good" if k >= rec else "bad"),
+        ],
+        chart={"title": "Kassa va zaxira chegaralari", **cash_chart(f, 60)},
+        table=(
+            ["Zaxira", "Summa", "Nima uchun"],
+            [
+                ["Minimal", N(mn), "1 hafta majburiy to'lovlar"],
+                ["Tavsiya", N(rec), "1 oy doimiy xarajat (savdo to'xtasa)"],
+                ["Hozir", N(k), state],
+            ],
+        ),
+        assumptions="Minimal = keyingi 30 kun majburiy to'lovlarining 7 kunligi; tavsiya = oxirgi yopilgan oy doimiy xarajati.",
+        source="Foyda-zarar (doimiy xarajat), to'lov kalendari",
+        live=live,
+        ctx=ctx,
+        facts_out={"min": M(mn), "rec": M(rec), "cash": M(k)},
+    )
+
+
+@register("shutdown_runway")
+def closure_runway(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    obl30 = sum(
+        (_d(o.amount) for o in f["obligations"] if o.date <= f["today"] + timedelta(days=30)), D0
+    )
+    daily = (obl30 / 30).quantize(Decimal(1))
+    recv = sum(
+        (
+            -_d((b.get("months") or {}).get(f["today"].replace(day=1).isoformat(), b["balance"]))
+            for b in (f["s"].get("details") or {}).get("counterparties") or []
+            if "agregator" in str(b.get("type", "")).lower() and _d(b["balance"]) < 0
+        ),
+        D0,
+    )
+    days = int(((f["cash"] + recv) / daily).quantize(Decimal(1))) if daily else 0
+    nclose = int(p.get("horizon_days") or 30)
+    end = f["cash"] + recv - daily * nclose
+    verdict = (
+        f"Savdosiz {days} kun chidaysiz. {nclose} kun yopilsangiz, kassa {M(end)} gacha tushadi."
+    )
+    live = f"Savdo to'xtasa, pulingiz taxminan {uz.uz_number_words(days)} kunga yetadi."
+    path = [f["cash"] + recv - daily * i for i in range(0, min(days + 5, 120))]
+    return card(
+        item,
+        verdict,
+        [
+            ("Runway (kun)", str(days), "savdo nol bo'lsa", "good" if days >= 30 else "bad"),
+            ("Kunlik doimiy chiqim", M(daily), "majburiy to'lovlar ÷ 30", ""),
+            (
+                "Yopilish oxirida kassa",
+                M(end),
+                f"{nclose} kundan keyin",
+                "good" if end > 0 else "bad",
+            ),
+        ],
+        chart={
+            "title": "Savdosiz kassa yo'li (mln so'm)",
+            "type": "line_multi",
+            "unit": "mln so'm",
+            "zero_line": True,
+            "x_labels": [
+                (f["today"] + timedelta(days=i)).strftime("%d.%m.%Y") for i in range(len(path))
+            ],
+            "series": [
+                {
+                    "name": "Kassa (savdosiz)",
+                    "color": "#F87171",
+                    "data": [float((v / 1_000_000).quantize(Decimal("0.1"))) for v in path],
+                }
+            ],
+        },
+        table=(
+            ["Manba", "Summa"],
+            [
+                ["Kassa bugun", N(f["cash"])],
+                ["Agregatorlardan keladi", N(recv)],
+                ["Kunlik majburiy chiqim", N(daily)],
+            ],
+        ),
+        assumptions="Savdo 0; agregatorlar qarzi tushadi; o'zgaruvchan xarajat (xomashyo) to'xtaydi, majburiy to'lovlar davom etadi.",
+        source="Prognoz, Kontragentlar (agregator saldosi), to'lov kalendari",
+        live=live,
+        ctx=ctx,
+        facts_out={"days": str(days), "daily": M(daily)},
+    )
+
+
+@register("supplier_terms_whatif")
+def supplier_delay(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    weekly = (
+        _d((s.get("months") or {}).get(lm, {}).get("supplier_payments")) / Decimal("4.35")
+    ).quantize(Decimal(1))
+    weeks = int(p.get("weeks") or 2)
+    free = weekly * weeks
+    a, b = f["min_balance"], f["min_balance"] + free
+    verdict = f"Kassa bir martalik ~{M(free)} ga bo'shaydi; eng tang kun ({Dt(f['min_date'])}) {M(a)} → {M(b)}."
+    live = f"Ikki hafta muddat kassangizga bir martalik {say_mln(free)} havo beradi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Bo'shaydigan pul", M(free), f"{weeks} hafta × {M(weekly)}", "good"),
+            ("Eng tang kun (oldin/keyin)", f"{M(a)} → {M(b)}", Dt(f["min_date"]), ""),
+            ("Xavf", "o'rta", "narx +2–3% yoki munosabat", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Qiymat"],
+            [
+                ["Haftalik to'lov ta'minotchilarga", N(weekly)],
+                ["Kechiktirish", f"{weeks} hafta"],
+                ["Bir martalik bo'shash", N(free)],
+            ],
+        ),
+        actions=[
+            "Asosiy ta'minotchi bilan 14 kunlik muddat kelishing",
+            "Evaziga narxni qotirib oling (oshirmaslik)",
+            "Bo'shagan pulni zaxiraga qo'ying, sarflamang",
+        ],
+        assumptions="Haftalik to'lov = oxirgi yopilgan oy ta'minotchilarga to'lovlar ÷ 4,35.",
+        source=f"Kassa (yetkazib beruvchiga to'lov, {lm})",
+        live=live,
+        ctx=ctx,
+        facts_out={"free": M(free)},
+    )
+
+
+@register("seasonal_cash_plan")
+def low_season_plan(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    seas = {
+        int(k): _d(v) for k, v in ((s.get("details") or {}).get("seasonality") or {}).items()
+    } or {m: Decimal(1) for m in range(1, 13)}
+    be = break_even(s, lm)
+    base = be.revenue / seas.get(int(lm[5:7]), Decimal(1))
+    rows, best = [], None
+    for k in range(1, 7):
+        mm = (f["today"].month - 1 + k) % 12 + 1
+        yr = f["today"].year + (f["today"].month - 1 + k) // 12
+        rev = base * seas.get(mm, Decimal(1))
+        prof = rev * be.cm_ratio - be.fixed
+        rows.append((mm, yr, rev, prof))
+        if best is None or prof < best[3]:
+            best = (mm, yr, rev, prof)
+    avg_prof = sum((r[3] for r in rows), D0) / len(rows)
+    need = sum((max(D0, avg_prof - r[3]) for r in rows if r[3] < avg_prof), D0).quantize(Decimal(1))
+    mm, yr, rev, prof = best
+    drop = (1 - rev / base) if base else D0
+    verdict = f"{uz.MONTHS[mm - 1].capitalize()} {yr} eng past: tushum ~{P(drop)} kam, foyda ~{M(prof)}. Oldindan {M(need)} yig'ib qo'ying."
+    live = f"{uz.MONTHS[mm - 1].capitalize()} eng past oy; oldindan {say_mln(need)} yig'ib qo'ysangiz, bemalol o'tasiz."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Eng past oy",
+                f"{uz.MONTHS[mm - 1].capitalize()} {yr}",
+                f"koeff. {seas.get(mm)}",
+                "bad",
+            ),
+            ("Foyda o'sha oyda", M(prof), "", "bad" if prof < 0 else ""),
+            ("Oldindan yig'ish", M(need), "past oylar uchun", ""),
+        ],
+        chart={
+            "title": "Keyingi 6 oy: tushum va foyda (mln so'm)",
+            "type": "bar_grouped",
+            "x": "label",
+            "unit": "mln so'm",
+            "group_colors": {"tushum": "#94A3B8", "foyda": "#14B8A6"},
+            "data": [
+                {
+                    "label": f"{uz.MONTHS[r[0] - 1][:3]} {r[1]}",
+                    "tushum": float((r[2] / 1_000_000).quantize(Decimal("0.1"))),
+                    "foyda": float((r[3] / 1_000_000).quantize(Decimal("0.1"))),
+                }
+                for r in rows
+            ],
+        },
+        table=(
+            ["Oy", "Mavsum koeff.", "Tushum", "Foyda"],
+            [
+                [f"{uz.MONTHS[r[0] - 1]} {r[1]}", str(seas.get(r[0])), N(r[2]), N(r[3])]
+                for r in rows
+            ],
+        ),
+        assumptions="Tushum = oxirgi oy (mavsumdan tozalangan) × Fin reja mavsum koeffitsienti; foyda = tushum × marjinal ulush − doimiy.",
+        source="Fin reja (mavsumiylik), Foyda-zarar",
+        live=live,
+        ctx=ctx,
+        facts_out={"low": f"{mm}/{yr}", "need": M(need)},
+    )
+
+
+def _loan_or_missing(
+    item: CatalogItem, f: dict[str, Any], ctx: ToolContext
+) -> dict[str, Any] | None:
+    if f["loan"]:
+        return None
+    return card(
+        item,
+        "Kreditingiz topilmadi (Kontragentlar varag'ida 'Bank krediti' saldosi yo'q). Kredit summasi, foizi va muddatini ayting — darhol hisoblayman.",
+        [("Qoldiq", "—", "", ""), ("Foiz", "—", "", ""), ("Kassa", M(f["cash"]), "", "")],
+        ctx=ctx,
+    )
+
+
+@register("loan_prepay")
+def loan_prepay(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    miss = _loan_or_missing(item, f, ctx)
+    if miss:
+        return miss
+    bal, pr = f["loan"]["balance"], f["loan"]["principal"]
+    start = next(
+        (o.date for o in f["obligations"] if o.category == "loan"), f["today"] + timedelta(days=30)
+    )
+    rec0 = fixed_month(f["s"])
+    default = f["cash"] - rec0 if f["cash"] - rec0 > 1_000_000 else f["cash"] - f["buffer"]
+    amt = min(bal, _d(p.get("amount")) if p.get("amount") else max(D0, default))
+    old = loan_schedule(bal, pr, start)
+    new = loan_schedule(bal - amt, pr, start) if bal > amt else []
+    save = sum((r[2] for r in old), D0) - sum((r[2] for r in new), D0)
+    after = f["cash"] - amt
+    rec = fixed_month(f["s"])
+    verdict = (
+        f"{M(amt)} oldin yopsangiz ~{M(save)} foiz tejaysiz; lekin kassa {M(after)} ga tushadi"
+        + (f" — tavsiya zaxiradan ({M(rec)}) past." if after < rec else ".")
+    )
+    live = "Kreditni oldin yopish foizdan tejaydi" + (
+        ", lekin avval zaxirani to'ldiring." if after < rec else " va kassa xavfsiz qoladi."
+    )
+    return card(
+        item,
+        verdict,
+        [
+            ("Foiz tejovi", M(save), f"{len(old)} oylik jadval bo'yicha", "good"),
+            (
+                "Kassa keyin",
+                M(after),
+                f"zaxira tavsiyasi {M(rec)}",
+                "good" if after >= rec else "bad",
+            ),
+            ("Kredit stavkasi", "24%", "muqobil daromad shundan yuqorimi?", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Hozirgi jadval", "Oldin yopsa"],
+            [
+                ["Qolgan oylar", str(len(old)), str(len(new))],
+                ["Qolgan foiz", N(sum((r[2] for r in old), D0)), N(sum((r[2] for r in new), D0))],
+            ],
+        ),
+        actions=[
+            "Avval zaxirani (1 oy doimiy xarajat) to'ldiring",
+            f"Keyin bo'sh pul bilan qisman yoping (masalan {M(min(amt, max(D0, f['cash'] - rec)))})",
+            "Bank bilan muddatidan oldin to'lash shartini yozma kelishing",
+        ],
+        assumptions="Foiz 24% yillik qoldiqqa; asosiy qarz oyiga teng ulushda.",
+        source="Kontragentlar (Bank krediti), Foyda-zarar (foiz)",
+        live=live,
+        ctx=ctx,
+        facts_out={"save": M(save), "after": M(after)},
+        plan="Kreditni oldin yopish: zaxira to'lgach bank bilan kelishish",
+    )
+
+
+@register("loan_payoff_timeline")
+def loan_payoff_date(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    miss = _loan_or_missing(item, f, ctx)
+    if miss:
+        return miss
+    bal, pr = f["loan"]["balance"], f["loan"]["principal"]
+    start = next(
+        (o.date for o in f["obligations"] if o.category == "loan"), f["today"] + timedelta(days=30)
+    )
+    sch = loan_schedule(bal, pr, start)
+    fast = loan_schedule(bal, pr, start, extra=Decimal(5_000_000))
+    rest = sum((r[2] for r in sch), D0)
+    end = sch[-1][0]
+    verdict = f"Qoldiq {M(bal)}; {Dt(end)}da yopiladi, yana {M(rest)} foiz to'laysiz."
+    live = f"Kreditingiz {uz.MONTHS[end.month - 1]} {end.year}da tugaydi; har oy qo'shimcha besh million bersangiz, {len(sch) - len(fast)} oy erta."
+    return card(
+        item,
+        verdict,
+        [
+            ("Qoldiq", M(bal), f["loan"]["name"], ""),
+            ("Yopilish sanasi", Dt(end), f"{len(sch)} oy", ""),
+            ("Qolgan foiz", M(rest), "24% yillik", "bad"),
+        ],
+        chart={
+            "title": "Qoldiq: hozirgi jadval vs +5 mln/oy (mln so'm)",
+            "type": "line_multi",
+            "unit": "mln so'm",
+            "x_labels": [r[0].strftime("%m.%Y") for r in sch],
+            "series": [
+                {
+                    "name": "Hozirgi jadval",
+                    "color": "#94A3B8",
+                    "data": [float((r[3] / 1_000_000).quantize(Decimal("0.1"))) for r in sch],
+                },
+                {
+                    "name": "+5 mln/oy",
+                    "color": "#14B8A6",
+                    "data": [
+                        float((fast[i][3] / 1_000_000).quantize(Decimal("0.1")))
+                        if i < len(fast)
+                        else 0
+                        for i in range(len(sch))
+                    ],
+                },
+            ],
+        },
+        table=(
+            ["Sana", "Asosiy", "Foiz", "Qoldiq"],
+            [[Dt(r[0]), N(r[1]), N(r[2]), N(r[3])] for r in sch[:12]],
+        ),
+        assumptions="Asosiy qarz — Kontragentlar saldosining oylik kamayishi; foiz 24% yillik.",
+        source="Kontragentlar (Bank krediti, oylik saldo)",
+        live=live,
+        ctx=ctx,
+        facts_out={"end": end.isoformat(), "interest": M(rest), "months": str(len(sch))},
+    )
+
+
+@register("loan_whatif")
+def loan_affordability_cat(
+    ctx: ToolContext, item: CatalogItem, p: dict[str, Any]
+) -> dict[str, Any]:
+    f = facts(ctx)
+    amt = _d(p.get("amount") or 100_000_000)
+    n = int(p.get("months") or 12)
+    pay = annuity(amt, RATE, n)
+    over = pay * n - amt
+    cur = (f["loan"]["principal"] + (f["loan"]["balance"] * RATE / 12)) if f["loan"] else D0
+    ocf = op_cash_avg(f["s"]) + cur  # operating cash before current debt service
+    dscr = (ocf / (cur + pay)).quantize(Decimal("0.01")) if (cur + pay) else D0
+    ok = dscr >= Decimal("1.25")
+    verdict = f"{M(amt)}, {n} oy, 24%: oyiga {M(pay)}. DSCR {str(dscr).replace('.', ',')}x — {'ko‘tara olasiz' if ok else 'xavfli'}."
+    live = f"{say_mln(amt).capitalize()} kreditga oyiga {say_mln(pay)}ga yaqin to'laysiz — {'biznes ko‘taradi' if ok else 'biznes uchun og‘ir'}."
+    return card(
+        item,
+        verdict,
+        [
+            ("Oylik to'lov", M(pay), f"{n} oy annuitet", ""),
+            ("Jami ortiqcha", M(over), "foiz", "bad"),
+            (
+                "DSCR",
+                f"{str(dscr).replace('.', ',')}x",
+                "≥ 1,25 — xavfsiz",
+                "good" if ok else "bad",
+            ),
+        ],
+        table=(
+            ["Ko'rsatkich", "Qiymat"],
+            [
+                ["Operatsion pul oqimi (o'rtacha, kreditdan oldin)", N(ocf)],
+                ["Hozirgi kredit to'lovi", N(cur)],
+                ["Yangi kredit to'lovi", N(pay)],
+                [
+                    "Eng tang kun kassasi (yangi kreditsiz)",
+                    f"{N(f['min_balance'])} ({Dt(f['min_date'])})",
+                ],
+            ],
+        ),
+        actions=[
+            "Kredit nimaga olinishini aniqlang (foyda keltiradimi?)"
+            if not p.get("purpose")
+            else "Kredit maqsadi bo'yicha qoplash hisobini ko'ring",
+            "DSCR 1,25x dan past bo'lsa — summani kamaytiring yoki muddatni uzaytiring",
+            "Bir necha bank takliflarini solishtiring",
+        ],
+        assumptions="DSCR = oxirgi 3 oy o'rtacha operatsion pul oqimi ÷ (hozirgi + yangi kredit to'lovi).",
+        source="Pul oqimi (operatsion), Kontragentlar (kredit)",
+        live=live,
+        ctx=ctx,
+        facts_out={"pay": M(pay), "dscr": str(dscr), "over": M(over)},
+    )
+
+
+def _offers(amt: Decimal) -> list[tuple[str, Decimal, Decimal, int, list[Decimal]]]:
+    """(name, upfront, monthly, months, cash flows from the buyer's view for IRR)."""
+    k = annuity(amt, RATE, 12)
+    lease_m = annuity(amt * Decimal("0.8"), Decimal("0.28"), 24)
+    inst_m = (amt * Decimal("0.8") * (1 + Decimal("0.2") * 6 / 12) / 6).quantize(Decimal(1))
+    return [
+        ("Bank krediti (24%, 12 oy)", D0, k, 12, [amt] + [-k] * 12),
+        (
+            "Lizing (20% + 24 oy, ~28%)",
+            amt * Decimal("0.2"),
+            lease_m,
+            24,
+            [amt * Decimal("0.8")] + [-lease_m] * 24,
+        ),
+        (
+            "Muddatli to'lov (20% + 6 oy, ~20% ustama)",
+            amt * Decimal("0.2"),
+            inst_m,
+            6,
+            [amt * Decimal("0.8")] + [-inst_m] * 6,
+        ),
+    ]
+
+
+@register("financing_compare")
+def financing_compare(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    amt = _d(p.get("amount") or 50_000_000)
+    rows = []
+    for name, up, m, n, flows in _offers(amt):
+        over = up + m * n - amt
+        eff = (1 + irr_monthly(flows)) ** 12 - 1
+        rows.append((name, up, m, n, over, eff))
+    best = min(rows, key=lambda r: r[5])
+    verdict = (
+        f"Eng arzon — {best[0].split(' (')[0]}: jami ortiqcha {M(best[4])}, effektiv {P(best[5])}."
+    )
+    live = f"Bu summaga eng arzoni {best[0].split(' (')[0].lower()} — ortiqcha to'lov eng kam."
+    return card(
+        item,
+        verdict,
+        [
+            ("Eng arzon", best[0].split(" (")[0], "", "good"),
+            ("Ortiqcha to'lov", M(best[4]), "", ""),
+            ("Effektiv stavka", P(best[5]), "yillik", ""),
+        ],
+        table=(
+            ["Variant", "Boshlang'ich", "Oyiga", "Muddat", "Ortiqcha", "Effektiv yillik"],
+            [[r[0], N(r[1]), N(r[2]), f"{r[3]} oy", N(r[4]), P(r[5])] for r in rows],
+        ),
+        assumptions="Lizing va muddatli to'lov shartlari — bozor taxmini (taklifingiz bo'lsa, raqamlarini ayting). Effektiv stavka — to'lovlar oqimining IRR'i.",
+        source="Bozor taxminlari, kredit 24%",
+        live=live,
+        ctx=ctx,
+        facts_out={"best": best[0], "eff": P(best[5])},
+    )
+
+
+@register("installment_true_rate")
+def installment_real_rate(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    amt = _d(p.get("amount") or 25_000_000)
+    up_pct, n, markup = (
+        Decimal(str(p.get("upfront_pct") or 20)) / 100,
+        int(p.get("months") or 6),
+        Decimal(str(p.get("markup_pct") or 20)) / 100,
+    )
+    fin = amt * (1 - up_pct)
+    m = (fin * (1 + markup * n / 12) / n).quantize(Decimal(1))
+    over = m * n - fin
+    eff = (1 + irr_monthly([fin] + [-m] * n)) ** 12 - 1
+    k_over = annuity(fin, RATE, n) * n - fin
+    cheaper = eff < RATE
+    verdict = (
+        f"Haqiqiy stavka ~{P(eff)} yillik — kredit (24%) dan {'arzon' if cheaper else 'qimmat'}."
+    )
+    live = f"Bu bo'lib to'lash aslida yillik {uz.uz_number_words(int((eff * 100).quantize(Decimal(1))))} foiz — kreditdan {'arzon' if cheaper else 'qimmat'}."
+    return card(
+        item,
+        verdict,
+        [
+            ("Effektiv stavka", P(eff), "yillik (IRR)", "good" if cheaper else "bad"),
+            ("Ortiqcha to'lov", M(over), f"{n} oyda", ""),
+            ("Kredit bilan farq", M(over - k_over), "+ — qimmat", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Muddatli to'lov", f"Kredit 24%, {n} oy"],
+            [
+                ["Boshlang'ich", N(amt * up_pct), "0"],
+                ["Oyiga", N(m), N(annuity(fin, RATE, n))],
+                ["Ortiqcha", N(over), N(k_over)],
+            ],
+        ),
+        assumptions=f"Shartlar: {int(up_pct * 100)}% boshlang'ich, {n} oy, ustama {int(markup * 100)}% yillik (oddiy). O'zgartirsangiz, qayta hisoblanadi.",
+        source="Taklif shartlari",
+        live=live,
+        ctx=ctx,
+        facts_out={"eff": P(eff), "over": M(over)},
+    )
+
+
+@register("deposit_vs_business")
+def deposit_vs_business(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    amt = _d(p.get("amount") or 50_000_000)
+    dep = (amt * Decimal("0.20") * Decimal("0.9")).quantize(
+        Decimal(1)
+    )  # ~20% deposit, 10% tax (taxmin)
+    kredit = (min(amt, f["loan"]["balance"]) * RATE).quantize(Decimal(1)) if f["loan"] else D0
+    lm = last_month(s)
+    net = pl_value(s, "sof foyda", lm)
+    assets = _d(((s.get("reports") or {}).get("balans") or {}).get("jami aktivlar", {}).get(lm))
+    roic = (net * 12 / assets) if assets else D0
+    biz = (amt * roic).quantize(Decimal(1))
+    opts = sorted(
+        [("Kreditni yopish", kredit), ("Biznesda aylantirish", biz), ("Depozit", dep)],
+        key=lambda x: -x[1],
+    )
+    verdict = f"{M(amt)}: depozit ~{M(dep)}/yil, kreditni yopish {M(kredit)}/yil tejaydi, biznes ~{M(biz)}/yil ({P(roic)} ROIC). Eng yaxshi — {opts[0][0].lower()}."
+    live = f"Bo'sh pulni depozitga qo'ygandan ko'ra, {opts[0][0].lower()} ko'proq foyda beradi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Depozit daromadi", M(dep), "~20%, soliqdan keyin (taxmin)", ""),
+            (
+                "Kredit tejovi",
+                M(kredit),
+                "24% yillik",
+                "good" if opts[0][0] == "Kreditni yopish" else "",
+            ),
+            ("Biznes ROIC", P(roic), f"{M(biz)}/yil", ""),
+        ],
+        table=(["Variant", "Yillik foyda"], [[o[0], N(o[1])] for o in opts]),
+        assumptions="Depozit ~20% yillik (taxmin, bank taklifini ayting); ROIC = yillik sof foyda ÷ jami aktivlar (Balans).",
+        source=f"Balans, Foyda-zarar ({lm}), Kontragentlar (kredit)",
+        live=live,
+        ctx=ctx,
+        facts_out={"best": opts[0][0]},
+    )
+
+
+@register("owner_withdrawal")
+def owner_draw(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    ocf = op_cash_avg(s)
+    prin = f["loan"]["principal"] if f["loan"] else D0
+    rec = fixed_month(s)
+    topup = max(D0, (rec - f["cash"]) / 6)
+    free = max(D0, ocf - prin - topup).quantize(Decimal(1))
+    pl = (s.get("reports") or {}).get("pl") or {}
+    lm = last_month(s)
+    a, b = (
+        _d(pl.get("sherik 1 foyda ulushi", {}).get(lm)),
+        _d(pl.get("sherik 2 foyda ulushi", {}).get(lm)),
+    )
+    sh1 = (a / (a + b)) if (a + b) else Decimal("0.5")
+    verdict = f"Oyiga {M(free)} gacha olish xavfsiz (Sherik 1 — {M(free * sh1)}, Sherik 2 — {M(free * (1 - sh1))})."
+    live = f"Oyiga {say_mln(free)}gacha olsangiz biznesga zarar qilmaydi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Xavfsiz summa", M(free), "oyiga", "good"),
+            ("Bo'sh pul oqimi", M(ocf - prin), "operatsion − kredit asosiy", ""),
+            (
+                "Zaxira holati",
+                "to'la" if f["cash"] >= rec else f"{M(rec - f['cash'])} kam",
+                f"tavsiya {M(rec)}",
+                "good" if f["cash"] >= rec else "bad",
+            ),
+        ],
+        table=(
+            ["Hisob", "Oyiga"],
+            [
+                ["Operatsion pul oqimi (3 oy o'rtacha)", N(ocf)],
+                ["− Kredit asosiy qarz", N(prin)],
+                ["− Zaxirani to'ldirish (6 oyda)", N(topup)],
+                ["= Xavfsiz olish", N(free)],
+            ],
+        ),
+        assumptions="Sheriklar ulushi Foyda-zarar 'Sherik foyda ulushi' qatorlaridan; kapital xarajat rejasi 0.",
+        source="Pul oqimi, Kontragentlar, Foyda-zarar",
+        live=live,
+        ctx=ctx,
+        facts_out={"free": M(free)},
+    )
+
+
+@register("overdraft_line")
+def overdraft_value(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    short = [
+        (d, f["buffer"] - f["close"][d]) for d in f["days"][:90] if f["close"][d] < f["buffer"]
+    ]
+    days = len(short)
+    cost = (sum((x for _, x in short), D0) * RATE / 365).quantize(Decimal(1))
+    limit = max((x for _, x in short), default=D0)
+    commission = (limit * Decimal("0.01")).quantize(Decimal(1))
+    yearly = (cost + commission) * 4
+    worth = days > 0
+    verdict = (
+        f"Yiliga ~{days * 4} kun kerak bo'ladi, xarajati ~{M(yearly)}; {'arziydi (kichik limit ' + M(limit) + ')' if worth else 'arzimaydi'}."
+        if worth
+        else f"Keyingi 90 kunda kassa chegaradan pastga tushmaydi — overdraft kerak emas; zaxira {M(f['buffer'])} yetarli."
+    )
+    live = (
+        "Overdraft faqat bir necha kunda kerak bo'ladi — kichik limit yetarli."
+        if worth
+        else "Overdraft hozir kerak emas — kassangiz chegaradan tushmaydi."
+    )
+    return card(
+        item,
+        verdict,
+        [
+            ("Kerakli kunlar", str(days), "90 kunda", ""),
+            ("Yillik xarajat", M(yearly), "foiz + komissiya", ""),
+            ("Muqobil (zaxira)", M(f["buffer"]), "7 kunlik", ""),
+        ],
+        chart={"title": "90 kunlik kassa va chegara", **cash_chart(f, 90)},
+        assumptions="Overdraft 24% yillik + 1% komissiya limitdan (taxmin).",
+        source="Kunlik prognoz",
+        live=live,
+        ctx=ctx,
+        facts_out={"days": str(days), "yearly": M(yearly)},
+    )

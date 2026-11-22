@@ -647,6 +647,20 @@ def hourly(sheets: list[SheetData], today: date) -> dict[str, Any]:
     }
 
 
+def seasonality(sheets: list[SheetData], today: date) -> dict[str, str]:
+    """Fin reja: "Mavsumiylik (kalendar oylari)" header row + the coefficient row below -> {1..12}."""
+    sh = _sheet(sheets, "fin reja")
+    if sh is None:
+        return {}
+    for i, row in enumerate(sh.rows):
+        label = next((text_key(v) for v in row[:3] if isinstance(v, str) and v.strip()), "")
+        if label.startswith("mavsumiylik kalendar") and i + 1 < len(sh.rows):
+            vals = [v for v in sh.rows[i + 1][2:] if isinstance(v, (int, float))][:12]
+            if len(vals) == 12:
+                return {str(k + 1): str(Decimal(str(v))) for k, v in enumerate(vals)}
+    return {}
+
+
 def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, fn in (
@@ -656,6 +670,7 @@ def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
         ("counterparties", counterparties),
         ("smena_days", smena_days),
         ("hourly", hourly),
+        ("seasonality", seasonality),
         ("menu_analysis", menu_analysis),
         ("writeoffs", writeoffs),
         ("stock_counts", stock_counts),
