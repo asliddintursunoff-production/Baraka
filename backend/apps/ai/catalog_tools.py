@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import catalog_intents  # noqa: F401  (registers the implemented intents)
 from .catalog import IMPLEMENTED, registry
 from .tools import TOOLS, Tool, ToolContext, envelope
 
@@ -50,13 +51,15 @@ TOOLS["bad_intent"] = Tool(
     bad_intent_tool,
     voice=True,
 )
+_DONE = [i for i in registry().values() if i.intent in IMPLEMENTED]
 TOOLS["catalog"] = Tool(
     "catalog",
-    "Katalogdagi tayyor CFO hisobotlari (kassa, kredit, oylik, prognoz, zararsizlik, haftalik/ertalabki hisobot va h.k.): intent nomi bilan chaqir.",
+    "Katalogdagi tayyor CFO hisobotlari — intent nomi bilan chaqir: "
+    + "; ".join(f"{i.intent} ({i.title[:60]})" for i in _DONE),
     {
         "type": "object",
         "properties": {
-            "intent": {"type": "string", "maxLength": 60},
+            "intent": {"type": "string", "enum": [i.intent for i in _DONE]},
             "amount": {"type": "integer"},
             "date": {"type": "string", "maxLength": 20},
             "horizon_days": {"type": "integer"},

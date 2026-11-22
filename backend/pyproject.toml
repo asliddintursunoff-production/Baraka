@@ -28,6 +28,7 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "RUF012"]  # RUF012: Django Meta
 "apps/engine/channels.py" = ["E501", "PLR", "C4", "RUF001", "BLE"]
 "apps/ai/policy_tools.py" = ["E501", "PLR", "C4", "RUF001", "BLE", "SIM", "E731"]
 "apps/ai/catalog.py" = ["E501", "PLR", "C4", "RUF001", "BLE", "SIM", "E731", "RUF012"]
+"apps/ai/catalog_intents.py" = ["E501", "PLR", "C4", "RUF001", "BLE", "SIM", "E731", "ARG001"]
 "apps/ai/catalog_tools.py" = ["E501", "PLR", "C4", "RUF001", "BLE", "SIM", "E731"]
 "apps/ai/digest.py" = ["E501", "BLE", "PLR", "C4", "RUF001", "SIM", "S110"]
 "apps/ai/cfo_qa_tools.py" = ["E501", "RUF001", "PLR", "C4", "BLE", "RUF059"]
@@ -74,7 +75,7 @@ ignore_missing_imports = true
 exclude = ["migrations/", "\\.venv/"]
 
 [[tool.mypy.overrides]]
-module = ["apps.workbook.*", "apps.ai.web_tools", "apps.ai.growth_tools", "apps.engine.growth", "apps.ai.cfo_qa_tools", "apps.ai.digest", "apps.ai.golden_tools", "apps.engine.channels", "apps.engine.hiring", "apps.ai.policy_tools", "apps.ai.catalog", "apps.ai.catalog_tools"]
+module = ["apps.workbook.*", "apps.ai.web_tools", "apps.ai.growth_tools", "apps.engine.growth", "apps.ai.cfo_qa_tools", "apps.ai.digest", "apps.ai.golden_tools", "apps.engine.channels", "apps.engine.hiring", "apps.ai.policy_tools", "apps.ai.catalog", "apps.ai.catalog_tools", "apps.ai.catalog_intents"]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
