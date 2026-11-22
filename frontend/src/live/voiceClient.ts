@@ -79,6 +79,12 @@ export interface VoiceClientOptions {
   onLevel?: (level: number, gateOpen: boolean) => void;
   /** Demo mode: Live is speech-to-text only — model audio is never played. */
   listenOnly?: () => boolean;
+  /**
+   * Demo hybrid: called once per model turn, at its first output (audio or tool call), with the
+   * user's utterance. "mute" = the page answers this turn itself (golden card + clip): the
+   * model's audio/captions/tool cards are dropped. "model" = the model's own answer plays.
+   */
+  decideTurn?: (utterance: string, turn: number) => Promise<"model" | "mute">;
 }
 
 const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
@@ -123,6 +129,12 @@ export class VoiceClient {
   private userVoice = false;
   /** `stopPlayback()` was pressed: drop the rest of this model turn's audio. */
   private muteTurn = false;
+  // decideTurn state (per model turn)
+  private decisionTurn = -1;
+  private decided: "model" | "mute" | null = null;
+  private decision: Promise<"model" | "mute"> | null = null;
+  private held: ArrayBuffer[] = [];
+  private heldCaption = "";
 
   constructor(opts: VoiceClientOptions) {
     this.opts = opts;
@@ -402,6 +414,14 @@ export class VoiceClient {
         }
         if (this.muteTurn || this.opts.listenOnly?.()) continue;
         const buf = base64ToBuffer(data);
+        if (this.opts.decideTurn) {
+          void this.decide();
+          if (this.decided === "mute") continue;
+          if (this.decided === null) {
+            this.held.push(buf); // ~0.1-0.3 s until the router answers
+            continue;
+          }
+        }
         this.player?.port.postMessage({ type: "push", data: buf }, [buf]);
       }
       const heard = sc.inputTranscription?.text;
@@ -414,12 +434,21 @@ export class VoiceClient {
         this.heardSinceInterrupt += heard;
         this.opts.onCaption("user", heard, this.turn);
       }
-      if (sc.outputTranscription?.text && !this.opts.listenOnly?.())
+      const aiText = sc.outputTranscription?.text;
+      if (aiText && this.opts.decideTurn && !this.opts.listenOnly?.()) {
+        void this.decide();
+        if (this.decided === null) this.heldCaption += aiText;
+        else if (this.decided === "model") this.opts.onCaption("ai", aiText, this.turn);
+      } else if (sc.outputTranscription?.text && !this.opts.listenOnly?.())
         this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
       if (sc.turnComplete || sc.interrupted) {
         const done = this.turn;
         this.modelAudioThisTurn = false;
         this.muteTurn = false;
+        this.decided = null;
+        this.decision = null;
+        this.held = [];
+        this.heldCaption = "";
         this.turn += 1;
         this.opts.onTurnComplete?.(done, !!sc.interrupted);
       }
@@ -429,6 +458,13 @@ export class VoiceClient {
       const name = call.name ?? "";
       const args = (call.args ?? {}) as Record<string, unknown>;
       const t0 = performance.now();
+      if (this.opts.decideTurn && (await this.decide()) === "mute") {
+        // the page answers this turn (golden card + clip): no second card, no model speech
+        this.session?.sendToolResponse({
+          functionResponses: [{ id: call.id, name, response: { ok: true, note: "shown" } }],
+        });
+        continue;
+      }
       this.opts.onToolCall?.(name, args);
       // "ha" may be transcribed after the model already called confirm_plan: wait briefly
       // for this turn's transcription so the backend sees the real answer.
@@ -498,6 +534,35 @@ export class VoiceClient {
   /** True when a session is open (text can be sent). */
   get connected(): boolean {
     return this.session !== null && this.ready;
+  }
+
+  /** Ask the page once per model turn whether the model's answer plays (see `decideTurn`). */
+  private decide(): Promise<"model" | "mute"> {
+    if (!this.opts.decideTurn) return Promise.resolve("model");
+    if (this.decision && this.decisionTurn === this.turn) return this.decision;
+    const turn = this.turn;
+    this.decisionTurn = turn;
+    this.decided = null;
+    const utt = this.utteranceTurn === turn ? this.utterance.trim() : "";
+    this.decision = this.opts
+      .decideTurn(utt, turn)
+      .catch(() => "model" as const)
+      .then((d) => {
+        if (this.decisionTurn !== turn) return d;
+        this.decided = d;
+        if (d === "mute") {
+          this.muteTurn = true;
+          this.player?.port.postMessage({ type: "clear" });
+        } else {
+          for (const buf of this.held)
+            this.player?.port.postMessage({ type: "push", data: buf }, [buf]);
+          if (this.heldCaption) this.opts.onCaption("ai", this.heldCaption, turn);
+        }
+        this.held = [];
+        this.heldCaption = "";
+        return d;
+      });
+    return this.decision;
   }
 
   /** "To'xtatish": silence the AI now. The rest of the current model turn is dropped too,

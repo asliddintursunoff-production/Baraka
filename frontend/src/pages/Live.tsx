@@ -397,6 +397,31 @@ export default function LivePage() {
     [stopClip],
   );
 
+  /** Show a demo answer (card) and play its clip — unless a newer question/stop came since. */
+  const showDemo = useCallback(
+    async (d: DemoAnswer, t: number, my: number) => {
+      if (d.intent) prevIntent.current = d.intent;
+      setDemoCards(d.cards ?? []);
+      if (d.blocks.length > 0) {
+        addToolResult("demo", {}, {
+          ok: true,
+          ui_blocks: d.blocks,
+          speech_segments: d.segments,
+        } as ToolResult);
+        if (d.expand)
+          setCards((prev) =>
+            prev.map((c, i) =>
+              i === prev.length - 1 && c.kind === "blocks" ? { ...c, full: true } : c,
+            ),
+          );
+      }
+      await nextPaint();
+      if (my !== demoSeq.current) return;
+      playDemo(d, t);
+    },
+    [addToolResult, playDemo],
+  );
+
   const runDemo = useCallback(
     async (text: string, t: number) => {
       const q = text.trim();
@@ -421,31 +446,14 @@ export default function LivePage() {
           prev: prevIntent.current,
         });
         if (my !== demoSeq.current) return; // stopped, or a newer question was asked meanwhile
-        if (d.intent) prevIntent.current = d.intent;
-        setDemoCards(d.cards ?? []);
-        if (d.blocks.length > 0) {
-          addToolResult("demo", {}, {
-            ok: true,
-            ui_blocks: d.blocks,
-            speech_segments: d.segments,
-          } as ToolResult);
-          if (d.expand)
-            setCards((prev) =>
-              prev.map((c, i) =>
-                i === prev.length - 1 && c.kind === "blocks" ? { ...c, full: true } : c,
-              ),
-            );
-        }
-        await nextPaint();
-        if (my !== demoSeq.current) return;
-        playDemo(d, t);
+        await showDemo(d, t, my);
       } catch {
         /* network: the user can ask again */
       } finally {
         setToolsPending((n) => Math.max(0, n - 1));
       }
     },
-    [addToolResult, playDemo, stopClip],
+    [showDemo, stopClip],
   );
 
   /** Close the session and release the mic; adds its open time to `seconds`. */
@@ -526,7 +534,30 @@ export default function LivePage() {
         getToken: takeToken,
         annotateToolCalls: true,
         micOptional: true,
-        listenOnly: () => demoRef.current,
+        decideTurn: async (utt, clientTurn) => {
+          if (!demoRef.current) return "model";
+          // the transcript's last words may still be arriving: a short settle, then the full text
+          await new Promise((r) => setTimeout(r, 150));
+          const said = (userTurnText.current[base + clientTurn] ?? utt).trim();
+          if (said.length < 2 || !/[\p{L}]{3,}/u.test(said)) return "model";
+          try {
+            const d = await Promise.race([
+              apiPost<DemoAnswer>("/api/demo/answer", {
+                text: said,
+                prev: prevIntent.current,
+                route_only: true,
+              }),
+              new Promise<null>((r) => setTimeout(() => r(null), 1500)),
+            ]);
+            if (!d || d.kind === "other" || d.kind === "greeting") return "model"; // Live answers itself
+            const my = ++demoSeq.current;
+            stopClip();
+            void showDemo(d, base + clientTurn, my);
+            return "mute"; // golden / side / charts / explain: frozen card + recorded clip
+          } catch {
+            return "model";
+          }
+        },
         onStatus: (s: Status) => {
           if (clientRef.current !== c) return; // an old client after a retry / finish
           if (s === "preparing" || s === "connecting") {
@@ -593,11 +624,6 @@ export default function LivePage() {
         onTurnComplete: (done) => {
           turnRef.current = base + done + 1;
           setTurn(base + done + 1);
-          if (demoRef.current && !pttRef.current) {
-            // tap-to-talk answers on the second tap, not on the server's end of speech
-            const said = userTurnText.current[base + done] ?? "";
-            if (said.trim()) void runDemo(said, base + done);
-          }
         },
       });
       c.pushToTalk = pttRef.current; // tap-to-talk survives a reconnect
@@ -609,7 +635,7 @@ export default function LivePage() {
         /* shown through onStatus("error") */
       }
     },
-    [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession, runDemo, stopClip],
+    [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession, showDemo, stopClip],
   );
 
   /** Saves the transcript + shown blocks once (Tugatish, leaving the page, closing the tab). */
@@ -724,13 +750,11 @@ export default function LivePage() {
         return;
       }
       pttCollect.current = false;
-      const q = pttBuf.current.trim();
-      pttBuf.current = "";
-      if (q) void runDemo(q, turnRef.current);
+      pttBuf.current = ""; // Live ends the turn on the following silence and answers
     };
     window.clearTimeout(pttTimer.current);
     pttTimer.current = window.setTimeout(finish, 350);
-  }, [runDemo, stopClip]);
+  }, [stopClip]);
 
   // Space = the same tap-to-talk button (desktop)
   useEffect(() => {

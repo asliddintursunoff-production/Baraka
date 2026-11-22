@@ -94,14 +94,15 @@ def test_finish_saves_transcript(owner_client, demo, monkeypatch):
         assert Message.objects.filter(conversation=conv).count() == 2
 
 
-def test_demo_session_is_listen_only(owner_client, demo, captured, monkeypatch):
+def test_demo_session_is_hybrid(owner_client, demo, captured, monkeypatch):
+    """Owner 2026-11-22: Live answers by itself (tools, instant voice); golden turns -> clips."""
     from config import app_settings as cfg
 
     monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", True)
     d = owner_client.post("/api/live/session", data="{}", content_type="application/json").json()
     assert d["demo"] is True
     conf = captured["config"]
-    assert not conf.tools  # no tools: Live only transcribes; answers are pre-recorded clips
+    assert conf.tools  # Live's own tools for every non-golden question
     assert conf.input_audio_transcription is not None
 
 
@@ -116,4 +117,10 @@ def test_demo_answer_endpoint_async(owner_client, demo, monkeypatch):
         content_type="application/json",
     )
     assert r.status_code == 200 and r.json()["kind"] == "greeting"
+    r = owner_client.post(
+        "/api/demo/answer",
+        data={"text": "Ertaga ob-havo qanday?", "route_only": True},
+        content_type="application/json",
+    )
+    assert r.json()["kind"] == "other"  # route_only: no slow pipeline, Live answers itself
     assert owner_client.get("/api/demo/tts/nope").status_code == 404

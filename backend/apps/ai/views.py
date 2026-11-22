@@ -219,7 +219,7 @@ async def demo_answer(request: HttpRequest) -> HttpResponseBase:
             return d
 
     d = await sync_to_async(route, thread_sensitive=False)()
-    if d["kind"] == "other":
+    if d["kind"] == "other" and not body.get("route_only"):
         d = await _demo_free(business, user, text) or d
     if d["say"] and not d["clip"]:
         _DEMO_TTS[d["speech_key"]] = d["say"]

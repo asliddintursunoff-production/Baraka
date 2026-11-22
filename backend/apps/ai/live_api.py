@@ -102,13 +102,8 @@ def session_payload(business: Business) -> dict[str, Any]:
         context_lines=live_context(business),
     )
     specs = [t.declaration() for t in TOOLS.values() if t.voice]
-    if cfg.DEMO_GOLDEN_ONLY:
-        # demo: Live is speech-to-text only (input transcription); answers are pre-recorded clips
-        instruction = (
-            "Siz faqat tinglaysiz. Foydalanuvchi nima desa ham, faqat bitta so'z bilan javob bering: "
-            "«Mhm.» Boshqa hech narsa demang, savolga javob bermang."
-        )
-        specs = []
+    # demo hybrid (owner 2026-11-22): Live answers by itself (instant voice, its tools); the page
+    # replaces the turn with the frozen card + recorded clip when the router says golden
     conf = live_config(
         system_instruction=instruction,
         tool_specs=specs,
