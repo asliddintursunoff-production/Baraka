@@ -230,6 +230,13 @@ export default function LivePage() {
   const [gateOpen, setGateOpen] = useState(false);
   const [ptt, setPtt] = useState(false);
   const [talking, setTalking] = useState(false);
+  // tap-to-talk (owner 2026-11-22): tap = start, tap again = "savolim tugadi" -> answer at once;
+  // the mic is taken only between the two taps (noisy rooms where the VAD never closes)
+  const pttRef = useRef(false);
+  const pttCollect = useRef(false);
+  const pttBuf = useRef("");
+  const pttLastChunk = useRef(0);
+  const pttTimer = useRef(0);
   const [toolsPending, setToolsPending] = useState(0);
   const [turn, setTurn] = useState(0);
   const [captions, setCaptions] = useState<Caption[]>([]);
@@ -257,7 +264,13 @@ export default function LivePage() {
     // Turn numbers restart with every client ("Qayta boshlash"): keep them unique on the page.
     const t = turnBase.current + clientTurn;
     const key = `${who}-${t}`;
-    if (who === "user") userTurnText.current[t] = (userTurnText.current[t] ?? "") + chunk;
+    if (who === "user") {
+      userTurnText.current[t] = (userTurnText.current[t] ?? "") + chunk;
+      if (pttCollect.current) {
+        pttBuf.current += chunk;
+        pttLastChunk.current = performance.now();
+      }
+    }
     setCaptions((prev) => {
       const i = prev.findIndex((c) => c.key === key);
       const cur = i >= 0 ? prev[i] : undefined;
@@ -439,6 +452,10 @@ export default function LivePage() {
   const endSession = useCallback((): Promise<void> => {
     const c = clientRef.current;
     clientRef.current = null;
+    pttCollect.current = false;
+    pttBuf.current = "";
+    window.clearTimeout(pttTimer.current);
+    setTalking(false);
     if (sessionStart.current) {
       usedMs.current += performance.now() - sessionStart.current;
       sessionStart.current = 0;
@@ -576,12 +593,14 @@ export default function LivePage() {
         onTurnComplete: (done) => {
           turnRef.current = base + done + 1;
           setTurn(base + done + 1);
-          if (demoRef.current) {
+          if (demoRef.current && !pttRef.current) {
+            // tap-to-talk answers on the second tap, not on the server's end of speech
             const said = userTurnText.current[base + done] ?? "";
             if (said.trim()) void runDemo(said, base + done);
           }
         },
       });
+      c.pushToTalk = pttRef.current; // tap-to-talk survives a reconnect
       clientRef.current = c;
       try {
         await c.prepare(tOpen, takeToken());
@@ -673,26 +692,65 @@ export default function LivePage() {
   useEffect(() => () => window.clearTimeout(speakTimer.current), []);
 
   // --- user actions ---
-  useEffect(() => {
-    if (!ptt) return;
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat || (e.target as HTMLElement)?.tagName === "INPUT") return;
-      e.preventDefault();
+
+  /** Tap 1: start listening (stops the answer that is playing). Tap 2: the question is over. */
+  const togglePtt = useCallback(() => {
+    const c = clientRef.current;
+    if (!c) return;
+    if (!pttCollect.current) {
+      pttRef.current = true;
+      setPtt(true);
+      c.pushToTalk = true;
+      demoSeq.current += 1; // the old answer must not start talking later
+      stopClip();
+      c.stopPlayback();
+      clipSay.current = "";
+      pttBuf.current = "";
+      pttLastChunk.current = performance.now();
+      pttCollect.current = true;
+      c.talking = true;
       setTalking(true);
-      if (clientRef.current) clientRef.current.talking = true;
+      lastActivity.current = performance.now();
+      return;
+    }
+    c.talking = false; // from now on Live only gets silence
+    setTalking(false);
+    const t0 = performance.now();
+    const finish = () => {
+      // the last words' transcription arrives a moment after the audio: wait until it settles
+      const idle = performance.now() - pttLastChunk.current;
+      if (idle < 500 && performance.now() - t0 < 1800) {
+        pttTimer.current = window.setTimeout(finish, 120);
+        return;
+      }
+      pttCollect.current = false;
+      const q = pttBuf.current.trim();
+      pttBuf.current = "";
+      if (q) void runDemo(q, turnRef.current);
     };
-    const up = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      setTalking(false);
-      if (clientRef.current) clientRef.current.talking = false;
+    window.clearTimeout(pttTimer.current);
+    pttTimer.current = window.setTimeout(finish, 350);
+  }, [runDemo, stopClip]);
+
+  // Space = the same tap-to-talk button (desktop)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (
+        e.code !== "Space" ||
+        e.repeat ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "BUTTON"
+      )
+        return;
+      e.preventDefault();
+      togglePtt();
     };
     window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [ptt]);
+    return () => window.removeEventListener("keydown", down);
+  }, [togglePtt]);
+  useEffect(() => () => window.clearTimeout(pttTimer.current), []);
 
   const stopPlayback = useCallback(() => {
     demoSeq.current += 1; // an answer still being prepared will not start talking later
@@ -921,38 +979,31 @@ export default function LivePage() {
                 </div>
                 <span>{gateOpen ? "eshityapman" : "shovqin e'tiborsiz"}</span>
               </div>
-              <label className="flex items-center gap-2 text-13 text-[#D0D5DD]">
-                <input
-                  type="checkbox"
-                  checked={ptt}
-                  onChange={(e) => {
-                    setPtt(e.target.checked);
-                    if (clientRef.current) clientRef.current.pushToTalk = e.target.checked;
-                  }}
-                />
-                Bosib gapirish (shovqinli joy, masalan oshxona)
-              </label>
-              {ptt && (
+              <button
+                type="button"
+                onClick={togglePtt}
+                aria-pressed={talking}
+                className={
+                  "flex min-h-[56px] w-full max-w-[360px] items-center justify-center gap-2 rounded-full px-6 py-3 text-16 font-semibold transition-colors " +
+                  (talking
+                    ? "animate-pulse bg-[#F04438] text-white"
+                    : "bg-[#32D583] text-[#0C111D]")
+                }
+              >
+                <span aria-hidden>{talking ? "■" : "🎙"}</span>
+                {talking ? "Savolim tugadi — javob ber" : "Bosing va gapiring"}
+              </button>
+              {ptt && !talking && (
                 <button
                   type="button"
-                  onPointerDown={() => {
-                    setTalking(true);
-                    if (clientRef.current) clientRef.current.talking = true;
+                  className="text-12 text-[#98A2B3] underline"
+                  onClick={() => {
+                    pttRef.current = false;
+                    setPtt(false);
+                    if (clientRef.current) clientRef.current.pushToTalk = false;
                   }}
-                  onPointerUp={() => {
-                    setTalking(false);
-                    if (clientRef.current) clientRef.current.talking = false;
-                  }}
-                  onPointerLeave={() => {
-                    setTalking(false);
-                    if (clientRef.current) clientRef.current.talking = false;
-                  }}
-                  className={
-                    "rounded-full px-6 py-3 text-15 font-semibold " +
-                    (talking ? "bg-[#32D583] text-[#0C111D]" : "bg-[#1D2939] text-white")
-                  }
                 >
-                  {talking ? "Gapiring…" : "Bosib turing va gapiring (yoki Probel)"}
+                  Avtomatik tinglashga qaytish
                 </button>
               )}
             </div>
