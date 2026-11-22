@@ -1,5 +1,5 @@
-import { Check, Copy, FileDown, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Check, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
+import { useState } from "react";
 
 import { Markdown } from "@/components/Markdown";
 import { RichText } from "@/components/RichText";
@@ -77,50 +77,23 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
   const followUps = (answer.chips ?? []).length > 0 ? answer.chips : plan ? [ALTERNATIVE] : [];
   const hasActions =
     steps.length > 0 || timeline.length > 0 || risks.length > 0 || question != null || plan != null || followUps.length > 0;
-  const cardRef = useRef<HTMLElement>(null);
-  const [copied, setCopied] = useState(false);
+  const hasReport = blocks.some((b) => b.type === "report");
   const planNote = approved ? (planState?.summary ?? plan?.summary ?? "") : "";
 
   return (
-    <article
-      ref={cardRef}
-      className="min-w-0 flex-[1_1_auto] overflow-hidden rounded-[4px_16px_16px_16px] border border-border bg-surface [overflow-wrap:anywhere]"
-    >
+    <article className="flex min-w-0 flex-col gap-4 [overflow-wrap:anywhere]">
       {markdown ? (
-        <div className="px-[22px] pb-[18px] pt-[22px]">
-          <Markdown text={markdown} />
-          <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard?.writeText(markdown).then(() => {
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-              className="inline-flex items-center gap-1 rounded-pill border border-border px-3 py-1 text-13 text-text-3 hover:text-ink"
-            >
-              <Copy size={14} /> {copied ? "Nusxa olindi" : "Nusxa olish"}
-            </button>
-            <button
-              type="button"
-              onClick={() => exportPdf(cardRef.current)}
-              className="inline-flex items-center gap-1 rounded-pill border border-border px-3 py-1 text-13 text-text-3 hover:text-ink"
-            >
-              <FileDown size={14} /> Hisobot (PDF)
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-[10px] px-[22px] pb-[18px] pt-[22px]">
-          <div className="flex items-center gap-3">
-            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[20px]", v.bg, v.color)}>
-              <v.Icon size={22} strokeWidth={2.6} aria-hidden="true" />
+        <Markdown text={markdown} />
+      ) : hasReport ? null : (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-2">
+            <span className={cn("mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full", v.bg, v.color)}>
+              <v.Icon size={14} strokeWidth={2.8} aria-hidden="true" />
             </span>
-            <h2 className={cn("m-0 min-w-0 font-display text-26 font-bold leading-[1.2]", v.color)}>{answer.headline}</h2>
+            <h2 className="m-0 min-w-0 text-[19px] font-semibold leading-snug text-ink">{answer.headline}</h2>
           </div>
           {answer.reason && (
-            <p className="m-0 text-17 leading-[1.6] text-text-2 [&_strong]:text-ink">
+            <p className="m-0 text-16 leading-[1.6] text-text-2 [&_strong]:text-ink">
               <RichText text={answer.reason} />
             </p>
           )}
@@ -128,7 +101,7 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
       )}
 
       {blocks.length > 0 && (
-        <div className={cn("mx-[22px]", !hasActions && assumptions.length === 0 && "mb-[22px]")}>
+        <div>
           <UiBlockRenderer
             blocks={blocks}
             handlers={{
@@ -141,13 +114,13 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
       )}
 
       {assumptions.length > 0 && (
-        <div className={cn("mx-[22px] pt-4", !hasActions && "mb-[22px]")}>
+        <div>
           <AssumptionChips items={assumptions} onRecomputed={setRecomputed} />
         </div>
       )}
 
       {hasActions && (
-        <div className="flex flex-col gap-3 px-[22px] py-5">
+        <div className="flex flex-col gap-3">
           {steps.length > 0 && (
             <>
               <span className="text-15 font-bold">Nima qilasiz:</span>
@@ -207,7 +180,7 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
                   type="button"
                   disabled={busy}
                   onClick={() => onAsk(text)}
-                  className="min-h-12 rounded-btn-lg border border-border-input bg-surface px-5 text-16 font-semibold text-text-2 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-tap rounded-pill border border-border-input bg-surface px-4 text-14 font-semibold text-text-2 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {text}
                 </button>
@@ -230,7 +203,7 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
       )}
 
       {(answer.speech || explain.length > 0) && (
-        <div className="flex flex-wrap items-center gap-[14px] border-t border-border-subtle bg-surface-muted-2 px-[22px] py-3">
+        <div className="flex flex-wrap items-center gap-[14px]">
           {explain.length > 0 && (
             <details className="min-w-0 flex-[1_1_260px]">
               <summary className="flex min-h-tap cursor-pointer items-center text-14 font-semibold text-text-3">
@@ -249,24 +222,4 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
       )}
     </article>
   );
-}
-
-/** "Hisobot": the answer (tables + charts as rendered) in a print window -> "Save as PDF". */
-function exportPdf(el: HTMLElement | null): void {
-  if (!el) return;
-  const w = window.open("", "_blank", "width=900,height=1000");
-  if (!w) return;
-  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-    .map((n) => n.outerHTML)
-    .join("");
-  w.document.write(
-    `<!doctype html><html><head><meta charset="utf-8"><title>Baraka — hisobot</title>${styles}` +
-      `<style>body{padding:24px;background:#fff} .print\\:hidden{display:none!important} table{page-break-inside:avoid}</style>` +
-      `</head><body><h2 style="font-family:sans-serif">Baraka · AI CFO hisobot · ${new Date().toLocaleString("uz-UZ")}</h2>${el.outerHTML}</body></html>`,
-  );
-  w.document.close();
-  w.onload = () => {
-    w.focus();
-    w.print();
-  };
 }

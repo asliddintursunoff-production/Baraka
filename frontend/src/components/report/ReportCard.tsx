@@ -121,11 +121,11 @@ function StackedH({ c }: { c: ReportChart }) {
 function BarV({ c }: { c: ReportChart }) {
   const data = (c.data ?? []).map((r) => ({ ...r }));
   return (
-    <div className="h-[220px] w-full">
+    <div className="h-[200px] w-full lg:h-[240px]">
       <ResponsiveContainer>
         <BarChart data={data} layout="vertical" margin={{ left: 10, right: 60 }}>
           <XAxis type="number" hide />
-          <YAxis type="category" dataKey={c.x ?? "variant"} width={170} tick={{ fontSize: 12 }} />
+          <YAxis type="category" dataKey={c.x ?? "variant"} width={120} tick={{ fontSize: 12 }} />
           <Tooltip formatter={(v) => fmt(Number(v))} />
           <Bar dataKey={c.y ?? "qiymat"} radius={4}>
             {data.map((r, i) => (
@@ -141,7 +141,7 @@ function BarV({ c }: { c: ReportChart }) {
 
 function LineC({ c }: { c: ReportChart }) {
   return (
-    <div className="h-[200px] w-full">
+    <div className="h-[200px] w-full lg:h-[240px]">
       <ResponsiveContainer>
         <LineChart data={c.data ?? []} margin={{ left: 0, right: 16, top: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -180,7 +180,7 @@ function LineMulti({ c }: { c: ReportChart }) {
     return row;
   });
   return (
-    <div className="h-[240px] w-full">
+    <div className="h-[200px] w-full lg:h-[240px]">
       <ResponsiveContainer>
         <LineChart data={data} margin={{ left: 0, right: 24, top: 12 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -233,14 +233,17 @@ function ProgressList({ c }: { c: ReportChart }) {
 function Waterfall({ c }: { c: ReportChart }) {
   const start = c.start ?? { label: "", value: 0 };
   const end = c.end ?? { label: "", value: 0 };
-  let acc = start.value;
+  const stepsIn = c.steps ?? [];
+  const bases = stepsIn.map((_, i) => start.value + stepsIn.slice(0, i).reduce((s, x) => s + x.value, 0));
   const rows = [
     { label: start.label, base: 0, val: start.value, color: "#94A3B8", text: String(start.value).replace(".", ",") },
-    ...(c.steps ?? []).map((st) => {
-      const r = { label: st.label, base: acc, val: st.value, color: "#14B8A6", text: `+${st.value.toFixed(2).replace(".", ",")}` };
-      acc += st.value;
-      return r;
-    }),
+    ...stepsIn.map((st, i) => ({
+      label: st.label,
+      base: bases[i] ?? 0,
+      val: st.value,
+      color: "#14B8A6",
+      text: `+${st.value.toFixed(2).replace(".", ",")}`,
+    })),
     { label: end.label, base: 0, val: end.value, color: "#0F766E", text: end.value.toFixed(1).replace(".", ",") },
   ];
   const lo = Math.floor((start.value * 0.96) / 5) * 5;
@@ -283,7 +286,7 @@ function Waterfall({ c }: { c: ReportChart }) {
 function BarGrouped({ c }: { c: ReportChart }) {
   const keys = Object.keys(c.group_colors ?? {});
   return (
-    <div className="h-[220px] w-full">
+    <div className="h-[200px] w-full lg:h-[240px]">
       <ResponsiveContainer>
         <BarChart data={c.data ?? []} margin={{ left: 0, right: 8, top: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -310,9 +313,58 @@ function Chart({ c }: { c: ReportChart }) {
   return <Progress c={c} />;
 }
 
-function Table({ t }: { t: NonNullable<ReportSection["table"]> }) {
-  const md = ["| " + t.columns.join(" | ") + " |", "|" + t.columns.map((_, i) => (i ? "---:" : "---")).join("|") + "|", ...t.rows.map((r) => "| " + r.join(" | ") + " |")].join("\n");
-  return <Markdown text={md} />;
+function Table({ t, limit = 6 }: { t: NonNullable<ReportSection["table"]>; limit?: number }) {
+  const [all, setAll] = useState(false);
+  const rows = all ? t.rows : t.rows.slice(0, limit);
+  const num = (v: string) => /^[−\-+]?[\d\s\u00a0\u202f.,]+(%| so'm| mln)?$/.test(v.trim());
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+        <table className="w-full min-w-max border-collapse text-14">
+          <thead>
+            <tr>
+              {t.columns.map((c, i) => (
+                <th
+                  key={i}
+                  scope="col"
+                  className={cn(
+                    "whitespace-nowrap border-b border-[#E5E7EB] px-3 py-2 text-12 font-semibold text-text-3",
+                    i === 0 ? "sticky left-0 z-[1] bg-surface text-left" : "text-right",
+                  )}
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, ri) => (
+              <tr key={ri} className={cn(t.highlight_last && ri === t.rows.length - 1 && "font-semibold")}>
+                {r.map((v, i) => (
+                  <td
+                    key={i}
+                    className={cn(
+                      "border-b border-[#F2F4F7] px-3 py-2 align-top",
+                      i === 0 ? "sticky left-0 z-[1] bg-surface text-left" : "whitespace-nowrap text-right tabular-nums",
+                      i > 0 && !num(v) && "text-left",
+                      /^[−-]\d/.test(v.trim()) && "text-danger",
+                    )}
+                  >
+                    {v.replace(/\*\*/g, "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {t.rows.length > limit && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start border-0 bg-transparent p-0 text-14 font-semibold text-primary">
+          {all ? "Kamroq ko'rsatish" : `Hammasini ko'rish (${t.rows.length})`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function ReportCard({
@@ -331,28 +383,37 @@ export function ReportCard({
   const isActive = (id: string) => cueIds.some((c) => c && (id === c || id.startsWith(c)));
   const showSection = (s: ReportSection) => !compact || full || open[s.id] || isActive(s.id);
   return (
-    <div ref={ref} className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-5 text-ink sm:p-6">
-      <p className="m-0 font-display text-20 font-bold leading-snug">
+    <div ref={ref} className="flex min-w-0 flex-col gap-5 rounded-card border border-[#E5E7EB] bg-surface p-5 text-ink">
+      <h3 className="m-0 text-[19px] font-semibold leading-snug [overflow-wrap:anywhere]">
         {report.verdict} {report.verdict_highlight && <span className="text-[#0F766E]">{report.verdict_highlight}</span>}
-      </p>
+      </h3>
       <div className={cn("grid gap-3", "grid-cols-2 lg:grid-cols-4", cueIds.some((c) => c.startsWith("kpi") || c.startsWith("verdict")) && "rounded-inner ring-2 ring-[#2DD4BF]")}>
         {report.kpis.map((k) => (
-          <div key={k.label} className="rounded-inner border border-border p-3">
-            <div className="text-13 text-text-3">{k.label}</div>
-            <div className={cn("font-display text-22 font-bold tabular-nums", k.tone === "good" && "text-[#0F766E]", k.tone === "bad" && "text-danger")}>{k.value}</div>
-            {k.sub && <div className="text-12 text-text-3">{k.sub}</div>}
+          <div key={k.label} className="flex min-w-0 flex-col gap-0.5 rounded-inner bg-[#F9FAFB] p-3">
+            <div className="text-12 text-text-3">{k.label}</div>
+            <div
+              className={cn(
+                "text-22 font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]",
+                k.tone === "good" && "text-success",
+                k.tone === "bad" && "text-danger",
+                (k.tone as string) === "warn" && "text-warning",
+              )}
+            >
+              {k.value}
+            </div>
+            {k.sub && <div className="text-12 text-text-4">{k.sub}</div>}
           </div>
         ))}
       </div>
       {report.sections.filter(showSection).map((s) => (
         <section
           key={s.id}
-          className={cn("flex flex-col gap-3 rounded-inner border border-border p-4", isActive(s.id) && "border-[#2DD4BF] bg-[#F0FDFA] ring-2 ring-[#2DD4BF]")}
+          className={cn("flex min-w-0 flex-col gap-3 border-t border-[#F2F4F7] pt-4", isActive(s.id) && "-mx-2 rounded-inner border-t-0 bg-[#F0FDFA] px-2 py-3 ring-2 ring-[#2DD4BF]")}
         >
           {isActive(s.id) && compact && (
             <span className="self-start rounded-full bg-[#2DD4BF] px-2 py-0.5 text-12 font-bold text-[#042F2E]">● hozir aytilmoqda</span>
           )}
-          <h3 className="m-0 text-16 font-bold">{s.title}</h3>
+          <h4 className="m-0 text-15 font-semibold [overflow-wrap:anywhere]">{s.title}</h4>
           {s.chart && <Chart c={s.chart} />}
           {s.table && !(compact && !full && s.chart) && <Table t={s.table} />}
           {s.actions && (
@@ -381,8 +442,27 @@ export function ReportCard({
           </button>
         </div>
       )}
-      {(!compact || full) && report.assumptions && <p className="m-0 text-12 text-text-3">{report.assumptions}</p>}
-      {report.source && <p className="m-0 border-t border-border pt-2 text-12 text-text-3">Manba: {report.source}</p>}
+      {((!compact || full) && report.assumptions) || report.source ? (
+        <div className="flex flex-col gap-1 border-t border-[#F2F4F7] pt-3 text-13 text-text-3">
+          {(!compact || full) && report.assumptions && (
+            <details>
+              <summary className="flex min-h-tap cursor-pointer items-center font-semibold md:min-h-8">Taxminlar</summary>
+              <p className="m-0 pb-2 leading-relaxed">{report.assumptions}</p>
+            </details>
+          )}
+          {report.source && (
+            <details>
+              <summary className="flex min-h-tap cursor-pointer items-center font-semibold md:min-h-8">
+                Manba · Ishonch: {/taxmin/i.test(`${report.assumptions ?? ""} ${report.period ?? ""}`) ? "O'rta" : "Yuqori"}
+              </summary>
+              <p className="m-0 pb-2 leading-relaxed">
+                {report.source}
+                {report.period ? ` · ${report.period}` : ""}
+              </p>
+            </details>
+          )}
+        </div>
+      ) : null}
       {(!compact || full) && (
         <button
           type="button"

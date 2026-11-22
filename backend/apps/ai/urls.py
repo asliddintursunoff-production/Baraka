@@ -5,6 +5,7 @@ from . import dev_views, live_api, views
 urlpatterns = [
     path("chat/bootstrap", views.ChatBootstrapView.as_view()),
     path("chat/messages", views.chat_messages),
+    path("chat/conversations/<int:conv_id>", views.ConversationView.as_view()),
     path("chat/messages/<int:message_id>/speech", views.ChatSpeechView.as_view()),
     path("chat/transcribe", views.transcribe),
     path("tools/<str:name>", views.ToolView.as_view()),

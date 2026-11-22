@@ -33,3 +33,16 @@ export async function apiGet<T>(url: string): Promise<T> {
   if (!res.ok) throw new ApiError(res.status, data);
   return data as T;
 }
+
+export function apiPatch<T>(url: string, body: unknown): Promise<T> {
+  return apiPost<T>(url, body, { method: "PATCH" });
+}
+
+export async function apiDelete(url: string): Promise<void> {
+  const res = await fetch(url, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": csrfToken() },
+  });
+  if (!res.ok) throw new ApiError(res.status, null);
+}

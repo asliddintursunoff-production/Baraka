@@ -17,9 +17,17 @@ export function MicIcon({ size = 22, color = "currentColor" }: { size?: number; 
   );
 }
 
-export function WaveIcon({ size = 20, d = "M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4M21 12h0" }: { size?: number; d?: string }) {
+export function WaveIcon({
+  size = 20,
+  d = "M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4M21 12h0",
+  color = "#FFFFFF",
+}: {
+  size?: number;
+  d?: string;
+  color?: string;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" aria-hidden="true">
       <path d={d} />
     </svg>
   );

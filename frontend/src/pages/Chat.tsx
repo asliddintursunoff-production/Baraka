@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { ArrowDown } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { AppShell } from "@/components/AppShell";
 import { AnswerCard, hasCardContent } from "@/components/chat/AnswerCard";
-import { BasisPanel } from "@/components/chat/BasisPanel";
-import { AssistantRow, AssistantText, DaySeparator, metaLabel, UserMessage } from "@/components/chat/Bubbles";
+import { AssistantRow, AssistantText, MessageActions, MessageUser, metaLabel } from "@/components/chat/Bubbles";
+import { ChatHeader, SuggestionGrid } from "@/components/chat/ChatChrome";
 import { Composer } from "@/components/chat/Composer";
-import { SparkIcon, WaveIcon } from "@/components/chat/icons";
+import { HistoryList, type ConvRow } from "@/components/chat/HistoryList";
+import { WaveIcon } from "@/components/chat/icons";
 import { LearningCard } from "@/components/chat/LearningCard";
 import { prefetchLive } from "@/components/chat/live";
 import { StreamingCard } from "@/components/chat/StreamingCard";
@@ -19,7 +21,6 @@ import { ApiError, apiGet } from "@/lib/api";
 import type { Answer, ChatBootstrap, ChatMessage, ChatStreamEvents, SendPayload, Voice } from "@/lib/chatTypes";
 import { postSse } from "@/lib/sse";
 import { track } from "@/lib/telemetry";
-import { cn } from "@/lib/utils";
 
 const STREAM_FAILED = "Javob olib bo'lmadi. Internet aloqasini tekshirib, qaytadan urinib ko'ring.";
 
@@ -67,7 +68,7 @@ function fromServer(m: ChatMessage): Turn {
 
 function ChatSkeleton() {
   return (
-    <div className="flex flex-col gap-[22px]" aria-busy="true" aria-label="Yuklanmoqda">
+    <div className="mx-auto flex w-full max-w-chat flex-col gap-6 px-4 py-8 md:px-6" aria-busy="true" aria-label="Yuklanmoqda">
       <Skeleton className="h-12 w-72 max-w-full" />
       <Skeleton className="h-24 w-[620px] max-w-full" />
       <Skeleton className="h-20 w-[420px] max-w-[85%] self-end" />
@@ -77,18 +78,27 @@ function ChatSkeleton() {
   );
 }
 
+function answerText(t: Turn): string {
+  const a = t.answer;
+  if (!a) return t.stream || t.text;
+  return (a.markdown ?? "").trim() || [a.headline, a.reason].filter(Boolean).join("\n\n").replace(/\*\*/g, "");
+}
+
 function AssistantTurn({
   turn,
   busy,
   onAsk,
   onEdit,
   actions,
+  regenerate,
 }: {
   turn: Turn;
   busy: boolean;
   onAsk: (text: string) => void;
   onEdit: (text: string) => void;
   actions: AnswerActions;
+  /** The question this answer replied to ("Qayta javob" asks it again). */
+  regenerate?: string;
 }) {
   const a = turn.answer;
   let body: ReactNode;
@@ -127,12 +137,17 @@ function AssistantTurn({
     );
   } else {
     body = (
-      <AssistantText label={metaLabel(turn.author, turn.time)}>
+      <AssistantText>
         <RichText text={turn.text} />
       </AssistantText>
     );
   }
-  return <AssistantRow live={turn.live}>{body}</AssistantRow>;
+  const done = !turn.pending && !turn.error;
+  return (
+    <AssistantRow live={turn.live} footer={done ? <MessageActions text={answerText(turn)} onRegenerate={regenerate ? () => onAsk(regenerate) : undefined} busy={busy} /> : null}>
+      {body}
+    </AssistantRow>
+  );
 }
 
 function ChatView({ boot }: { boot: ChatBootstrap }) {
@@ -144,7 +159,7 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
   const busyRef = useRef(false);
   const convRef = useRef(boot.conversation_id);
   const abortRef = useRef<AbortController | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const lastTurnRef = useRef<HTMLDivElement>(null);
   const scrolledOnce = useRef(false);
@@ -264,185 +279,137 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
     ? `${turns.length}|${last.key}|${last.status ?? ""}|${last.blocks?.length ?? 0}|${Math.floor(last.stream.length / 240)}|${last.answer ? 1 : 0}|${last.error ? 1 : 0}`
     : "";
 
-  // Keep the newest bubble visible above the sticky composer. A bubble taller than the
-  // screen is scrolled to its top so the verdict is read first.
-  const [newPill, setNewPill] = useState(false);
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    busyRef.current = false;
+    setBusy(false);
+    setLocal((prev) =>
+      prev.map((t) => (t.pending ? { ...t, pending: false, error: t.answer || t.stream || t.blocks?.length ? null : "To'xtatildi." } : t)),
+    );
+  }, []);
+
+  // The list always ends above the composer: bottom padding = composer height + 24px.
+  const [pad, setPad] = useState(160);
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setPad(el.offsetHeight + 24));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Auto-scroll only when the reader is near the bottom (≤120px); otherwise offer "↓".
+  const [down, setDown] = useState(false);
   const nearBottom = useRef(true);
   useEffect(() => {
     const onScroll = () => {
-      const room = window.innerHeight - (composerRef.current?.offsetHeight ?? 0);
-      const el = lastTurnRef.current;
-      nearBottom.current = !el || el.getBoundingClientRect().top < room + 120;
-      if (nearBottom.current) setNewPill(false);
+      const gap = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+      nearBottom.current = gap < 120;
+      setDown(!nearBottom.current);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  const toBottom = useCallback((smooth: boolean) => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
   useEffect(() => {
-    const el = lastTurnRef.current;
-    if (!el) return;
-    if (scrolledOnce.current && !nearBottom.current) {
-      setNewPill(true); // the user scrolled up to read: don't yank the page
+    if (!lastTurnRef.current) return;
+    if (!scrolledOnce.current) {
+      scrolledOnce.current = true;
+      toBottom(false); // opening an old chat: jump, no animation
       return;
     }
-    const smooth = scrolledOnce.current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrolledOnce.current = true;
-    const room = window.innerHeight - (composerRef.current?.offsetHeight ?? 0);
-    const r = el.getBoundingClientRect();
-    const delta = r.height > room - 32 ? r.top - 16 : r.bottom - room + 16;
-    if (delta > 0) window.scrollBy({ top: delta, behavior: smooth ? "smooth" : "auto" });
-  }, [scrollKey]);
+    if (nearBottom.current) toBottom(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, [scrollKey, toBottom]);
+
+  const prevUser = (i: number) => {
+    for (let j = i - 1; j >= 0; j--) if (turns[j]?.role === "user") return turns[j]?.text ?? "";
+    return "";
+  };
 
   return (
-    <div className="-mx-4 -mb-12 -mt-7 flex min-h-screen flex-wrap md:-mx-9">
-      <div className="flex min-w-0 flex-[999_1_560px] flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-[18px] sm:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-inner bg-ink" aria-hidden="true">
-              <SparkIcon size={20} strokeWidth={2} />
-            </div>
-            <div className="flex min-w-0 flex-col gap-[2px]">
-              <h1 className="m-0 font-display text-20 font-bold">AI CFO</h1>
-              {boot.business_name && (
-                <span className="text-13 text-text-3">{boot.business_name}'ning moliyaviy maslahatchisi</span>
-              )}
-            </div>
-          </div>
-          <Link
-            to="/live"
-            onMouseEnter={prefetchLive}
-            onFocus={prefetchLive}
-            className="inline-flex min-h-tap items-center gap-[10px] rounded-pill bg-ink px-[18px] text-15 font-semibold text-white no-underline hover:text-white"
-          >
-            <WaveIcon />
-            Jonli gaplashish
-          </Link>
-        </header>
-
-        <div className="mx-auto box-border flex w-full max-w-[900px] grow flex-col gap-[22px] px-4 py-7 sm:px-8">
-          <DaySeparator label="Bugun" />
-          {boot.brief && (
-            <AssistantRow>
-              <AssistantText label={metaLabel("AI CFO", boot.brief.time)}>
-                <RichText text={boot.brief.lead} /> <strong>{boot.brief.strong}</strong> <RichText text={boot.brief.rest} />
-              </AssistantText>
-            </AssistantRow>
-          )}
-          {turns.map((t, i) => (
+    <div className="flex min-h-dvh flex-col md:min-h-dvh">
+      <ChatHeader businessName={boot.business_name} basis={boot.basis} />
+      <div className="mx-auto box-border flex w-full max-w-chat grow flex-col gap-6 px-4 pt-6 md:px-6" style={{ paddingBottom: pad }}>
+        {turns.length === 0 ? (
+          <SuggestionGrid brief={boot.brief} disabled={busy} onAsk={ask} />
+        ) : (
+          turns.map((t, i) => (
             <div key={t.key} ref={i === turns.length - 1 ? lastTurnRef : undefined}>
               {t.role === "user" ? (
-                <UserMessage label={metaLabel(t.author, t.time)} text={t.text} voice={t.voice} />
+                <MessageUser label={metaLabel(t.author, t.time)} text={t.text} voice={t.voice} />
               ) : (
-                <AssistantTurn turn={t} busy={busy} onAsk={ask} onEdit={editCandidate} actions={actions} />
+                <AssistantTurn
+                  turn={t}
+                  busy={busy}
+                  onAsk={ask}
+                  onEdit={editCandidate}
+                  actions={actions}
+                  regenerate={prevUser(i)}
+                />
               )}
             </div>
-          ))}
-        </div>
-
-        {newPill && (
-          <button
-            type="button"
-            onClick={() => {
-              setNewPill(false);
-              nearBottom.current = true;
-              lastTurnRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-            }}
-            className="fixed bottom-28 left-1/2 z-20 -translate-x-1/2 rounded-pill bg-ink px-4 py-2 text-14 font-semibold text-white shadow-lg"
-          >
-            ↓ yangi xabar
-          </button>
+          ))
         )}
-        <Composer
-          chips={boot.chips ?? []}
-          busy={busy}
-          value={draft}
-          onChange={setDraft}
-          onSend={onComposerSend}
-          inputRef={inputRef}
-          containerRef={composerRef}
-        />
       </div>
 
-      <BasisPanel basis={boot.basis} />
+      {down && turns.length > 0 && (
+        <button
+          type="button"
+          aria-label="Pastga"
+          onClick={() => toBottom(true)}
+          style={{ bottom: pad }}
+          className="fixed left-1/2 z-30 grid size-10 -translate-x-1/2 place-items-center rounded-full border border-border bg-surface text-ink shadow-lg md:left-[calc(50%+32px)] lg:left-[calc(50%+130px)]"
+        >
+          <ArrowDown size={18} />
+        </button>
+      )}
+      <Composer
+        busy={busy}
+        value={draft}
+        onChange={setDraft}
+        onSend={onComposerSend}
+        onStop={stop}
+        inputRef={inputRef}
+        containerRef={composerRef}
+      />
     </div>
   );
 }
 
 export default function ChatPage() {
-  const [sel, setSel] = useState<{ id?: number; isNew?: boolean }>({});
-  const url = sel.isNew
-    ? "/api/chat/bootstrap?new=1"
-    : sel.id
-      ? `/api/chat/bootstrap?conversation_id=${sel.id}`
-      : "/api/chat/bootstrap";
+  const [params] = useSearchParams();
+  const isNew = params.get("new");
+  const cid = params.get("c");
+  const url = isNew ? "/api/chat/bootstrap?new=1" : cid ? `/api/chat/bootstrap?conversation_id=${cid}` : "/api/chat/bootstrap";
   const q = useQuery({
-    queryKey: ["chat", "bootstrap", sel.isNew ? `new-${sel.id ?? 0}` : (sel.id ?? "last")],
+    queryKey: ["chat", "bootstrap", isNew ? `new-${isNew}` : (cid ?? "last")],
     queryFn: () => apiGet<ChatBootstrap & { conversations?: ConvRow[] }>(url),
     // History is merged with bubbles streamed in this session; refetch only on mount/invalidation.
     refetchOnWindowFocus: false,
     staleTime: Infinity,
   });
-
-  if (q.isPending)
-    return (
-      <AppShell active="chat">
-        <ChatSkeleton />
-      </AppShell>
-    );
-  if (q.isError)
-    return (
-      <AppShell active="chat">
+  const convs = q.data?.conversations ?? [];
+  const live = (
+    <Link to="/live" aria-label="Jonli gaplashish" onMouseEnter={prefetchLive} className="grid size-tap place-items-center rounded-full bg-ink no-underline">
+      <WaveIcon size={20} />
+    </Link>
+  );
+  const history = <HistoryList items={convs} activeId={q.data?.conversation_id} />;
+  let body: ReactNode;
+  if (q.isPending) body = <ChatSkeleton />;
+  else if (q.isError)
+    body = (
+      <div className="p-6">
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      </AppShell>
-    );
-  const convs = q.data.conversations ?? [];
-  return (
-    <AppShell active="chat">
-      <div className="flex min-h-0 w-full flex-1">
-        <aside className="hidden w-[230px] shrink-0 flex-col gap-1 border-r border-border bg-surface p-3 lg:flex">
-          <button
-            type="button"
-            onClick={() => setSel({ isNew: true, id: Date.now() })}
-            className="mb-2 rounded-card bg-ink px-3 py-2 text-left text-14 font-semibold text-white"
-          >
-            + Yangi chat
-          </button>
-          <div className="flex flex-col gap-0.5 overflow-y-auto">
-            {convs.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSel({ id: c.id })}
-                className={cn(
-                  "truncate rounded-inner px-2 py-1.5 text-left text-13",
-                  c.id === q.data.conversation_id ? "bg-[#EEF4FF] font-semibold text-primary" : "text-text-2 hover:bg-bg",
-                )}
-                title={c.title}
-              >
-                {c.channel === "voice" ? "🎙 " : ""}
-                {c.title}
-              </button>
-            ))}
-          </div>
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <button
-            type="button"
-            onClick={() => setSel({ isNew: true, id: Date.now() })}
-            className="m-2 self-start rounded-card border border-border px-3 py-1.5 text-13 font-semibold lg:hidden"
-          >
-            + Yangi chat
-          </button>
-          <ChatView key={q.data.conversation_id} boot={q.data} />
-        </div>
       </div>
+    );
+  else body = <ChatView key={q.data.conversation_id} boot={q.data} />;
+  return (
+    <AppShell active="chat" bleed hideTabs history={history} action={live}>
+      {body}
     </AppShell>
   );
-}
-
-interface ConvRow {
-  id: number;
-  title: string;
-  channel: string;
-  date: string;
 }

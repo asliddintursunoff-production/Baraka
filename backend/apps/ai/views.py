@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 import time
 import wave
 from collections import OrderedDict
@@ -120,6 +121,37 @@ def _msg_time(dt: Any) -> str:
     )
 
 
+GREETING = re.compile(
+    r"^\W*(salom|assalomu?\s*alaykum|assalom|qalaysiz|qanaysan|qalaysan|yaxshimisiz|hello|hi|privet|rahmat|ok|xop|xo'p)\W*$",
+    re.I,
+)
+
+
+def is_greeting(text: str) -> bool:
+    """Greeting-only messages never title (or list) a chat."""
+    return bool(GREETING.match((text or "").strip()))
+
+
+class ConversationView(BusinessAPIView):
+    """PATCH {title} renames, DELETE removes one of the user's chats."""
+
+    def patch(self, request: Request, conv_id: int) -> Response:
+        conv = Conversation.objects.filter(user_id=request.user.pk, pk=conv_id).first()
+        if conv is None:
+            return Response({"error": "not_found"}, status=404)
+        title = str(
+            (request.data if isinstance(request.data, dict) else {}).get("title") or ""
+        ).strip()[:60]
+        if title:
+            conv.title = title
+            conv.save(update_fields=["title"])
+        return Response({"id": conv.pk, "title": conv.title})
+
+    def delete(self, request: Request, conv_id: int) -> Response:
+        Conversation.objects.filter(user_id=request.user.pk, pk=conv_id).delete()
+        return Response(status=204)
+
+
 def message_payload(m: Message) -> dict[str, Any]:
     is_ai = m.role == "assistant"
     voice = (m.answer or {}).get("voice") if not is_ai else None
@@ -174,8 +206,10 @@ class ChatBootstrapView(BusinessAPIView):
                     for c in Conversation.objects.filter(user_id=request.user.pk)
                     .annotate(n=Count("message"))
                     .filter(n__gt=0)
-                    .order_by("-created_at")[:40]
-                ],
+                    .exclude(title__in=("Yangi chat", "Chat", ""))
+                    .order_by("-created_at")[:60]
+                    if not is_greeting(c.title or "")
+                ][:40],
                 "business_name": b.name,
                 "brief": {"time": "08:00", **brief},
                 "messages": [message_payload(m) for m in msgs],
@@ -217,11 +251,18 @@ async def chat_messages(request: HttpRequest) -> HttpResponseBase:
                 if conv_id
                 else None
             )
-            if conv is not None and conv.title in ("Yangi chat", "Chat", ""):
+            if (
+                conv is not None
+                and conv.title in ("Yangi chat", "Chat", "")
+                and not is_greeting(text)
+            ):
                 conv.title = text[:60]
                 conv.save(update_fields=["title"])
             return conv or Conversation.objects.create(
-                business=business, user_id=user.pk, channel="chat", title=text[:60]
+                business=business,
+                user_id=user.pk,
+                channel="chat",
+                title="Yangi chat" if is_greeting(text) else text[:60],
             )
 
     conv = await sync_to_async(_conv)()

@@ -2,7 +2,6 @@ import { CircleAlert } from "lucide-react";
 
 import { Markdown } from "@/components/Markdown";
 import { UiBlockRenderer, type UiBlock } from "@/components/UiBlockRenderer";
-import { cn } from "@/lib/utils";
 
 function Dots() {
   return (
@@ -37,14 +36,9 @@ export function StreamingCard({
 }) {
   const cards = (blocks ?? []).filter((b) => b.type !== "approval");
   const text = markdown.trim();
-  const wide = cards.length > 0 || text.length > 0;
+  const waiting = pending && !error && !text && cards.length === 0;
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-col gap-4 rounded-[4px_16px_16px_16px] border border-border bg-surface [overflow-wrap:anywhere]",
-        wide ? "w-full p-[22px]" : "max-w-[620px] self-start px-4 py-[14px]",
-      )}
-    >
+    <div className="flex min-w-0 flex-col gap-4 [overflow-wrap:anywhere]">
       {text && <Markdown text={text} />}
       {pending && !error && (
         <span className="inline-flex items-center gap-[10px] text-14 font-semibold text-text-3">
@@ -52,6 +46,7 @@ export function StreamingCard({
           {!text && status}
         </span>
       )}
+      {waiting && status && <CardSkeleton />}
       {cards.length > 0 && <UiBlockRenderer blocks={cards} />}
       {error && (
         <p className="m-0 flex items-start gap-2 text-15 font-semibold leading-normal text-danger">
@@ -59,6 +54,21 @@ export function StreamingCard({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/** Report-shaped placeholder: title line, 4 KPI tiles, chart block. */
+export function CardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 rounded-card border border-[#E5E7EB] bg-surface p-5" aria-hidden="true">
+      <span className="h-5 w-2/3 rounded-md bg-[#F2F4F7] motion-safe:animate-pulse" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <span key={i} className="h-[72px] rounded-inner bg-[#F2F4F7] motion-safe:animate-pulse" />
+        ))}
+      </div>
+      <span className="h-[200px] rounded-inner bg-[#F2F4F7] motion-safe:animate-pulse lg:h-[240px]" />
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import { LoaderCircle, Paperclip } from "lucide-react";
-import type { FormEvent, RefObject } from "react";
+import { useLayoutEffect, useState, type FormEvent, type KeyboardEvent, type RefObject } from "react";
 import { Link } from "react-router-dom";
 
-import type { Chip, SendPayload } from "@/lib/chatTypes";
+import type { SendPayload } from "@/lib/chatTypes";
 import { cn } from "@/lib/utils";
 
 import { MicIcon, SendIcon, StopIcon, WaveIcon } from "./icons";
@@ -10,30 +10,48 @@ import { prefetchLive } from "./live";
 import { useVoiceRecorder } from "./useVoiceRecorder";
 
 interface Props {
-  chips: Chip[];
-  /** A message is streaming. */
+  /** A message is streaming: send becomes ■ stop. */
   busy: boolean;
   value: string;
   onChange: (v: string) => void;
   onSend: (payload: SendPayload, display: string) => void;
-  inputRef: RefObject<HTMLInputElement>;
+  onStop?: () => void;
+  inputRef: RefObject<HTMLTextAreaElement>;
   containerRef: RefObject<HTMLDivElement>;
 }
 
-const ROUND_BTN = "flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px]";
+const ICON_BTN = "grid size-tap shrink-0 place-items-center rounded-full border-0";
+const MAX_ROWS = 8;
+const LINE = 24;
 
-export function Composer({ chips, busy, value, onChange, onSend, inputRef, containerRef }: Props) {
+/** Sticky composer: auto-growing textarea (1–8 lines), 📎 · 🎙 · ◉ Live · ➤ / ■. Enter sends, Shift+Enter = new line. */
+export function Composer({ busy, value, onChange, onSend, onStop, inputRef, containerRef }: Props) {
   const mic = useVoiceRecorder((r) => onSend({ text: r.text, voice: { duration: r.duration } }, r.text));
   const recording = mic.phase === "recording";
   const micBusy = mic.phase === "starting" || mic.phase === "transcribing";
   const blocked = busy || mic.phase !== "idle";
+  const [focused, setFocused] = useState(false);
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // empty: one line (a long placeholder must not grow the box)
+    if (value) el.style.height = `${Math.min(el.scrollHeight, LINE * MAX_ROWS + 16)}px`;
+  }, [value, inputRef]);
+
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
     const text = value.trim();
     if (!text || blocked) return;
     onSend({ text }, text);
     onChange("");
+  };
+  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      submit();
+    }
   };
 
   const micStatus = recording
@@ -43,85 +61,83 @@ export function Composer({ chips, busy, value, onChange, onSend, inputRef, conta
       : "";
 
   return (
-    <div ref={containerRef} className="sticky bottom-0 z-10 border-t border-border bg-bg px-4 pb-6 pt-3 sm:px-8">
-      <div className="mx-auto flex max-w-[836px] flex-col gap-[10px]">
-        {chips.length > 0 && (
-          <div className="-m-1 flex gap-2 overflow-x-auto p-1 sm:flex-wrap sm:overflow-visible">
-            {chips.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                disabled={blocked}
-                onClick={() => onSend({ chip: c.id }, c.label)}
-                className="min-h-tap shrink-0 rounded-pill border border-border-input bg-surface px-[14px] text-14 font-semibold text-text-2 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        )}
+    <div
+      ref={containerRef}
+      className="sticky bottom-0 z-20 bg-gradient-to-t from-bg via-bg to-bg/0 px-4 pb-[calc(8px+env(safe-area-inset-bottom))] pt-4 md:px-6"
+    >
+      <div className="mx-auto flex w-full max-w-chat flex-col gap-1.5">
         <form
           onSubmit={submit}
-          className="flex items-center gap-[10px] rounded-card border border-border-input bg-surface py-2 pl-4 pr-2 shadow-[0_2px_6px_rgba(16,24,40,.06)] has-[input:focus-visible]:border-primary has-[input:focus-visible]:shadow-[0_0_0_3px_rgba(29,78,216,.18)]"
+          className="flex items-end gap-1 rounded-[24px] border border-border-input bg-surface p-1.5 shadow-[0_4px_16px_rgba(16,24,40,.08)] has-[textarea:focus-visible]:border-primary"
         >
           <Link
             to="/files"
             aria-label="Excel fayl yuklash (Fayl tahlili)"
             title="Excel fayl yuklash — AI uni to'liq tahlil qiladi"
-            className="grid size-9 shrink-0 place-items-center rounded-full text-text-3 hover:bg-[#EEF4FF] hover:text-primary"
+            className={cn(ICON_BTN, "text-text-3 hover:bg-[#F2F4F7] hover:text-ink")}
           >
-            <Paperclip size={18} />
+            <Paperclip size={20} />
           </Link>
           <label htmlFor="ask" className="sr-only">
             AI CFO'ga savol
           </label>
-          <input
+          <textarea
             id="ask"
             ref={inputRef}
-            type="text"
+            rows={1}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Savolingizni yozing…"
+            onKeyDown={onKey}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder={focused ? "Savol yozing yoki rasm joylang…" : "Savolingizni yozing…"}
             autoComplete="off"
             enterKeyHint="send"
-            className="min-h-tap min-w-0 grow border-0 bg-transparent text-16 text-ink outline-none placeholder:text-text-4"
+            className="h-tap max-h-[208px] min-h-tap overflow-y-auto placeholder:truncate min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-[10px] text-16 leading-6 text-ink outline-none placeholder:text-text-4"
           />
           <button
             type="button"
             onClick={mic.toggle}
             disabled={busy || micBusy}
-            aria-label={recording ? "Yozishni tugatib yuborish" : "Ovozli xabar yozib yuborish"}
+            aria-label={recording ? "Yozishni tugatib yuborish" : "Ovoz bilan yozish"}
             className={cn(
-              ROUND_BTN,
-              "border disabled:cursor-not-allowed disabled:opacity-60",
-              recording ? "border-danger bg-danger-bg" : "border-border-input bg-surface hover:bg-surface-muted",
+              ICON_BTN,
+              "disabled:cursor-not-allowed disabled:opacity-60",
+              recording ? "bg-danger-bg" : "bg-transparent hover:bg-[#F2F4F7]",
             )}
           >
             {recording ? (
               <StopIcon size={18} color="#B42318" />
             ) : micBusy ? (
-              <LoaderCircle size={22} color="#344054" className="motion-safe:animate-spin" aria-hidden="true" />
+              <LoaderCircle size={20} color="#344054" className="motion-safe:animate-spin" aria-hidden="true" />
             ) : (
-              <MicIcon size={22} color="#344054" />
+              <MicIcon size={20} color="#344054" />
             )}
           </button>
           <Link
             to="/live"
             aria-label="Jonli suhbatni boshlash"
+            title="Jonli gaplashish"
             onMouseEnter={prefetchLive}
             onFocus={prefetchLive}
-            className={cn(ROUND_BTN, "bg-ink no-underline")}
+            className={cn(ICON_BTN, "bg-[#F2F4F7] no-underline hover:bg-border")}
           >
-            <WaveIcon size={22} d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4" />
+            <WaveIcon size={20} color="#101828" d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4" />
           </Link>
-          <button
-            type="submit"
-            aria-label="Yuborish"
-            disabled={blocked || !value.trim()}
-            className={cn(ROUND_BTN, "border-0 bg-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60")}
-          >
-            <SendIcon />
-          </button>
+          {busy && onStop ? (
+            <button type="button" aria-label="To'xtatish" onClick={onStop} className={cn(ICON_BTN, "bg-ink")}>
+              <StopIcon size={16} color="#FFFFFF" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              aria-label="Yuborish"
+              disabled={blocked || !value.trim()}
+              className={cn(ICON_BTN, "bg-ink disabled:cursor-not-allowed disabled:bg-[#D0D5DD]")}
+            >
+              <SendIcon />
+            </button>
+          )}
         </form>
         <p role="status" className={cn("m-0 text-14 font-semibold text-text-3", !micStatus && "sr-only")}>
           {micStatus}
@@ -131,6 +147,7 @@ export function Composer({ chips, busy, value, onChange, onSend, inputRef, conta
             {mic.error}
           </p>
         )}
+        <p className="m-0 text-center text-12 text-text-4">AI CFO xato qilishi mumkin — muhim qarorlarni tekshiring.</p>
       </div>
     </div>
   );
