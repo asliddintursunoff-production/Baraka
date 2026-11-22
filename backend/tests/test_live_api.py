@@ -33,7 +33,10 @@ def captured(monkeypatch):
     return seen
 
 
-def test_session_token_with_context_and_tools(owner_client, demo, captured):
+def test_session_token_with_context_and_tools(owner_client, demo, captured, monkeypatch):
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", False)
     r = owner_client.post("/api/live/session", data="{}", content_type="application/json")
     d = r.json()
     assert d["token"] == "auth_tokens/abc" and d["business_name"] == "Navro'z Kafe"
@@ -89,3 +92,14 @@ def test_finish_saves_transcript(owner_client, demo, monkeypatch):
         conv = Conversation.objects.get(pk=d["conversation_id"])
         assert conv.channel == "voice"
         assert Message.objects.filter(conversation=conv).count() == 2
+
+
+def test_demo_session_is_listen_only(owner_client, demo, captured, monkeypatch):
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", True)
+    d = owner_client.post("/api/live/session", data="{}", content_type="application/json").json()
+    assert d["demo"] is True
+    conf = captured["config"]
+    assert not conf.tools  # no tools: Live only transcribes; answers are pre-recorded clips
+    assert conf.input_audio_transcription is not None
