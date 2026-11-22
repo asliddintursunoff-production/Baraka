@@ -20,6 +20,8 @@ export interface LiveSession extends TokenResponse {
   new_session_expires_at: string;
   business_name: string;
   cash: { label: string; display: string };
+  /** DEMO_GOLDEN_ONLY: Live is speech-to-text only; answers are pre-recorded clips. */
+  demo?: boolean;
   /** Set by `takeLiveToken()` (client side only): true when the token came from the cache. */
   from_cache?: boolean;
 }

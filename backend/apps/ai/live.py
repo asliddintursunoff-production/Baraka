@@ -61,7 +61,11 @@ def live_config(
     return types.LiveConnectConfig(
         response_modalities=[types.Modality.AUDIO],
         system_instruction=system_instruction,
-        tools=[types.Tool(function_declarations=function_declarations(tool_specs, behavior))],
+        tools=(
+            [types.Tool(function_declarations=function_declarations(tool_specs, behavior))]
+            if tool_specs
+            else None
+        ),
         input_audio_transcription=transcription,
         output_audio_transcription=transcription,
         speech_config=types.SpeechConfig(

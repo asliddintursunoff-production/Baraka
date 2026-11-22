@@ -8,7 +8,7 @@ import { UiBlockView, type BlockHandlers, type UiBlock } from "@/components/UiBl
 import { cn } from "@/lib/utils";
 
 export type LiveCard =
-  | { kind: "blocks"; key: string; group: number; blocks: UiBlock[]; segments?: { cue: string; text: string }[] }
+  | { kind: "blocks"; key: string; group: number; blocks: UiBlock[]; segments?: { cue: string; text: string }[]; full?: boolean }
   | { kind: "plan"; key: string; group: number; planId: number; summary: string; items: string[] };
 
 export interface PlanState {
@@ -157,7 +157,7 @@ export function LiveCardStack({
                 block={b}
                 handlers={
                   b.type === "report"
-                    ? { ...handlers, compactReports: true, activeCue: card.group === newestGroup ? cueFor(card.segments, aiText) : null }
+                    ? { ...handlers, compactReports: !card.full, activeCue: card.group === newestGroup ? cueFor(card.segments, aiText) : null }
                     : handlers
                 }
               />

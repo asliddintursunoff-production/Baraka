@@ -63,6 +63,7 @@ const BLOCK_TYPES: ReadonlySet<string> = new Set<UiBlock["type"]>([
   "scenario_table",
   "debt_list",
   "metric_grid",
+  "report",
 ]);
 const CONNECT_FAILED = "Jonli suhbatni ochib bo'lmadi. Yozib so'rang.";
 const FINISH_TIMEOUT_MS = 4000;
@@ -152,6 +153,19 @@ const NOTICE =
   "flex w-full max-w-[600px] gap-[10px] rounded-inner border border-[#93370D] bg-[#2A1F0B] px-[14px] py-3 text-14 leading-normal text-[#FEDF89]";
 
 // --- page ----------------------------------------------------------------------------------
+interface DemoAnswer {
+  kind: string;
+  intent: string | null;
+  markdown: string;
+  blocks: UiBlock[];
+  say: string;
+  segments: { cue: string; text: string }[];
+  cards: { intent: string; text: string }[];
+  clip: string;
+  speech_key: string;
+  expand: boolean;
+}
+
 export default function LivePage() {
   const navigate = useNavigate();
   const clientRef = useRef<VoiceClient | null>(null);
@@ -170,6 +184,14 @@ export default function LivePage() {
   const userVoice = useRef(false);
   const turnRef = useRef(0);
   const turnBase = useRef(0);
+  // DEMO_GOLDEN_ONLY: Live = speech-to-text; answers = /api/demo/answer + pre-recorded clips
+  const demoRef = useRef(false);
+  const prevIntent = useRef<string | null>(null);
+  const userTurnText = useRef<Record<number, string>>({});
+  const clipRef = useRef<HTMLAudioElement | null>(null);
+  const clipSay = useRef("");
+  const clipEndedAt = useRef(0);
+  const bargeTimer = useRef<number | undefined>(undefined);
 
   const [phase, setPhase] = useState<Phase>("connecting");
   const [session, setSession] = useState<LiveSession | null>(null);
@@ -190,6 +212,7 @@ export default function LivePage() {
   const [textOpen, setTextOpen] = useState(false);
   const [closeReason, setCloseReason] = useState<LiveCloseReason | null>(null);
   const [budgetMsg, setBudgetMsg] = useState("");
+  const [demoCards, setDemoCards] = useState<{ intent: string; text: string }[]>([]);
 
   useEffect(() => {
     latest.current = { captions, cards, plans };
@@ -208,6 +231,7 @@ export default function LivePage() {
     // Turn numbers restart with every client ("Qayta boshlash"): keep them unique on the page.
     const t = turnBase.current + clientTurn;
     const key = `${who}-${t}`;
+    if (who === "user") userTurnText.current[t] = (userTurnText.current[t] ?? "") + chunk;
     setCaptions((prev) => {
       const i = prev.findIndex((c) => c.key === key);
       const cur = i >= 0 ? prev[i] : undefined;
@@ -262,6 +286,95 @@ export default function LivePage() {
     }
   }, []);
 
+  // --- DEMO: card + pre-recorded clip, cues follow the playback position ---
+  const stopClip = useCallback(() => {
+    const a = clipRef.current;
+    if (a) {
+      a.pause();
+      clipRef.current = null;
+      clipEndedAt.current = performance.now();
+    }
+    clientRef.current?.setClipPlaying(false);
+    aiAudio.current = false;
+    setAiSpeaking(false);
+  }, []);
+
+  const playDemo = useCallback(
+    (d: DemoAnswer, t: number) => {
+      stopClip();
+      if (!d.say) return;
+      const url = d.clip ? `/golden/${d.clip}.wav` : `/api/demo/tts/${d.speech_key}`;
+      const a = new Audio(url);
+      clipRef.current = a;
+      clipSay.current = d.say;
+      const key = `ai-${t}`;
+      const show = (n: number) =>
+        setCaptions((prev) => {
+          const text = d.say.slice(0, n);
+          const i = prev.findIndex((c) => c.key === key);
+          if (i < 0) return [...prev, { key, who: "ai", turn: t, text }];
+          const next = prev.slice();
+          next[i] = { ...prev[i]!, text };
+          return next;
+        });
+      a.ontimeupdate = () => {
+        if (clipRef.current !== a || !a.duration) return;
+        lastActivity.current = performance.now();
+        show(Math.ceil((a.currentTime / a.duration) * d.say.length));
+      };
+      a.onended = () => {
+        if (clipRef.current !== a) return;
+        show(d.say.length);
+        stopClip();
+      };
+      a.onplay = () => {
+        clientRef.current?.setClipPlaying(true);
+        aiAudio.current = true;
+        setAiSpeaking(true);
+      };
+      show(0);
+      void a.play().catch(() => {
+        show(d.say.length); // autoplay blocked: at least the exact text is on screen
+        setAudioSuspended(true);
+        stopClip();
+      });
+    },
+    [stopClip],
+  );
+
+  const runDemo = useCallback(
+    async (text: string, t: number) => {
+      const q = text.trim();
+      if (q.length < 2) return;
+      // echo guard: our own clip heard back through the speakers is not a question
+      const recent = clipRef.current || performance.now() - clipEndedAt.current < 1500;
+      if (recent && clipSay.current) {
+        const said = new Set(clipSay.current.toLowerCase().match(/[\p{L}']+/gu) ?? []);
+        const words = q.toLowerCase().match(/[\p{L}']+/gu) ?? [];
+        const overlap = words.filter((w) => said.has(w)).length / Math.max(1, words.length);
+        if (words.length > 2 && overlap > 0.6) return;
+      }
+      lastActivity.current = performance.now();
+      setToolsPending((n) => n + 1);
+      try {
+        const d = await apiPost<DemoAnswer>("/api/demo/answer", { text: q, prev: prevIntent.current });
+        if (d.intent) prevIntent.current = d.intent;
+        setDemoCards(d.cards ?? []);
+        if (d.blocks.length > 0) {
+          addToolResult("demo", {}, { ok: true, ui_blocks: d.blocks, speech_segments: d.segments } as ToolResult);
+          if (d.expand) setCards((prev) => prev.map((c, i) => (i === prev.length - 1 && c.kind === "blocks" ? { ...c, full: true } : c)));
+        }
+        await nextPaint();
+        playDemo(d, t);
+      } catch {
+        /* network: the user can ask again */
+      } finally {
+        setToolsPending((n) => Math.max(0, n - 1));
+      }
+    },
+    [addToolResult, playDemo],
+  );
+
   /** Close the session and release the mic; adds its open time to `seconds`. */
   const endSession = useCallback((): Promise<void> => {
     const c = clientRef.current;
@@ -297,6 +410,7 @@ export default function LivePage() {
     const t0 = performance.now();
     return takeLiveToken().then((s) => {
       track("voice", "token_take", performance.now() - t0, { from_cache: s.from_cache, mint_ms: s.mint_ms, page: "live" });
+      demoRef.current = !!s.demo;
       setSession(s);
       return s;
     });
@@ -325,6 +439,7 @@ export default function LivePage() {
       getToken: takeToken,
       annotateToolCalls: true,
       micOptional: true,
+      listenOnly: () => demoRef.current,
       onStatus: (s: Status) => {
         if (clientRef.current !== c) return; // an old client after a retry / finish
         if (s === "preparing" || s === "connecting") {
@@ -361,6 +476,12 @@ export default function LivePage() {
         setGateOpen(open);
       },
       onUserSpeaking: (speaking) => {
+        // demo barge-in: sustained speech (not a short echo/noise) stops the clip
+        window.clearTimeout(bargeTimer.current);
+        if (speaking && demoRef.current && clipRef.current)
+          bargeTimer.current = window.setTimeout(() => {
+            if (userVoice.current) stopClip();
+          }, 600);
         userVoice.current = speaking;
         lastActivity.current = performance.now();
         setUserSpeaking(speaking);
@@ -382,6 +503,10 @@ export default function LivePage() {
       onTurnComplete: (done) => {
         turnRef.current = base + done + 1;
         setTurn(base + done + 1);
+        if (demoRef.current) {
+          const said = userTurnText.current[base + done] ?? "";
+          if (said.trim()) void runDemo(said, base + done);
+        }
       },
     });
     clientRef.current = c;
@@ -391,7 +516,7 @@ export default function LivePage() {
     } catch {
       /* shown through onStatus("error") */
     }
-  }, [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession]);
+  }, [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession, runDemo, stopClip]);
 
   /** Saves the transcript + shown blocks once (Tugatish, leaving the page, closing the tab). */
   const save = useCallback((keepalive: boolean): Promise<unknown> => {
@@ -493,21 +618,30 @@ export default function LivePage() {
   }, [ptt]);
 
   const stopPlayback = useCallback(() => {
+    stopClip();
     clientRef.current?.stopPlayback();
     window.clearTimeout(speakTimer.current);
     setAiSpeaking(false);
     track("voice", "stop_playback", 0, { page: "live" });
-  }, []);
+  }, [stopClip]);
 
   const sendText = useCallback(
     (text: string) => {
       const c = clientRef.current;
+      if (demoRef.current) {
+        const t = turnRef.current;
+        setCaptions((prev) => [...prev, { key: `typed-${seq.current++}`, who: "user", turn: t, text, typed: true }]);
+        turnRef.current = t + 1;
+        setTurn(t + 1);
+        void runDemo(text, t);
+        return;
+      }
       if (!c?.connected) return;
       lastActivity.current = performance.now();
       c.sendText(text);
       setCaptions((prev) => [...prev, { key: `typed-${seq.current++}`, who: "user", turn, text, typed: true }]);
     },
-    [turn],
+    [turn, runDemo],
   );
 
   const approve = useCallback((id: number) => {
@@ -575,6 +709,20 @@ export default function LivePage() {
         <div className="flex min-w-0 grow flex-col justify-end gap-4">
           <LiveCaptions user={lastUser?.text ?? ""} ai={ai} />
           <LiveCardStack cash={session?.cash ?? null} cards={cards} plans={plans} onApprove={approve} aiText={ai?.text ?? ""} />
+          {demoCards.length > 0 && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {demoCards.map((c) => (
+                <button
+                  key={c.intent}
+                  type="button"
+                  onClick={() => sendText(c.text)}
+                  className="min-h-[56px] rounded-card border border-live-border bg-live-surface px-4 py-3 text-left text-15 font-semibold text-white hover:bg-[#16233D]"
+                >
+                  {c.text}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <section aria-label="Ovozli suhbat" className="sticky bottom-0 flex min-w-0 flex-col items-center gap-3 bg-live-bg/95 pb-2 pt-2">
           <div className="-my-[50px] scale-[0.56]">

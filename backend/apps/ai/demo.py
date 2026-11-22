@@ -250,3 +250,83 @@ def answer(ctx: ToolContext, text: str, prev: str | None = None) -> dict[str, An
             return _out("decline", intent=prev, markdown=DECLINE_TEXT, say=DECLINE_TEXT)
     # 3. greetings / anything else: the fixed reply with the 4 question cards (no LLM)
     return fixed_reply(greeting=bool(_GREET.match(t)))
+
+
+# --- spoken form for the clips (screen text stays verbatim) -----------------------------------
+def _w(n: int) -> str:
+    from .uz_format import uz_number_words
+
+    return uz_number_words(n)
+
+
+def _num_words(s: str) -> str:
+    """ "4,32" -> "to'rt butun o'ttiz ikki"; "430 000" -> "to'rt yuz o'ttiz ming"."""
+    s = s.replace("\xa0", " ").replace(" ", "")
+    if "," in s:
+        a, b = s.split(",", 1)
+        return f"{_w(int(a or 0))} butun {_w(int(b))}" if b.strip("0") else _w(int(a or 0))
+    return _w(int(s))
+
+
+def _mln(m: re.Match[str]) -> str:
+    v = float(m.group(2).replace(",", "."))
+    return _w(int(round(v * 1_000_000, -3)))
+
+
+def _ord(n: int) -> str:
+    from .uz_format import uz_ordinal_words
+
+    return uz_ordinal_words(n)
+
+
+def _sign(s: str) -> str:
+    return "minus " if s in ("−", "-") else ("qo'shimcha " if s == "+" else "")
+
+
+def speakable(text: str) -> str:
+    """Markdown/digit answer -> Uzbek words a TTS voice reads cleanly (no symbols, no digits)."""
+    t = re.sub(r"\*\*|__|`|#", "", text)
+    t = re.sub(r"\s*\(Q\d+\)", "", t)
+    t = re.sub(r"so'm/kVt·soat", "so'm har kilovatt soatiga", t)
+    t = t.replace("kVt·soat", "kilovatt soat")
+    t = re.sub(r"(?i)\bdu\s*[–-]\s*pa\b", "dushanbadan payshanbagacha", t)
+    t = re.sub(
+        r"(\d{1,2}):00\s*[–-]\s*(\d{1,2}):00",
+        lambda m: f"soat {_w(int(m.group(1)))}dan {_w(int(m.group(2)))}gacha",
+        t,
+    )
+    t = re.sub(
+        r"(\d+)-(?=[a-zA-Z'])", lambda m: f"{_ord(int(m.group(1)))} ", t
+    )  # 2-kuryer, 31-oktyabr
+    t = re.sub(r"\b(20\d\d)\b", lambda m: f"{_ord(int(m.group(1)))} yil", t)
+    t = re.sub(r"([+−-]?)(\d+(?:,\d+)?)\s*mln", lambda m: _sign(m.group(1)) + _mln(m), t)
+    t = re.sub(
+        r"([+−-]?)(\d+(?:,\d+)?)\s*%",
+        lambda m: _sign(m.group(1)) + _num_words(m.group(2)) + " foiz",
+        t,
+    )
+    t = re.sub(
+        r"([+−-]?)(\d{1,3}(?:[ \xa0]\d{3})+|\d+(?:,\d+)?)",
+        lambda m: _sign(m.group(1)) + _num_words(m.group(2)),
+        t,
+    )
+    t = t.replace("/oy", " oyiga").replace("/kun", " kuniga").replace("/yil", " yiliga")
+    t = re.sub(r"\s[+]\s", " va ", t)
+    t = re.sub(r"\s[−-]\s", " minus ", t)
+    t = re.sub(r"\bvs\b", "va", t)
+    t = re.sub(r"(?<=\w)/(?=\w)", " va ", t)
+    t = (
+        t.replace(" = ", " — ")
+        .replace("→", ", ")
+        .replace("~", "taxminan ")
+        .replace("×", " ko'paytirilgan ")
+    )
+    t = (
+        t.replace("·", ", ")
+        .replace("≥", "kamida ")
+        .replace("≤", "ko'pi bilan ")
+        .replace("–", " — ")
+    )
+    t = re.sub(r"(\S) (da|ga|dan|gacha|ni|ning)\b", r"\1\2", t)
+    t = re.sub(r"\s+([,.;:])", r"\1", t)
+    return re.sub(r"\s{2,}", " ", t).strip()

@@ -102,6 +102,13 @@ def session_payload(business: Business) -> dict[str, Any]:
         context_lines=live_context(business),
     )
     specs = [t.declaration() for t in TOOLS.values() if t.voice]
+    if cfg.DEMO_GOLDEN_ONLY:
+        # demo: Live is speech-to-text only (input transcription); answers are pre-recorded clips
+        instruction = (
+            "Siz faqat tinglaysiz. Foydalanuvchi nima desa ham, faqat bitta so'z bilan javob bering: "
+            "«Mhm.» Boshqa hech narsa demang, savolga javob bermang."
+        )
+        specs = []
     conf = live_config(
         system_instruction=instruction,
         tool_specs=specs,
@@ -117,6 +124,7 @@ def session_payload(business: Business) -> dict[str, Any]:
         "expires_at": tok.expires_at.isoformat(),
         "new_session_expires_at": tok.new_session_expires_at.isoformat(),
         "behavior": "blocking",
+        "demo": cfg.DEMO_GOLDEN_ONLY,
         "mint_ms": round(tok.mint_ms, 1),
         "business_name": business.name,
         "cash": {

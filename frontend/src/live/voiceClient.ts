@@ -76,6 +76,8 @@ export interface VoiceClientOptions {
   onTurnComplete?: (turn: number, interrupted: boolean) => void;
   /** Mic level 0..1 (after the noise gate decision) for the level meter. */
   onLevel?: (level: number, gateOpen: boolean) => void;
+  /** Demo mode: Live is speech-to-text only — model audio is never played. */
+  listenOnly?: () => boolean;
 }
 
 const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
@@ -304,7 +306,7 @@ export class VoiceClient {
         const ambient = sorted[Math.floor(sorted.length / 2)] ?? 0;
         this.gateRms = Math.max(GATE_MIN_RMS, ambient * 2.5);
       }
-      const threshold = this.aiSpeaking ? this.gateRms * 2 : this.gateRms; // duck during playback
+      const threshold = this.aiSpeaking || this.clipPlaying ? this.gateRms * 2.5 : this.gateRms; // duck during playback
       const loud = rms > threshold;
       if (loud) {
         this.belowSince = 0;
@@ -365,7 +367,7 @@ export class VoiceClient {
         this.resumeOnEmpty = !this.muteTurn; // not the "To'xtatish" button
         window.setTimeout(() => {
           // an interruption with no real words (noise, cough): continue the previous answer
-          if (this.resumeOnEmpty && this.heardSinceInterrupt.trim().length < 2 && !this.userVoice) {
+          if (this.resumeOnEmpty && !this.opts.listenOnly?.() && this.heardSinceInterrupt.trim().length < 2 && !this.userVoice) {
             this.session?.sendRealtimeInput({
               text: "(Bu shovqin edi, savol emas.) Oldingi javobingizni to'xtagan joyidan davom ettiring.",
             });
@@ -391,7 +393,7 @@ export class VoiceClient {
           this.metric("tool_response_to_first_audio", now - this.toolRespondedAt, { turn: this.turn });
           this.toolRespondedAt = 0;
         }
-        if (this.muteTurn) continue;
+        if (this.muteTurn || this.opts.listenOnly?.()) continue;
         const buf = base64ToBuffer(data);
         this.player?.port.postMessage({ type: "push", data: buf }, [buf]);
       }
@@ -405,7 +407,7 @@ export class VoiceClient {
         this.heardSinceInterrupt += heard;
         this.opts.onCaption("user", heard, this.turn);
       }
-      if (sc.outputTranscription?.text) this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
+      if (sc.outputTranscription?.text && !this.opts.listenOnly?.()) this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
       if (sc.turnComplete || sc.interrupted) {
         const done = this.turn;
         this.modelAudioThisTurn = false;
@@ -477,6 +479,12 @@ export class VoiceClient {
     this.utterance = this.utterance ? `${this.utterance} ${text}` : text;
     this.utteranceTurn = this.turn;
     this.session?.sendRealtimeInput({ text });
+  }
+
+  /** Demo clips play outside the worklet: duck the noise gate while they play (echo guard). */
+  private clipPlaying = false;
+  setClipPlaying(on: boolean): void {
+    this.clipPlaying = on;
   }
 
   /** True when a session is open (text can be sent). */

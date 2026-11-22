@@ -175,6 +175,51 @@ def demo_questions() -> list[dict[str, str]]:
     return question_cards()
 
 
+_DEMO_TTS: dict[str, str] = {}  # speech_key -> text (dynamic answers: param variants)
+_DEMO_WAV: OrderedDict[str, bytes] = OrderedDict()
+
+
+class DemoAnswerView(BusinessAPIView):
+    """POST {text, prev} -> the demo router's answer (Live: card + clip; zero LLM)."""
+
+    requires_data = True
+
+    def post(self, request: Request) -> Response:
+        from .demo import answer
+
+        body = request.data if isinstance(request.data, dict) else {}
+        text = str(body.get("text") or "").strip()[:500]
+        prev = body.get("prev") if isinstance(body.get("prev"), str) else None
+        ctx = ToolContext(self.business, request.user.pk, "voice", last_user_text=text)
+        d = answer(ctx, text, prev)
+        d.pop("result", None)
+        if d["say"] and not d["clip"]:
+            _DEMO_TTS[d["speech_key"]] = d["say"]
+        return Response(d)
+
+
+class DemoTtsView(BusinessAPIView):
+    """GET a dynamic answer's speech (TTS once, then cached) — pre-recorded clips are static files."""
+
+    def get(self, request: Request, key: str) -> HttpResponse:
+        from .demo import speakable
+
+        if key in _DEMO_WAV:
+            return HttpResponse(_DEMO_WAV[key], content_type="audio/wav")
+        text = _DEMO_TTS.get(key)
+        if not text:
+            return JsonResponse({"error": "not_found"}, status=404)
+        try:
+            wav = tts_wav(speakable(text))
+        except Exception as exc:
+            log.warning("demo tts failed: %s", scrub(str(exc))[:200])
+            return JsonResponse({"error": "tts_failed"}, status=502)
+        _DEMO_WAV[key] = wav
+        while len(_DEMO_WAV) > 50:
+            _DEMO_WAV.popitem(last=False)
+        return HttpResponse(wav, content_type="audio/wav")
+
+
 class ChatBootstrapView(BusinessAPIView):
     requires_data = True  # 409 no_data until a source is synced
 
@@ -309,7 +354,11 @@ def tts_wav(text: str) -> bytes:
     r = budget.generate_sync(
         "tts",
         model=cfg.TTS_MODEL,
-        contents=f"O'zbek tilida, sokin va aniq o'qing: {text}",
+        # instruction on its own paragraph: a one-line "...o'qing: {text}" got read aloud
+        contents=(
+            "Siz ona tili o'zbek bo'lgan diktorsiz. Quyidagi matnni tabiiy, aniq va xotirjam "
+            "o'qing, hech narsa qo'shmang:\n\n" + text
+        ),
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
