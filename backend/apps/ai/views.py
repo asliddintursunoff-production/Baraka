@@ -354,11 +354,8 @@ def tts_wav(text: str) -> bytes:
     r = budget.generate_sync(
         "tts",
         model=cfg.TTS_MODEL,
-        # instruction on its own paragraph: a one-line "...o'qing: {text}" got read aloud
-        contents=(
-            "Siz ona tili o'zbek bo'lgan diktorsiz. Quyidagi matnni tabiiy, aniq va xotirjam "
-            "o'qing, hech narsa qo'shmang:\n\n" + text
-        ),
+        # the bare text only: any instruction in `contents` is read aloud by the TTS model
+        contents=text,
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(

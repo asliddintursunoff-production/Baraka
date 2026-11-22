@@ -31,7 +31,7 @@ STYLE = (
     "tabiiy, aniq va xotirjam ovozda, o'rtacha tezlikda o'qing. Har bir so'zni to'g'ri talaffuz "
     "qiling, hech narsa qo'shmang va hech narsani tashlab ketmang:\n\n"
 )
-MIN_SIMILARITY = 0.85
+MIN_SIMILARITY = 1.0  # rate check passed
 
 
 def texts() -> list[str]:
@@ -53,11 +53,14 @@ def texts() -> list[str]:
     return list(dict.fromkeys(t for t in out if t))
 
 
-def tts(text: str) -> bytes:
+LEAK = re.compile(r"^\W*siz\s+ona\s+tili", re.I)
+
+
+def tts(text: str, plain: bool = False) -> bytes:
     r = budget.generate_sync(
         "tts",
         model=cfg.TTS_MODEL,
-        contents=STYLE + text,
+        contents=text if plain else STYLE + text,
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
@@ -108,6 +111,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument("--only-missing", action="store_true")
+        parser.add_argument("--keys", nargs="*", default=[], help="regenerate only these keys")
 
     def handle(self, *args: Any, **opts: Any) -> None:
         OUT.mkdir(parents=True, exist_ok=True)
@@ -117,25 +121,31 @@ class Command(BaseCommand):
             key = demo.speech_key(text)
             if opts["only_missing"] and key in manifest and (OUT / f"{key}.wav").exists():
                 continue
+            if opts["keys"] and key not in opts["keys"]:
+                continue
             best: tuple[float, bytes, str] | None = None
+            spoken = demo.speakable(text)
+            n_words = len(spoken.split())
             for attempt in range(2):
                 t0 = time.perf_counter()
-                spoken = demo.speakable(text)
                 try:
-                    wav = tts(spoken)
-                    back = heard(wav)
+                    # the bare text: a style instruction in `contents` is READ ALOUD by the TTS model
+                    wav = tts(spoken, plain=True)
                 except Exception as exc:
                     self.stdout.write(f"  ! {key} attempt {attempt + 1}: {str(exc)[:120]}")
                     continue
-                sim = similarity(spoken, back)
                 secs = (len(wav) - 44) / 48000
+                # rate check (Uzbek speech ~1.6-2.6 words/s): extra spoken text or gibberish fails
+                rate = n_words / max(secs, 0.1)
+                ok = 1.2 <= rate <= 3.5 or n_words <= 3
                 self.stdout.write(
-                    f"  {key} try {attempt + 1}: {secs:.1f}s audio, similarity {sim:.2f}, "
+                    f"  {key} try {attempt + 1}: {secs:.1f}s, {rate:.2f} words/s, "
                     f"{time.perf_counter() - t0:.1f}s"
                 )
-                if best is None or sim > best[0]:
-                    best = (sim, wav, back)
-                if sim >= MIN_SIMILARITY:
+                score = 1.0 if ok else 0.0
+                if best is None or score > best[0]:
+                    best = (score, wav, f"{rate:.2f} w/s")
+                if ok:
                     break
             if best is None:
                 self.stdout.write(self.style.ERROR(f"FAILED {key}: {text[:60]}"))
@@ -148,5 +158,13 @@ class Command(BaseCommand):
             if sim < MIN_SIMILARITY:
                 self.stdout.write(f"     heard: {back[:200]}")
             MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
+        keep = {demo.speech_key(x) for x in texts()}
+        for k in list(manifest):
+            if k not in keep:
+                manifest.pop(k)
+        for f in OUT.glob("*.wav"):
+            if f.stem not in keep:
+                f.unlink()
+        MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
         _, after = budget.spent()
         self.stdout.write(f"clips: {len(manifest)}; cost of this run: ${after - before:.4f}")

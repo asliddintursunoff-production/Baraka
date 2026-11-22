@@ -41,3 +41,6 @@ coverage/
 *.wav
 *.pcm
 backend/var/
+
+# demo clips (pre-recorded golden answers) are committed
+!frontend/public/golden/*.wav
