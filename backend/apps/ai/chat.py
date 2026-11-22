@@ -814,8 +814,9 @@ async def llm_loop(
     )
     model = "template"
     gen_kw: dict[str, Any] = {
-        "chain": cfg.CHAT_FULL_CHAIN,
-        "deadline_s": cfg.CHAT_FULL_DEADLINE_S,
+        # owner 2026-11-22: quick facts on the fast model, plans/strategy on the strong one
+        "chain": cfg.CHAT_FULL_CHAIN if advisor else cfg.CHAT_QUICK_CHAIN,
+        "deadline_s": cfg.CHAT_FULL_DEADLINE_S if advisor else cfg.CHAT_QUICK_DEADLINE_S,
         "thinking": cfg.CHAT_FULL_THINKING,
         "kind": "advisor" if advisor else "chat",
     }

@@ -84,9 +84,14 @@ const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
 // Noise gate (kitchens, fans, door clicks): ambient is measured in the first second;
 // the gate opens only for >= 250 ms of sound above ambient x 2.5 (x 2 more while the AI talks).
 const CALIBRATE_MS = 1000;
-const GATE_MIN_RMS = 0.012;
-const GATE_OPEN_MS = 250;
-const GATE_CLOSE_MS = 500;
+// phones (owner 2026-11-22: "telefonda ovozimni yaxshi olmayabdi"): quieter mics -> lower floor,
+// a ceiling so a calibration second that caught the user's own voice can't block speech,
+// and a longer close so pauses between words are not cut out
+const GATE_MIN_RMS = 0.006;
+const GATE_MAX_RMS = 0.02;
+const GATE_OPEN_MS = 150;
+const GATE_CLOSE_MS = 900;
+const PREROLL_FRAMES = 15; // 300 ms kept before the gate opens
 
 export class VoiceClient {
   private opts: VoiceClientOptions;
@@ -304,7 +309,7 @@ export class VoiceClient {
         this.ambientSamples.push(rms);
         const sorted = [...this.ambientSamples].sort((a, b) => a - b);
         const ambient = sorted[Math.floor(sorted.length / 2)] ?? 0;
-        this.gateRms = Math.max(GATE_MIN_RMS, ambient * 2.5);
+        this.gateRms = Math.min(GATE_MAX_RMS, Math.max(GATE_MIN_RMS, ambient * 2));
       }
       const threshold = this.aiSpeaking || this.clipPlaying ? this.gateRms * 2.5 : this.gateRms; // duck during playback
       const loud = rms > threshold;
@@ -332,13 +337,16 @@ export class VoiceClient {
       }
       if (!this.session || !this.ready) return;
       let frames: ArrayBuffer[];
-      if (open) {
+      // demo listen-only: the real mic signal goes to Live (its VAD + transcription hear quiet phone
+      // speech better than our gate); the gate still guards while a clip plays (echo)
+      const raw = !!this.opts.listenOnly?.() && !this.clipPlaying && !this.pushToTalk;
+      if (open || raw) {
         frames = [...this.pending, e.data.pcm]; // keep the first 250 ms of the word
         this.pending = [];
       } else {
         // not speech: keep a short pre-roll and send silence so the server VAD sees no voice
         this.pending.push(e.data.pcm);
-        if (this.pending.length > GATE_OPEN_MS / 20 + 2) this.pending.shift();
+        if (this.pending.length > PREROLL_FRAMES) this.pending.shift();
         frames = [new ArrayBuffer(e.data.pcm.byteLength)];
       }
       for (const f of frames) {

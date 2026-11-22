@@ -30,7 +30,7 @@ CIRCUIT_WINDOW_S = 60.0
 CIRCUIT_OPEN_S = 60.0
 CHAT_CONTEXT_MAX_TOKENS = 2_000
 TTS_MODEL = "gemini-3.8-flash-tts"
-TTS_MODEL_CHAIN = (TTS_MODEL, "gemini-3.1-flash-tts-preview", "gemini-2.5-pro-preview-tts")
+TTS_MODEL_CHAIN = ("gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview", TTS_MODEL)
 TTS_VOICE = "Kore"
 # Used only by the M0 voice spike to synthesize Uzbek test questions.
 SPIKE_TTS_MODEL = TTS_MODEL
@@ -169,7 +169,12 @@ CHAT_FULL_DEADLINE_S = 15.0
 CHAT_FULL_THINKING: dict[str, str | None] = {
     "gemini-3.8-flash": "LOW",
     "gemini-3-flash-preview": "LOW",
+    "gemini-3.5-flash-lite": None,
 }
+# owner 2026-11-22 (2nd): "yengilroq model bo'lsa ham tezroq" — facts in ~3.5 s (3.8-flash-lite
+# does not exist for text); the strong model is the fallback
+CHAT_QUICK_CHAIN = ("gemini-3.5-flash-lite", "gemini-3.8-flash")
+CHAT_QUICK_DEADLINE_S = 8.0
 
 # --- DEMO mode (owner 2026-11-22, until the demo): only Q1–Q4 (+ side questions), zero LLM ----
 # Catalogue + free chat stay in the code but are unreachable while this is True.
