@@ -1017,7 +1017,9 @@ async def collect_answer(turn: Turn) -> dict[str, Any] | None:
     async for chunk in stream_turn(turn):
         for ev in chunk.decode().split("\n\n"):
             lines = ev.splitlines()
+            data = next((ln[6:] for ln in lines if ln.startswith("data: ")), "{}")
             if any(ln == "event: answer" for ln in lines):
-                data = next((ln[6:] for ln in lines if ln.startswith("data: ")), "{}")
                 final = json.loads(data)
+            elif any(ln == "event: error" for ln in lines):
+                log.warning("free answer error event: %s", data[:200])
     return final

@@ -10,7 +10,7 @@ import time
 import wave
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from asgiref.sync import sync_to_async
 from django.db.models import Count
@@ -179,83 +179,116 @@ _DEMO_TTS: dict[str, str] = {}  # speech_key -> text (dynamic answers: param var
 _DEMO_WAV: OrderedDict[str, bytes] = OrderedDict()
 
 
-class DemoAnswerView(BusinessAPIView):
-    """POST {text, prev} -> the demo router's answer (Live: card + clip; zero LLM)."""
-
-    requires_data = True
-
-    def post(self, request: Request) -> Response:
-        from .demo import answer
-
-        body = request.data if isinstance(request.data, dict) else {}
-        text = str(body.get("text") or "").strip()[:500]
-        prev = body.get("prev") if isinstance(body.get("prev"), str) else None
-        ctx = ToolContext(self.business, request.user.pk, "voice", last_user_text=text)
-        d = answer(ctx, text, prev)
-        d.pop("result", None)
-        if d["kind"] == "other":
-            d = self.free(text) or d
-        if d["say"] and not d["clip"]:
-            _DEMO_TTS[d["speech_key"]] = d["say"]
-        return Response(d)
-
-    def free(self, text: str) -> dict[str, Any] | None:
-        """Outside Q1–Q4: the normal AI pipeline (tools + engine numbers), spoken via /demo/tts."""
-        from asgiref.sync import async_to_sync
-
-        from .chat import collect_answer
-        from .demo import _out
-
-        b, user = self.business, self.request.user
-        conv = Conversation.objects.filter(
-            user_id=user.pk, channel="voice", title="Live (demo)"
-        ).order_by("-created_at").first() or Conversation.objects.create(
-            business=b, user_id=user.pk, channel="voice", title="Live (demo)"
-        )
-        turn = Turn(
-            business=b,
-            user_id=int(user.pk or 0),
-            author=getattr(user, "first_name", "") or "Owner",
-            conversation=conv,
-            text=text,
-            voice={"live": True},
-        )
-        try:
-            f = async_to_sync(collect_answer)(turn)
-        except Exception as exc:
-            log.warning("demo free answer failed: %s", scrub(str(exc))[:200])
-            return None
-        if not f:
-            return None
-        md = str(f.get("markdown") or f.get("headline") or "")
-        # spoken = the screen headline (the pipeline's speech template may describe another tool)
-        head = next((ln for ln in md.splitlines() if ln.strip()), "")
-        say = re.sub(r"[*#`_|>]", "", head).strip() or str(f.get("speech") or "").strip()
-        d = _out("free", markdown=md, blocks=list(f.get("blocks") or []), say=say)
-        d.pop("result", None)
-        return d
+async def _demo_auth(request: HttpRequest) -> tuple[Any, Any] | JsonResponse:
+    user = await request.auser()
+    business = getattr(request, "business", None)
+    if not user.is_authenticated or business is None:
+        return JsonResponse({"error": "auth_required"}, status=401)
+    return user, business
 
 
-class DemoTtsView(BusinessAPIView):
+async def demo_answer(request: HttpRequest) -> HttpResponseBase:
+    """POST {text, prev} -> the demo router's answer (Live: card + clip).
+
+    Async (like chat_messages): a slow free answer or TTS must never queue the next question
+    behind it on the worker's single sync thread (owner 2026-11-22: "kutib qolayabdi").
+    """
+    from .demo import answer
+
+    if request.method != "POST":
+        return JsonResponse({"error": "method_not_allowed"}, status=405)
+    auth = await _demo_auth(request)
+    if isinstance(auth, JsonResponse):
+        return auth
+    user, business = auth
+    if await sync_to_async(data_status, thread_sensitive=False)(business) == "no_data":
+        return JsonResponse(NO_DATA_BODY, status=409)
+    try:
+        body = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"error": "bad_json"}, status=400)
+    body = body if isinstance(body, dict) else {}
+    text = str(body.get("text") or "").strip()[:500]
+    prev = body.get("prev") if isinstance(body.get("prev"), str) else None
+
+    def route() -> dict[str, Any]:
+        with tenant_context(business):
+            ctx = ToolContext(business, user.pk, "voice", last_user_text=text)
+            d = answer(ctx, text, prev)
+            d.pop("result", None)
+            return d
+
+    d = await sync_to_async(route, thread_sensitive=False)()
+    if d["kind"] == "other":
+        d = await _demo_free(business, user, text) or d
+    if d["say"] and not d["clip"]:
+        _DEMO_TTS[d["speech_key"]] = d["say"]
+    return JsonResponse(d)
+
+
+async def _demo_free(business: Any, user: Any, text: str) -> dict[str, Any] | None:
+    """Outside Q1–Q4: the normal AI pipeline (tools + engine numbers), spoken via /demo/tts."""
+    from .chat import collect_answer
+    from .demo import _out
+
+    def conv() -> Conversation:
+        with tenant_context(business):
+            c = (
+                Conversation.objects.filter(user_id=user.pk, channel="voice", title="Live (demo)")
+                .order_by("-created_at")
+                .first()
+            )
+            if c is None:
+                c = Conversation.objects.create(
+                    business=business, user_id=user.pk, channel="voice", title="Live (demo)"
+                )
+            return cast(Conversation, c)
+
+    turn = Turn(
+        business=business,
+        user_id=int(user.pk or 0),
+        author=getattr(user, "first_name", "") or "Owner",
+        conversation=await sync_to_async(conv, thread_sensitive=False)(),
+        text=text,
+        voice={"live": True},
+    )
+    try:
+        f = await collect_answer(turn)
+    except Exception as exc:
+        log.warning("demo free answer failed: %s", scrub(str(exc))[:200])
+        return None
+    if not f:
+        return None
+    md = str(f.get("markdown") or f.get("headline") or "")
+    # spoken = the screen headline (the pipeline's speech template may describe another tool)
+    head = next((ln for ln in md.splitlines() if ln.strip()), "")
+    say = re.sub(r"[*#`_|>]", "", head).strip() or str(f.get("speech") or "").strip()
+    d = _out("free", markdown=md, blocks=list(f.get("blocks") or []), say=say)
+    d.pop("result", None)
+    return d
+
+
+async def demo_tts(request: HttpRequest, key: str) -> HttpResponseBase:
     """GET a dynamic answer's speech (TTS once, then cached) — pre-recorded clips are static files."""
+    from .demo import speakable
 
-    def get(self, request: Request, key: str) -> HttpResponse:
-        from .demo import speakable
-
-        if key in _DEMO_WAV:
-            return HttpResponse(_DEMO_WAV[key], content_type="audio/wav")
-        text = _DEMO_TTS.get(key)
-        if not text:
-            return JsonResponse({"error": "not_found"}, status=404)
-        try:
-            wav = tts_wav(speakable(text))
-        except Exception as exc:
-            log.warning("demo tts failed: %s", scrub(str(exc))[:200])
-            return JsonResponse({"error": "tts_failed"}, status=502)
-        _DEMO_WAV[key] = wav
-        while len(_DEMO_WAV) > 50:
-            _DEMO_WAV.popitem(last=False)
-        return HttpResponse(wav, content_type="audio/wav")
+    auth = await _demo_auth(request)
+    if isinstance(auth, JsonResponse):
+        return auth
+    if key in _DEMO_WAV:
+        return HttpResponse(_DEMO_WAV[key], content_type="audio/wav")
+    text = _DEMO_TTS.get(key)
+    if not text:
+        return JsonResponse({"error": "not_found"}, status=404)
+    try:
+        wav = await sync_to_async(tts_wav, thread_sensitive=False)(speakable(text))
+    except Exception as exc:
+        log.warning("demo tts failed: %s", scrub(str(exc))[:200])
+        return JsonResponse({"error": "tts_failed"}, status=502)
+    _DEMO_WAV[key] = wav
+    while len(_DEMO_WAV) > 50:
+        _DEMO_WAV.popitem(last=False)
+    return HttpResponse(wav, content_type="audio/wav")
 
 
 class ChatBootstrapView(BusinessAPIView):

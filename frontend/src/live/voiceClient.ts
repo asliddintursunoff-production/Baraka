@@ -23,6 +23,7 @@ import {
 import { ApiError, apiPost } from "@/lib/api";
 
 import { base64ToBuffer, bufferToBase64 } from "./pcm";
+import { AutoGain, Vad } from "./vad";
 
 export type ToolBehavior = "blocking" | "non_blocking";
 export type Scheduling = "WHEN_IDLE" | "INTERRUPT";
@@ -81,17 +82,8 @@ export interface VoiceClientOptions {
 }
 
 const VOICE_HANGOVER_MS = 700; // onUserSpeaking(false) after this much silence
-// Noise gate (kitchens, fans, door clicks): ambient is measured in the first second;
-// the gate opens only for >= 250 ms of sound above ambient x 2.5 (x 2 more while the AI talks).
-const CALIBRATE_MS = 1000;
-// phones (owner 2026-11-22: "telefonda ovozimni yaxshi olmayabdi"): quieter mics -> lower floor,
-// a ceiling so a calibration second that caught the user's own voice can't block speech,
-// and a longer close so pauses between words are not cut out
-const GATE_MIN_RMS = 0.006;
-const GATE_MAX_RMS = 0.02;
-const GATE_OPEN_MS = 150;
-const GATE_CLOSE_MS = 900;
-const PREROLL_FRAMES = 15; // 300 ms kept before the gate opens
+// Voice detection: see ./vad.ts (adaptive noise floor, speech band, no clicks; same on every device)
+const PREROLL_FRAMES = 15; // 300 ms kept before the detector opens (first syllable)
 
 export class VoiceClient {
   private opts: VoiceClientOptions;
@@ -110,11 +102,9 @@ export class VoiceClient {
   private lastVoiceAt = 0;
   private userSpokeSinceModel = false;
   // noise gate state
-  private ambientSamples: number[] = [];
-  private gateRms = GATE_MIN_RMS;
+  private vad = new Vad();
+  private agc = new AutoGain();
   private gateOpen = false;
-  private aboveSince = 0;
-  private belowSince = 0;
   private pending: ArrayBuffer[] = [];
   private aiSpeaking = false;
   private heardSinceInterrupt = "";
@@ -140,7 +130,10 @@ export class VoiceClient {
 
   /** Parallel: mic + token + worklets; then connect. Resolves when the session is ready
    * (or quietly when `stop()` was called meanwhile). */
-  async prepare(tOpen = performance.now(), prefetchedToken?: Promise<TokenResponse>): Promise<void> {
+  async prepare(
+    tOpen = performance.now(),
+    prefetchedToken?: Promise<TokenResponse>,
+  ): Promise<void> {
     this.tOpen = tOpen;
     this.closedByUser = false;
     this.opts.onStatus("preparing");
@@ -156,7 +149,10 @@ export class VoiceClient {
       ]);
       const [token, stream] = await Promise.all([tokenP, micP, workletsP]);
       if (this.closedByUser) return;
-      this.metric("token_ready", performance.now() - this.tOpen, { mint_ms: token.mint_ms, mic: !!stream });
+      this.metric("token_ready", performance.now() - this.tOpen, {
+        mint_ms: token.mint_ms,
+        mic: !!stream,
+      });
       this.setupPlayer();
       if (stream) this.setupMic(stream);
       await this.connect(token, false);
@@ -186,7 +182,12 @@ export class VoiceClient {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Mikrofon mavjud emas");
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
       });
       if (this.closedByUser) {
         stream.getTracks().forEach((t) => t.stop());
@@ -225,9 +226,13 @@ export class VoiceClient {
         onmessage: (m: LiveServerMessage) => {
           if (m.setupComplete && !this.ready) {
             this.ready = true;
-            this.metric(isReconnect ? "reconnect_ready" : "session_ready", performance.now() - tStart, {
-              connect_ms: Math.round(performance.now() - tConnect),
-            });
+            this.metric(
+              isReconnect ? "reconnect_ready" : "session_ready",
+              performance.now() - tStart,
+              {
+                connect_ms: Math.round(performance.now() - tConnect),
+              },
+            );
             this.opts.onStatus("ready");
             resolveReady();
           }
@@ -301,29 +306,17 @@ export class VoiceClient {
     this.mic = new AudioWorkletNode(this.micCtx, "mic-processor", {
       processorOptions: { frameMs: 20 },
     });
-    this.mic.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
+    this.mic.port.onmessage = (
+      e: MessageEvent<{ pcm: ArrayBuffer; rms: number; band?: number }>,
+    ) => {
       const now = performance.now();
       const rms = e.data.rms;
+      const band = e.data.band ?? rms;
       if (this.tMicStart === 0) this.tMicStart = now;
-      if (now - this.tMicStart < CALIBRATE_MS) {
-        this.ambientSamples.push(rms);
-        const sorted = [...this.ambientSamples].sort((a, b) => a - b);
-        const ambient = sorted[Math.floor(sorted.length / 2)] ?? 0;
-        this.gateRms = Math.min(GATE_MAX_RMS, Math.max(GATE_MIN_RMS, ambient * 2));
-      }
-      const threshold = this.aiSpeaking || this.clipPlaying ? this.gateRms * 2.5 : this.gateRms; // duck during playback
-      const loud = rms > threshold;
-      if (loud) {
-        this.belowSince = 0;
-        if (this.aboveSince === 0) this.aboveSince = now;
-        if (!this.gateOpen && now - this.aboveSince >= GATE_OPEN_MS) this.gateOpen = true;
-      } else {
-        this.aboveSince = 0;
-        if (this.belowSince === 0) this.belowSince = now;
-        if (this.gateOpen && now - this.belowSince >= GATE_CLOSE_MS) this.gateOpen = false;
-      }
+      this.gateOpen = this.vad.push(band, this.aiSpeaking || this.clipPlaying);
+      if (this.gateOpen) this.agc.speech(rms);
       const open = this.pushToTalk ? this.talking : this.gateOpen;
-      this.opts.onLevel?.(Math.min(1, rms / Math.max(threshold * 3, 0.0001)), open);
+      this.opts.onLevel?.(this.vad.meter(band), open);
       if (open) {
         this.lastVoiceAt = now;
         this.userSpokeSinceModel = true;
@@ -337,20 +330,19 @@ export class VoiceClient {
       }
       if (!this.session || !this.ready) return;
       let frames: ArrayBuffer[];
-      // demo listen-only: the real mic signal goes to Live (its VAD + transcription hear quiet phone
-      // speech better than our gate); the gate still guards while a clip plays (echo)
-      const raw = !!this.opts.listenOnly?.() && !this.clipPlaying && !this.pushToTalk;
-      if (open || raw) {
-        frames = [...this.pending, e.data.pcm]; // keep the first 250 ms of the word
+      if (open) {
+        frames = [...this.pending, e.data.pcm].map((f) => this.agc.apply(f)); // + 300 ms pre-roll
         this.pending = [];
       } else {
-        // not speech: keep a short pre-roll and send silence so the server VAD sees no voice
+        // not speech (room noise, clicks, our own echo): Live hears silence, never the noise
         this.pending.push(e.data.pcm);
         if (this.pending.length > PREROLL_FRAMES) this.pending.shift();
         frames = [new ArrayBuffer(e.data.pcm.byteLength)];
       }
       for (const f of frames) {
-        this.session.sendRealtimeInput({ audio: { data: bufferToBase64(f), mimeType: "audio/pcm;rate=16000" } });
+        this.session.sendRealtimeInput({
+          audio: { data: bufferToBase64(f), mimeType: "audio/pcm;rate=16000" },
+        });
       }
     };
     src.connect(this.mic);
@@ -375,7 +367,12 @@ export class VoiceClient {
         this.resumeOnEmpty = !this.muteTurn; // not the "To'xtatish" button
         window.setTimeout(() => {
           // an interruption with no real words (noise, cough): continue the previous answer
-          if (this.resumeOnEmpty && !this.opts.listenOnly?.() && this.heardSinceInterrupt.trim().length < 2 && !this.userVoice) {
+          if (
+            this.resumeOnEmpty &&
+            !this.opts.listenOnly?.() &&
+            this.heardSinceInterrupt.trim().length < 2 &&
+            !this.userVoice
+          ) {
             this.session?.sendRealtimeInput({
               text: "(Bu shovqin edi, savol emas.) Oldingi javobingizni to'xtagan joyidan davom ettiring.",
             });
@@ -398,7 +395,9 @@ export class VoiceClient {
           }
         }
         if (this.toolRespondedAt > 0) {
-          this.metric("tool_response_to_first_audio", now - this.toolRespondedAt, { turn: this.turn });
+          this.metric("tool_response_to_first_audio", now - this.toolRespondedAt, {
+            turn: this.turn,
+          });
           this.toolRespondedAt = 0;
         }
         if (this.muteTurn || this.opts.listenOnly?.()) continue;
@@ -415,7 +414,8 @@ export class VoiceClient {
         this.heardSinceInterrupt += heard;
         this.opts.onCaption("user", heard, this.turn);
       }
-      if (sc.outputTranscription?.text && !this.opts.listenOnly?.()) this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
+      if (sc.outputTranscription?.text && !this.opts.listenOnly?.())
+        this.opts.onCaption("ai", sc.outputTranscription.text, this.turn);
       if (sc.turnComplete || sc.interrupted) {
         const done = this.turn;
         this.modelAudioThisTurn = false;

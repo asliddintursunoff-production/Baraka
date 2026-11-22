@@ -92,13 +92,19 @@ function toPlan(raw: unknown): { id: number; summary: string; status: string } |
   const r = asRecord(raw);
   const id = Number(r?.id);
   if (!r || !Number.isInteger(id) || id <= 0) return null;
-  return { id, summary: typeof r.summary === "string" ? r.summary : "", status: String(r.status ?? "") };
+  return {
+    id,
+    summary: typeof r.summary === "string" ? r.summary : "",
+    status: String(r.status ?? ""),
+  };
 }
 
 /** The plan card lists the answer's steps (Live.html "Taklif: reja"), else the plan summary. */
 function planItems(result: ToolResult, summary: string): string[] {
   const steps = asRecord(result.answer)?.steps;
-  const list = Array.isArray(steps) ? steps.filter((s): s is string => typeof s === "string" && s.trim() !== "") : [];
+  const list = Array.isArray(steps)
+    ? steps.filter((s): s is string => typeof s === "string" && s.trim() !== "")
+    : [];
   return list.length > 0 ? list.slice(0, 3) : [summary];
 }
 
@@ -121,7 +127,10 @@ function nextPaint(): Promise<void> {
   });
 }
 
-function finishPayload(s: Snapshot): { transcript: { who: "user" | "ai"; text: string }[]; blocks: UiBlock[] } {
+function finishPayload(s: Snapshot): {
+  transcript: { who: "user" | "ai"; text: string }[];
+  blocks: UiBlock[];
+} {
   // Transcriptions can arrive late: order by turn, the user's words before the answer.
   const transcript = [...s.captions]
     .sort((a, b) => a.turn - b.turn || (a.who === b.who ? 0 : a.who === "user" ? -1 : 1))
@@ -134,7 +143,13 @@ function finishPayload(s: Snapshot): { transcript: { who: "user" | "ai"; text: s
       blocks.push(...c.blocks.map((b) => ({ ...b, id: `${c.key}-${b.id}` })));
     } else if (s.plans[c.planId]?.status !== "done") {
       // Still open: keep it approvable from the chat.
-      blocks.push({ id: c.key, type: "approval", plan_id: String(c.planId), summary: c.summary, approve_label: "Tasdiqlash" });
+      blocks.push({
+        id: c.key,
+        type: "approval",
+        plan_id: String(c.planId),
+        summary: c.summary,
+        approve_label: "Tasdiqlash",
+      });
     }
   }
   return { transcript, blocks };
@@ -142,7 +157,16 @@ function finishPayload(s: Snapshot): { transcript: { who: "user" | "ai"; text: s
 
 function WarnIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FEC84B" strokeWidth="2" className="mt-[2px] shrink-0" aria-hidden="true">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#FEC84B"
+      strokeWidth="2"
+      className="mt-[2px] shrink-0"
+      aria-hidden="true"
+    >
       <path d="M12 3l10 18H2z" />
       <path d="M12 10v4M12 17.5v.5" />
     </svg>
@@ -191,6 +215,8 @@ export default function LivePage() {
   const clipRef = useRef<HTMLAudioElement | null>(null);
   const clipSay = useRef("");
   const clipEndedAt = useRef(0);
+  /** newest demo request wins; "To'xtatish" cancels the one in flight */
+  const demoSeq = useRef(0);
   const bargeTimer = useRef<number | undefined>(undefined);
 
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -256,35 +282,51 @@ export default function LivePage() {
     if (m.name === "go_away") void prefetchLiveToken();
   }, []);
 
-  const addToolResult = useCallback((name: string, args: Record<string, unknown>, result: ToolResult) => {
-    const group = seq.current++;
-    const blocks = toBlocks(result.ui_blocks);
-    const plan = toPlan(result.proposed_plan);
-    const items = plan ? planItems(result, plan.summary) : [];
-    setCards((prev) => {
-      const next = [...prev];
-      const segs = Array.isArray(result.speech_segments) ? (result.speech_segments as { cue: string; text: string }[]) : undefined;
-      if (blocks.length > 0) next.push({ kind: "blocks", key: `g${group}`, group, blocks, segments: segs });
-      if (plan && !prev.some((c) => c.kind === "plan" && c.planId === plan.id)) {
-        next.push({ kind: "plan", key: `plan-${plan.id}`, group, planId: plan.id, summary: plan.summary, items });
+  const addToolResult = useCallback(
+    (name: string, args: Record<string, unknown>, result: ToolResult) => {
+      const group = seq.current++;
+      const blocks = toBlocks(result.ui_blocks);
+      const plan = toPlan(result.proposed_plan);
+      const items = plan ? planItems(result, plan.summary) : [];
+      setCards((prev) => {
+        const next = [...prev];
+        const segs = Array.isArray(result.speech_segments)
+          ? (result.speech_segments as { cue: string; text: string }[])
+          : undefined;
+        if (blocks.length > 0)
+          next.push({ kind: "blocks", key: `g${group}`, group, blocks, segments: segs });
+        if (plan && !prev.some((c) => c.kind === "plan" && c.planId === plan.id)) {
+          next.push({
+            kind: "plan",
+            key: `plan-${plan.id}`,
+            group,
+            planId: plan.id,
+            summary: plan.summary,
+            items,
+          });
+        }
+        return next;
+      });
+      if (plan?.status === "approved") {
+        setPlans((p) => ({ ...p, [plan.id]: { status: "done", summary: plan.summary } }));
       }
-      return next;
-    });
-    if (plan?.status === "approved") {
-      setPlans((p) => ({ ...p, [plan.id]: { status: "done", summary: plan.summary } }));
-    }
-    // "Ha" by voice: the backend approved the plan inside confirm_plan.
-    if (name === "confirm_plan" && result.ok !== false) {
-      const id = Number(asRecord(result.facts)?.plan_id ?? args.plan_id);
-      const summary = asRecord(result.display)?.summary;
-      if (Number.isInteger(id) && id > 0) {
-        setPlans((p) => ({
-          ...p,
-          [id]: { status: "done", summary: typeof summary === "string" && summary ? summary : p[id]?.summary },
-        }));
+      // "Ha" by voice: the backend approved the plan inside confirm_plan.
+      if (name === "confirm_plan" && result.ok !== false) {
+        const id = Number(asRecord(result.facts)?.plan_id ?? args.plan_id);
+        const summary = asRecord(result.display)?.summary;
+        if (Number.isInteger(id) && id > 0) {
+          setPlans((p) => ({
+            ...p,
+            [id]: {
+              status: "done",
+              summary: typeof summary === "string" && summary ? summary : p[id]?.summary,
+            },
+          }));
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
   // --- DEMO: card + pre-recorded clip, cues follow the playback position ---
   const stopClip = useCallback(() => {
@@ -345,9 +387,11 @@ export default function LivePage() {
   const runDemo = useCallback(
     async (text: string, t: number) => {
       const q = text.trim();
-      if (q.length < 2) return;
+      // noise transcripts ("hmm", "...", single letters) are not questions
+      if (q.length < 2 || !/[\p{L}]{3,}/u.test(q)) return;
       // echo guard: our own clip heard back through the speakers is not a question
-      const recent = clipRef.current || performance.now() - clipEndedAt.current < 1500;
+      // (only while/just after it really played — never after a manual stop)
+      const recent = !!clipRef.current || performance.now() - clipEndedAt.current < 1500;
       if (recent && clipSay.current) {
         const said = new Set(clipSay.current.toLowerCase().match(/[\p{L}']+/gu) ?? []);
         const words = q.toLowerCase().match(/[\p{L}']+/gu) ?? [];
@@ -355,16 +399,32 @@ export default function LivePage() {
         if (words.length > 2 && overlap > 0.6) return;
       }
       lastActivity.current = performance.now();
+      const my = ++demoSeq.current;
+      stopClip(); // a new question: the old answer stops now
       setToolsPending((n) => n + 1);
       try {
-        const d = await apiPost<DemoAnswer>("/api/demo/answer", { text: q, prev: prevIntent.current });
+        const d = await apiPost<DemoAnswer>("/api/demo/answer", {
+          text: q,
+          prev: prevIntent.current,
+        });
+        if (my !== demoSeq.current) return; // stopped, or a newer question was asked meanwhile
         if (d.intent) prevIntent.current = d.intent;
         setDemoCards(d.cards ?? []);
         if (d.blocks.length > 0) {
-          addToolResult("demo", {}, { ok: true, ui_blocks: d.blocks, speech_segments: d.segments } as ToolResult);
-          if (d.expand) setCards((prev) => prev.map((c, i) => (i === prev.length - 1 && c.kind === "blocks" ? { ...c, full: true } : c)));
+          addToolResult("demo", {}, {
+            ok: true,
+            ui_blocks: d.blocks,
+            speech_segments: d.segments,
+          } as ToolResult);
+          if (d.expand)
+            setCards((prev) =>
+              prev.map((c, i) =>
+                i === prev.length - 1 && c.kind === "blocks" ? { ...c, full: true } : c,
+              ),
+            );
         }
         await nextPaint();
+        if (my !== demoSeq.current) return;
         playDemo(d, t);
       } catch {
         /* network: the user can ask again */
@@ -372,7 +432,7 @@ export default function LivePage() {
         setToolsPending((n) => Math.max(0, n - 1));
       }
     },
-    [addToolResult, playDemo],
+    [addToolResult, playDemo, stopClip],
   );
 
   /** Close the session and release the mic; adds its open time to `seconds`. */
@@ -395,10 +455,15 @@ export default function LivePage() {
   const autoClose = useCallback(
     (reason: LiveCloseReason) => {
       if (!clientRef.current || finishing.current) return;
-      track("voice", "auto_close", sessionStart.current ? performance.now() - sessionStart.current : 0, {
-        reason,
-        page: "live",
-      });
+      track(
+        "voice",
+        "auto_close",
+        sessionStart.current ? performance.now() - sessionStart.current : 0,
+        {
+          reason,
+          page: "live",
+        },
+      );
       void endSession();
       setCloseReason(reason);
       setPhase("closed");
@@ -409,114 +474,124 @@ export default function LivePage() {
   const takeToken = useCallback((): Promise<LiveSession> => {
     const t0 = performance.now();
     return takeLiveToken().then((s) => {
-      track("voice", "token_take", performance.now() - t0, { from_cache: s.from_cache, mint_ms: s.mint_ms, page: "live" });
+      track("voice", "token_take", performance.now() - t0, {
+        from_cache: s.from_cache,
+        mint_ms: s.mint_ms,
+        page: "live",
+      });
       demoRef.current = !!s.demo;
       setSession(s);
       return s;
     });
   }, []);
 
-  const start = useCallback(async (base: number) => {
-    // The daily voice limit is already known (prefetch got 429): no mic prompt, no connect.
-    const blocked = liveBudgetMessage();
-    if (blocked) {
-      await Promise.resolve();
-      setBudgetMsg(blocked);
-      setPhase("budget");
-      return;
-    }
-    const tOpen = performance.now();
-    everReady.current = false;
-    turnBase.current = base;
-    turnRef.current = base;
-    sessionStart.current = tOpen;
-    lastActivity.current = tOpen;
-    const c: VoiceClient = new VoiceClient({
-      tokenUrl: SESSION_URL,
-      toolUrl: (name) => `/api/tools/${encodeURIComponent(name)}`,
-      behavior: "blocking",
-      scheduling: "WHEN_IDLE",
-      getToken: takeToken,
-      annotateToolCalls: true,
-      micOptional: true,
-      listenOnly: () => demoRef.current,
-      onStatus: (s: Status) => {
-        if (clientRef.current !== c) return; // an old client after a retry / finish
-        if (s === "preparing" || s === "connecting") {
-          setConnected(false);
-          setPhase(everReady.current ? "reconnecting" : "connecting");
-        } else if (s === "ready") {
-          everReady.current = true;
-          lastActivity.current = performance.now();
-          setConnected(true);
-          setPhase("ready");
-        } else if (s === "error") {
-          const budget = liveBudgetMessage();
-          track("voice", budget ? "budget_blocked" : "session_error", 0, {
-            stage: everReady.current ? "reconnect" : "connect",
-            page: "live",
-          });
-          void endSession(); // also releases the mic after a failed reconnect
-          if (budget) {
-            setBudgetMsg(budget);
-            setPhase("budget");
-          } else {
-            setPhase("error");
-            setTextOpen(true);
+  const start = useCallback(
+    async (base: number) => {
+      // The daily voice limit is already known (prefetch got 429): no mic prompt, no connect.
+      const blocked = liveBudgetMessage();
+      if (blocked) {
+        await Promise.resolve();
+        setBudgetMsg(blocked);
+        setPhase("budget");
+        return;
+      }
+      const tOpen = performance.now();
+      everReady.current = false;
+      turnBase.current = base;
+      turnRef.current = base;
+      sessionStart.current = tOpen;
+      lastActivity.current = tOpen;
+      const c: VoiceClient = new VoiceClient({
+        tokenUrl: SESSION_URL,
+        toolUrl: (name) => `/api/tools/${encodeURIComponent(name)}`,
+        behavior: "blocking",
+        scheduling: "WHEN_IDLE",
+        getToken: takeToken,
+        annotateToolCalls: true,
+        micOptional: true,
+        listenOnly: () => demoRef.current,
+        onStatus: (s: Status) => {
+          if (clientRef.current !== c) return; // an old client after a retry / finish
+          if (s === "preparing" || s === "connecting") {
+            setConnected(false);
+            setPhase(everReady.current ? "reconnecting" : "connecting");
+          } else if (s === "ready") {
+            everReady.current = true;
+            lastActivity.current = performance.now();
+            setConnected(true);
+            setPhase("ready");
+          } else if (s === "error") {
+            const budget = liveBudgetMessage();
+            track("voice", budget ? "budget_blocked" : "session_error", 0, {
+              stage: everReady.current ? "reconnect" : "connect",
+              page: "live",
+            });
+            void endSession(); // also releases the mic after a failed reconnect
+            if (budget) {
+              setBudgetMsg(budget);
+              setPhase("budget");
+            } else {
+              setPhase("error");
+              setTextOpen(true);
+            }
+          } else if (s === "closed") {
+            setConnected(false);
           }
-        } else if (s === "closed") {
-          setConnected(false);
-        }
-      },
-      onCaption,
-      onMetric,
-      onSpeaking,
-      onLevel: (lv, open) => {
-        setLevel(Math.round(lv * 20) / 20);
-        setGateOpen(open);
-      },
-      onUserSpeaking: (speaking) => {
-        // demo barge-in: sustained speech (not a short echo/noise) stops the clip
-        window.clearTimeout(bargeTimer.current);
-        if (speaking && demoRef.current && clipRef.current)
-          bargeTimer.current = window.setTimeout(() => {
-            if (userVoice.current) stopClip();
-          }, 600);
-        userVoice.current = speaking;
-        lastActivity.current = performance.now();
-        setUserSpeaking(speaking);
-      },
-      onMicError: () => {
-        setMicOk(false);
-        setTextOpen(true);
-      },
-      onToolCall: () => {
-        lastActivity.current = performance.now();
-        setToolsPending((n) => n + 1);
-      },
-      onToolResult: (name, args, result) => {
-        lastActivity.current = performance.now();
-        addToolResult(name, args, result);
-        setToolsPending((n) => Math.max(0, n - 1));
-        return nextPaint();
-      },
-      onTurnComplete: (done) => {
-        turnRef.current = base + done + 1;
-        setTurn(base + done + 1);
-        if (demoRef.current) {
-          const said = userTurnText.current[base + done] ?? "";
-          if (said.trim()) void runDemo(said, base + done);
-        }
-      },
-    });
-    clientRef.current = c;
-    try {
-      await c.prepare(tOpen, takeToken());
-      if (clientRef.current === c) setAudioSuspended(c.audioSuspended);
-    } catch {
-      /* shown through onStatus("error") */
-    }
-  }, [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession, runDemo, stopClip]);
+        },
+        onCaption,
+        onMetric,
+        onSpeaking,
+        onLevel: (lv, open) => {
+          setLevel(Math.round(lv * 20) / 20);
+          setGateOpen(open);
+        },
+        onUserSpeaking: (speaking) => {
+          // demo barge-in: sustained speech (not a short echo/noise) stops the clip
+          window.clearTimeout(bargeTimer.current);
+          if (speaking && demoRef.current && clipRef.current)
+            bargeTimer.current = window.setTimeout(() => {
+              if (userVoice.current) {
+                stopClip();
+                clipSay.current = ""; // the user is talking over it: their question is not echo
+              }
+            }, 300); // the VAD already needs ~160 ms of clear speech (+9 dB while a clip plays)
+          userVoice.current = speaking;
+          lastActivity.current = performance.now();
+          setUserSpeaking(speaking);
+        },
+        onMicError: () => {
+          setMicOk(false);
+          setTextOpen(true);
+        },
+        onToolCall: () => {
+          lastActivity.current = performance.now();
+          setToolsPending((n) => n + 1);
+        },
+        onToolResult: (name, args, result) => {
+          lastActivity.current = performance.now();
+          addToolResult(name, args, result);
+          setToolsPending((n) => Math.max(0, n - 1));
+          return nextPaint();
+        },
+        onTurnComplete: (done) => {
+          turnRef.current = base + done + 1;
+          setTurn(base + done + 1);
+          if (demoRef.current) {
+            const said = userTurnText.current[base + done] ?? "";
+            if (said.trim()) void runDemo(said, base + done);
+          }
+        },
+      });
+      clientRef.current = c;
+      try {
+        await c.prepare(tOpen, takeToken());
+        if (clientRef.current === c) setAudioSuspended(c.audioSuspended);
+      } catch {
+        /* shown through onStatus("error") */
+      }
+    },
+    [takeToken, onCaption, onMetric, onSpeaking, addToolResult, endSession, runDemo, stopClip],
+  );
 
   /** Saves the transcript + shown blocks once (Tugatish, leaving the page, closing the tab). */
   const save = useCallback((keepalive: boolean): Promise<unknown> => {
@@ -527,7 +602,8 @@ export default function LivePage() {
     if (payload.transcript.length === 0 && seconds === 0) return Promise.resolve();
     saved.current = true;
     let body: unknown = payload;
-    if (keepalive && JSON.stringify(payload).length > KEEPALIVE_MAX_BYTES) body = { ...payload, blocks: [] };
+    if (keepalive && JSON.stringify(payload).length > KEEPALIVE_MAX_BYTES)
+      body = { ...payload, blocks: [] };
     return apiPost("/api/live/finish", body, { keepalive }).catch(() => undefined);
   }, []);
 
@@ -564,7 +640,8 @@ export default function LivePage() {
       if (!sessionStart.current) return;
       if (now - sessionStart.current >= LIVE_MAX_SESSION_MS) return autoClose("max");
       if (aiAudio.current || userVoice.current) lastActivity.current = now;
-      else if (phase === "ready" && now - lastActivity.current >= LIVE_IDLE_CLOSE_MS) autoClose("idle");
+      else if (phase === "ready" && now - lastActivity.current >= LIVE_IDLE_CLOSE_MS)
+        autoClose("idle");
     }, 1000);
     return () => window.clearInterval(id);
   }, [phase, autoClose]);
@@ -618,7 +695,11 @@ export default function LivePage() {
   }, [ptt]);
 
   const stopPlayback = useCallback(() => {
+    demoSeq.current += 1; // an answer still being prepared will not start talking later
     stopClip();
+    clipSay.current = ""; // the next question is never mistaken for an echo of this answer
+    clipEndedAt.current = 0;
+    setToolsPending(0);
     clientRef.current?.stopPlayback();
     window.clearTimeout(speakTimer.current);
     setAiSpeaking(false);
@@ -630,7 +711,10 @@ export default function LivePage() {
       const c = clientRef.current;
       if (demoRef.current) {
         const t = turnRef.current;
-        setCaptions((prev) => [...prev, { key: `typed-${seq.current++}`, who: "user", turn: t, text, typed: true }]);
+        setCaptions((prev) => [
+          ...prev,
+          { key: `typed-${seq.current++}`, who: "user", turn: t, text, typed: true },
+        ]);
         turnRef.current = t + 1;
         setTurn(t + 1);
         void runDemo(text, t);
@@ -639,7 +723,10 @@ export default function LivePage() {
       if (!c?.connected) return;
       lastActivity.current = performance.now();
       c.sendText(text);
-      setCaptions((prev) => [...prev, { key: `typed-${seq.current++}`, who: "user", turn, text, typed: true }]);
+      setCaptions((prev) => [
+        ...prev,
+        { key: `typed-${seq.current++}`, who: "user", turn, text, typed: true },
+      ]);
     },
     [turn, runDemo],
   );
@@ -647,7 +734,12 @@ export default function LivePage() {
   const approve = useCallback((id: number) => {
     setPlans((p) => ({ ...p, [id]: { ...p[id], status: "pending" } }));
     apiPost<ApproveResult>(`/api/actions/${id}/approve`, {})
-      .then((r) => setPlans((p) => ({ ...p, [id]: { status: "done", summary: r?.summary || p[id]?.summary } })))
+      .then((r) =>
+        setPlans((p) => ({
+          ...p,
+          [id]: { status: "done", summary: r?.summary || p[id]?.summary },
+        })),
+      )
       .catch(() => setPlans((p) => ({ ...p, [id]: { status: "error" } })));
   }, []);
 
@@ -676,9 +768,14 @@ export default function LivePage() {
   const lastUser = findLast(captions, (c) => c.who === "user");
   const lastAi = findLast(captions, (c) => c.who === "ai");
   const ai: AiCaption | null = lastAi
-    ? { text: lastAi.text, final: lastAi.turn < turn, old: !!lastUser && lastUser.turn > lastAi.turn }
+    ? {
+        text: lastAi.text,
+        final: lastAi.turn < turn,
+        old: !!lastUser && lastUser.turn > lastAi.turn,
+      }
     : null;
-  const awaitingAnswer = !!lastUser && !lastUser.typed && lastUser.turn === turn && lastAi?.turn !== turn;
+  const awaitingAnswer =
+    !!lastUser && !lastUser.typed && lastUser.turn === turn && lastAi?.turn !== turn;
   const listening = userSpeaking || awaitingAnswer;
 
   let status = "Ulanmoqda…";
@@ -708,7 +805,13 @@ export default function LivePage() {
       <div className="mx-auto box-border flex w-full max-w-[980px] grow flex-col gap-6 p-4 sm:p-8">
         <div className="flex min-w-0 grow flex-col justify-end gap-4">
           <LiveCaptions user={lastUser?.text ?? ""} ai={ai} />
-          <LiveCardStack cash={session?.cash ?? null} cards={cards} plans={plans} onApprove={approve} aiText={ai?.text ?? ""} />
+          <LiveCardStack
+            cash={session?.cash ?? null}
+            cards={cards}
+            plans={plans}
+            onApprove={approve}
+            aiText={ai?.text ?? ""}
+          />
           {demoCards.length > 0 && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {demoCards.map((c) => (
@@ -724,13 +827,24 @@ export default function LivePage() {
             </div>
           )}
         </div>
-        <section aria-label="Ovozli suhbat" className="sticky bottom-0 flex min-w-0 flex-col items-center gap-3 bg-live-bg/95 pb-2 pt-2">
+        <section
+          aria-label="Ovozli suhbat"
+          className="sticky bottom-0 flex min-w-0 flex-col items-center gap-3 bg-live-bg/95 pb-2 pt-2"
+        >
           <div className="-my-[50px] scale-[0.56]">
-            <LiveOrb speaking={aiSpeaking} level={level} listening={gateOpen && !aiSpeaking} thinking={toolsPending > 0} />
+            <LiveOrb
+              speaking={aiSpeaking}
+              level={level}
+              listening={gateOpen && !aiSpeaking}
+              thinking={toolsPending > 0}
+            />
           </div>
 
           <div className="flex flex-col items-center gap-[6px] text-center">
-            <span className="font-display text-15 font-bold uppercase tracking-[0.08em] text-[#5EEAD4]" role="status">
+            <span
+              className="font-display text-15 font-bold uppercase tracking-[0.08em] text-[#5EEAD4]"
+              role="status"
+            >
               {status}
             </span>
             {hint && <span className="text-13 text-[#98A2B3]">{hint}</span>}
@@ -777,7 +891,9 @@ export default function LivePage() {
           {phase !== "error" && phase !== "closed" && phase !== "budget" && !micOk && (
             <div role="status" className={NOTICE}>
               <WarnIcon />
-              <span>Mikrofon ishlamadi. Savolingizni yozib yuboring, javobni ovozda eshitasiz.</span>
+              <span>
+                Mikrofon ishlamadi. Savolingizni yozib yuboring, javobni ovozda eshitasiz.
+              </span>
             </div>
           )}
           {audioSuspended && phase === "ready" && (
@@ -791,10 +907,16 @@ export default function LivePage() {
             <div className="flex w-full max-w-[600px] flex-col items-center gap-2">
               <div className="flex w-full items-center gap-2 text-12 text-[#98A2B3]">
                 <span>Mikrofon</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#1D2939]" aria-label="Mikrofon darajasi">
+                <div
+                  className="h-2 flex-1 overflow-hidden rounded-full bg-[#1D2939]"
+                  aria-label="Mikrofon darajasi"
+                >
                   <div
                     className={gateOpen ? "h-full bg-[#32D583]" : "h-full bg-[#475467]"}
-                    style={{ width: `${Math.round(level * 100)}%`, transition: "width 80ms linear" }}
+                    style={{
+                      width: `${Math.round(level * 100)}%`,
+                      transition: "width 80ms linear",
+                    }}
                   />
                 </div>
                 <span>{gateOpen ? "eshityapman" : "shovqin e'tiborsiz"}</span>
@@ -838,7 +960,6 @@ export default function LivePage() {
 
           {textOpen && connected && <LiveTextForm onSend={sendText} />}
         </section>
-
       </div>
 
       <LiveControls

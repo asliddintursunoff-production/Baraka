@@ -103,3 +103,17 @@ def test_demo_session_is_listen_only(owner_client, demo, captured, monkeypatch):
     conf = captured["config"]
     assert not conf.tools  # no tools: Live only transcribes; answers are pre-recorded clips
     assert conf.input_audio_transcription is not None
+
+
+def test_demo_answer_endpoint_async(owner_client, demo, monkeypatch):
+    """/api/demo/answer is an async view (a slow answer must not queue the next question)."""
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", True)
+    r = owner_client.post(
+        "/api/demo/answer",
+        data={"text": "salom", "prev": None},
+        content_type="application/json",
+    )
+    assert r.status_code == 200 and r.json()["kind"] == "greeting"
+    assert owner_client.get("/api/demo/tts/nope").status_code == 404
