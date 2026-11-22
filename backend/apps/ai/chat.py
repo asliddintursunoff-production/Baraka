@@ -458,6 +458,43 @@ def md_chunks(md: str, size: int = 400) -> list[str]:
     return out
 
 
+def demo_final(turn: Turn, d: dict[str, Any]) -> dict[str, Any]:
+    """A demo-router answer in the chat's answer shape (model "golden" / "demo")."""
+    r = d.get("result") or {}
+    if d.get("intent"):
+        turn.tool_calls.append({"name": d["intent"], "args": {}, "ms": 0, "source": "demo"})
+    report = next((b for b in d["blocks"] if b.get("type") == "report"), None)
+    head = (
+        f"{report['verdict']} {report.get('verdict_highlight', '')}".strip()
+        if report
+        else (d["markdown"].split("\n")[0] if d["markdown"] else "")
+    )
+    return {
+        "verdict": "info",
+        "headline": re.sub(r"[*#`_]", "", head)[:80],
+        "reason": "",
+        "steps": [],
+        "blocks": d["blocks"],
+        "chips": [],
+        "plan": r.get("proposed_plan"),
+        "candidate": None,
+        "explain": [],
+        "speech": d["say"],
+        "model": "golden" if d.get("intent") else "demo",
+        "mode": turn.mode,
+        "advisor": None,
+        "markdown": d["markdown"],
+        "demo": {
+            "kind": d["kind"],
+            "intent": d.get("intent"),
+            "cards": d["cards"],
+            "clip": d["clip"],
+            "speech_key": d["speech_key"],
+            "expand": d["expand"],
+        },
+    }
+
+
 async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
     b = turn.business
     user_msg = await db(
@@ -476,148 +513,167 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
     ctx = ToolContext(b, turn.user_id, "chat", last_user_text=turn.text)
     final: dict[str, Any] | None = None
     try:
-        # 1. context (cache) — embeddings are skipped until memory is embedded (M7)
-        lines = await db(b, lambda: context_lines(ctx))
-
-        # 2. chip fast path
-        if turn.chip:
-            _, tool, args = CHIPS[turn.chip]
-            result = await run_tool_async(turn, ctx, tool, args, source="chip")
-            turn.blocks_sent_ms = turn.ms()
-            yield sse("blocks", {"blocks": result.get("ui_blocks", []), "replace": True})
-            final = finalize(turn, template_answer(result), "template")
-        else:
-            speculative: dict[str, dict[str, Any]] = {}
-            turn.mode = classify(turn.text)
+        if cfg.DEMO_GOLDEN_ONLY and not turn.chip:
+            # demo: Q1–Q4 only, every answer deterministic (no LLM call at all)
+            from . import demo
             from .golden_tools import last_intent
 
             prev = await db(b, lambda: last_intent(turn.conversation.pk))
-            routed = await db(b, lambda: route(turn.text, prev))
-            from .golden_tools import INTENTS as _GI
-            from .golden_tools import is_side_question
-
-            if prev and (not routed or is_side_question(turn.text)):
-                # side question about the last golden report ("nega?", "qanday hisobladi?"):
-                # the report is recomputed as context and the model answers from it
-                g_tool = next((i.tool for i in _GI if i.id == prev), None)
-                if g_tool:
-                    routed = [(g_tool, {})]
-                    turn.golden_context = True  # type: ignore[attr-defined]
-            routed_blocks: list[dict[str, Any]] = []
-            for name, args in routed:
-                try:
-                    result = await run_tool_async(turn, ctx, name, dict(args), source="router")
-                except ToolArgError:
-                    continue
-                speculative[_args_key(name, dict(args))] = result
-                routed_blocks += result.get("ui_blocks", [])
-            totals = [
-                Decimal(r["facts"]["total_raw"])
-                for r in turn.results.values()
-                if isinstance(r.get("facts"), dict) and r["facts"].get("total_raw")
-            ]
-            if len(totals) > 1:  # "un va kartoshkaga": the sum comes from code, not the LLM
-                turn.results["combined_total"] = {
-                    "facts": {"combined_total": uz.format_mln(sum(totals, Decimal(0)))}
-                }
-            if routed_blocks:
+            d = await db(b, lambda: demo.answer(ctx, turn.text, prev))
+            final = demo_final(turn, d)
+            if final["blocks"]:
                 turn.blocks_sent_ms = turn.ms()
-                yield sse("blocks", {"blocks": routed_blocks, "replace": True, "speculative": True})
-            hint = advisor_hint(turn.text) if turn.mode == "advisor" else None
-            if hint:
-                try:
-                    result = await run_tool_async(
-                        turn, ctx, hint[0], dict(hint[1]), source="speculative"
-                    )
-                    speculative[_args_key(hint[0], dict(hint[1]))] = result
-                    turn.blocks_sent_ms = turn.ms()
-                    yield sse(
-                        "blocks",
-                        {
-                            "blocks": result.get("ui_blocks", []),
-                            "replace": True,
-                            "speculative": True,
-                        },
-                    )
-                except ToolArgError:
-                    pass
-            elif looks_like_purchase(turn.text):
-                amounts = parse_amounts(turn.text)
-                spec_args: dict[str, Any] = {"amount": int(amounts[0])}
-                try:
-                    result = await run_tool_async(
-                        turn, ctx, "evaluate_purchase", spec_args, source="speculative"
-                    )
-                    speculative[_args_key("evaluate_purchase", spec_args)] = result
-                    turn.blocks_sent_ms = turn.ms()
-                    yield sse(
-                        "blocks",
-                        {
-                            "blocks": result.get("ui_blocks", []),
-                            "replace": True,
-                            "speculative": True,
-                        },
-                    )
-                except ToolArgError:
-                    pass
-            final, _model = None, "template"
-            from .golden_tools import GOLDEN_TOOLS
+                yield sse("blocks", {"blocks": final["blocks"], "replace": True})
+        if final is None:
+            # 1. context (cache) — embeddings are skipped until memory is embedded (M7)
+            lines = await db(b, lambda: context_lines(ctx))
 
-            golden = {t.name for t in GOLDEN_TOOLS} | {"catalog", "bad_intent"}
-            gres = next(
-                (
-                    turn.results[k]
-                    for k in reversed(list(turn.results))
-                    if any(k.startswith(g) for g in golden)
-                ),
-                None,
-            )
-            if gres is not None and gres.get("pinned_side"):
-                final = finalize(turn, template_answer(gres), "golden")
-                final["markdown"] = str(gres.get("md") or "")
-            elif gres is not None and not getattr(turn, "golden_context", False):
-                # golden question: the golden tool's answer (report, or its failure explanation)
-                # is final — never let the model switch to another intent
-                # golden report: the deterministic card IS the answer (no LLM, every number from the tool)
-                final = finalize(turn, template_answer(gres), "golden")
-                md = str(gres.get("md") or "")
-                has_report = any(bl.get("type") == "report" for bl in gres.get("ui_blocks", []))
-                final["markdown"] = "" if has_report else re.sub(r"\n?CHIPS:.*$", "", md.rstrip())
-                last = md.rstrip().splitlines()[-1] if md.strip() else ""
-                if last.upper().startswith("CHIPS:"):
-                    final["chips"] = [
-                        c.strip() for c in last.split(":", 1)[1].split("|") if c.strip()
-                    ][:3]
-            try:
-                if final is None:
-                    async for item in llm_loop(turn, ctx, lines, speculative):
-                        if isinstance(item, bytes):
-                            yield item
-                        else:
-                            final, _model = item
-            except (genai_errors.APIError, ValueError) as exc:  # never break the stream
-                log.warning("llm loop failed, using template: %s", str(exc)[:200])
-            if final is None:
-                # the model's text was rejected (or failed): a deterministic report the model
-                # itself called (catalog / golden) is the cleanest answer — card only, no glued text
-                card = next(
+            # 2. chip fast path
+            if turn.chip:
+                _, tool, args = CHIPS[turn.chip]
+                result = await run_tool_async(turn, ctx, tool, args, source="chip")
+                turn.blocks_sent_ms = turn.ms()
+                yield sse("blocks", {"blocks": result.get("ui_blocks", []), "replace": True})
+                final = finalize(turn, template_answer(result), "template")
+            else:
+                speculative: dict[str, dict[str, Any]] = {}
+                turn.mode = classify(turn.text)
+                from .golden_tools import last_intent
+
+                prev = await db(b, lambda: last_intent(turn.conversation.pk))
+                routed = await db(b, lambda: route(turn.text, prev))
+                from .golden_tools import INTENTS as _GI
+                from .golden_tools import is_side_question
+
+                if prev and (not routed or is_side_question(turn.text)):
+                    # side question about the last golden report ("nega?", "qanday hisobladi?"):
+                    # the report is recomputed as context and the model answers from it
+                    g_tool = next((i.tool for i in _GI if i.id == prev), None)
+                    if g_tool:
+                        routed = [(g_tool, {})]
+                        turn.golden_context = True  # type: ignore[attr-defined]
+                routed_blocks: list[dict[str, Any]] = []
+                for name, args in routed:
+                    try:
+                        result = await run_tool_async(turn, ctx, name, dict(args), source="router")
+                    except ToolArgError:
+                        continue
+                    speculative[_args_key(name, dict(args))] = result
+                    routed_blocks += result.get("ui_blocks", [])
+                totals = [
+                    Decimal(r["facts"]["total_raw"])
+                    for r in turn.results.values()
+                    if isinstance(r.get("facts"), dict) and r["facts"].get("total_raw")
+                ]
+                if len(totals) > 1:  # "un va kartoshkaga": the sum comes from code, not the LLM
+                    turn.results["combined_total"] = {
+                        "facts": {"combined_total": uz.format_mln(sum(totals, Decimal(0)))}
+                    }
+                if routed_blocks:
+                    turn.blocks_sent_ms = turn.ms()
+                    yield sse(
+                        "blocks", {"blocks": routed_blocks, "replace": True, "speculative": True}
+                    )
+                hint = advisor_hint(turn.text) if turn.mode == "advisor" else None
+                if hint:
+                    try:
+                        result = await run_tool_async(
+                            turn, ctx, hint[0], dict(hint[1]), source="speculative"
+                        )
+                        speculative[_args_key(hint[0], dict(hint[1]))] = result
+                        turn.blocks_sent_ms = turn.ms()
+                        yield sse(
+                            "blocks",
+                            {
+                                "blocks": result.get("ui_blocks", []),
+                                "replace": True,
+                                "speculative": True,
+                            },
+                        )
+                    except ToolArgError:
+                        pass
+                elif looks_like_purchase(turn.text):
+                    amounts = parse_amounts(turn.text)
+                    spec_args: dict[str, Any] = {"amount": int(amounts[0])}
+                    try:
+                        result = await run_tool_async(
+                            turn, ctx, "evaluate_purchase", spec_args, source="speculative"
+                        )
+                        speculative[_args_key("evaluate_purchase", spec_args)] = result
+                        turn.blocks_sent_ms = turn.ms()
+                        yield sse(
+                            "blocks",
+                            {
+                                "blocks": result.get("ui_blocks", []),
+                                "replace": True,
+                                "speculative": True,
+                            },
+                        )
+                    except ToolArgError:
+                        pass
+                final, _model = None, "template"
+                from .golden_tools import GOLDEN_TOOLS
+
+                golden = {t.name for t in GOLDEN_TOOLS} | {"catalog", "bad_intent"}
+                gres = next(
                     (
                         turn.results[k]
                         for k in reversed(list(turn.results))
                         if any(k.startswith(g) for g in golden)
-                        and any(
-                            b.get("type") == "report" for b in turn.results[k].get("ui_blocks", [])
-                        )
                     ),
                     None,
                 )
-                primary = card or next(reversed(turn.results.values()), None)
-                if primary is None:
-                    raise AllModelsFailed("no answer and no tool result")
-                final = finalize(turn, template_answer(primary), "golden" if card else "template")
-                if card is not None:
-                    final["markdown"] = ""
-                    final["blocks"] = list(card.get("ui_blocks", []))
+                if gres is not None and gres.get("pinned_side"):
+                    final = finalize(turn, template_answer(gres), "golden")
+                    final["markdown"] = str(gres.get("md") or "")
+                elif gres is not None and not getattr(turn, "golden_context", False):
+                    # golden question: the golden tool's answer (report, or its failure explanation)
+                    # is final — never let the model switch to another intent
+                    # golden report: the deterministic card IS the answer (no LLM, every number from the tool)
+                    final = finalize(turn, template_answer(gres), "golden")
+                    md = str(gres.get("md") or "")
+                    has_report = any(bl.get("type") == "report" for bl in gres.get("ui_blocks", []))
+                    final["markdown"] = (
+                        "" if has_report else re.sub(r"\n?CHIPS:.*$", "", md.rstrip())
+                    )
+                    last = md.rstrip().splitlines()[-1] if md.strip() else ""
+                    if last.upper().startswith("CHIPS:"):
+                        final["chips"] = [
+                            c.strip() for c in last.split(":", 1)[1].split("|") if c.strip()
+                        ][:3]
+                try:
+                    if final is None:
+                        async for item in llm_loop(turn, ctx, lines, speculative):
+                            if isinstance(item, bytes):
+                                yield item
+                            else:
+                                final, _model = item
+                except (genai_errors.APIError, ValueError) as exc:  # never break the stream
+                    log.warning("llm loop failed, using template: %s", str(exc)[:200])
+                if final is None:
+                    # the model's text was rejected (or failed): a deterministic report the model
+                    # itself called (catalog / golden) is the cleanest answer — card only, no glued text
+                    card = next(
+                        (
+                            turn.results[k]
+                            for k in reversed(list(turn.results))
+                            if any(k.startswith(g) for g in golden)
+                            and any(
+                                b.get("type") == "report"
+                                for b in turn.results[k].get("ui_blocks", [])
+                            )
+                        ),
+                        None,
+                    )
+                    primary = card or next(reversed(turn.results.values()), None)
+                    if primary is None:
+                        raise AllModelsFailed("no answer and no tool result")
+                    final = finalize(
+                        turn, template_answer(primary), "golden" if card else "template"
+                    )
+                    if card is not None:
+                        final["markdown"] = ""
+                        final["blocks"] = list(card.get("ui_blocks", []))
     except AllModelsFailed:
         yield sse(
             "error",

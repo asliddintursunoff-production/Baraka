@@ -166,6 +166,15 @@ def message_payload(m: Message) -> dict[str, Any]:
     }
 
 
+def demo_questions() -> list[dict[str, str]]:
+    """DEMO_GOLDEN_ONLY: the 4 golden question cards for the empty chat."""
+    if not cfg.DEMO_GOLDEN_ONLY:
+        return []
+    from .demo import question_cards
+
+    return question_cards()
+
+
 class ChatBootstrapView(BusinessAPIView):
     requires_data = True  # 409 no_data until a source is synced
 
@@ -214,6 +223,7 @@ class ChatBootstrapView(BusinessAPIView):
                 "brief": {"time": "08:00", **brief},
                 "messages": [message_payload(m) for m in msgs],
                 "chips": [{"id": k, "label": v[0]} for k, v in CHIPS.items()],
+                "questions": demo_questions(),
                 "basis": basis_payload(b),
             }
         )

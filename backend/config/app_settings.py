@@ -169,3 +169,8 @@ CHAT_FULL_THINKING: dict[str, str | None] = {
     "gemini-3.8-flash": "MEDIUM",
     "gemini-3.6-flash": "MEDIUM",
 }
+
+# --- DEMO mode (owner 2026-11-22, until the demo): only Q1–Q4 (+ side questions), zero LLM ----
+# Catalogue + free chat stay in the code but are unreachable while this is True.
+# Live = speech-to-text only; every spoken answer is a pre-recorded clip.
+DEMO_GOLDEN_ONLY = True

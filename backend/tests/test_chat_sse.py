@@ -27,6 +27,14 @@ async def _close_worker_connections():
     await sync_to_async(connections.close_all)()
 
 
+@pytest.fixture(autouse=True)
+def _free_chat(monkeypatch):
+    """These tests cover the free-chat LLM path; demo mode is tested in test_demo_chat_*."""
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", False)
+
+
 @pytest.fixture
 def aclient():
     _cache.clear()
@@ -166,3 +174,18 @@ async def test_llm_down_uses_template_or_error(aclient, monkeypatch):
     assert ev["answer"]["model"] == "template"  # speculative engine result still answers
     ev = dict(await collect(aclient, {"text": "Salom, ishlar qalay?"}))
     assert "error" in ev
+
+
+async def test_demo_chat_other_question_fixed_reply_no_llm(aclient, monkeypatch):
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", True)
+
+    async def boom(*a, **k):
+        raise AssertionError("LLM must not be called in demo mode")
+
+    monkeypatch.setattr("apps.ai.chat.generate", boom)
+    events = await collect(aclient, {"text": "salom"})
+    ans = dict(events)["answer"]
+    assert ans["demo"]["kind"] == "greeting" and len(ans["demo"]["cards"]) == 4
+    assert ans["markdown"].startswith("Assalomu alaykum!")

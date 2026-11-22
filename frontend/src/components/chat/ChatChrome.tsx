@@ -116,7 +116,19 @@ const SUGGESTIONS = [
 ];
 
 /** Empty chat: greeting (+ the morning brief) and 4 suggestion cards (2×2). */
-export function SuggestionGrid({ brief, disabled, onAsk }: { brief: Brief | null; disabled: boolean; onAsk: (t: string) => void }) {
+export function SuggestionGrid({
+  brief,
+  disabled,
+  onAsk,
+  questions,
+}: {
+  brief: Brief | null;
+  disabled: boolean;
+  onAsk: (t: string) => void;
+  questions?: { intent: string; text: string }[];
+}) {
+  const icons = [Wallet, LineChart, PiggyBank, CalendarClock];
+  const items = questions?.length ? questions.map((q, i) => ({ text: q.text, Icon: icons[i % 4] ?? Wallet })) : SUGGESTIONS;
   const me = useMe();
   const name = me.data?.user.first_name;
   return (
@@ -130,7 +142,7 @@ export function SuggestionGrid({ brief, disabled, onAsk }: { brief: Brief | null
         )}
       </div>
       <div className="grid w-full grid-cols-2 gap-2 sm:gap-3">
-        {SUGGESTIONS.map(({ text, Icon }) => (
+        {items.map(({ text, Icon }) => (
           <button
             key={text}
             type="button"

@@ -334,7 +334,7 @@ function ChatView({ boot }: { boot: ChatBootstrap }) {
       <ChatHeader businessName={boot.business_name} basis={boot.basis} />
       <div className="mx-auto box-border flex w-full max-w-chat grow flex-col gap-6 px-4 pt-6 md:px-6" style={{ paddingBottom: pad }}>
         {turns.length === 0 ? (
-          <SuggestionGrid brief={boot.brief} disabled={busy} onAsk={ask} />
+          <SuggestionGrid brief={boot.brief} disabled={busy} onAsk={ask} questions={boot.questions} />
         ) : (
           turns.map((t, i) => (
             <div key={t.key} ref={i === turns.length - 1 ? lastTurnRef : undefined}>

@@ -100,6 +100,22 @@ export function AnswerCard({ answer, busy, onAsk, actions }: Props) {
         </div>
       )}
 
+      {(answer.demo?.cards ?? []).length > 0 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {(answer.demo?.cards ?? []).map((c) => (
+            <button
+              key={c.intent}
+              type="button"
+              disabled={busy}
+              onClick={() => onAsk(c.text)}
+              className="flex min-h-[64px] items-center rounded-card border border-border bg-surface px-4 py-3 text-left text-15 font-semibold leading-snug text-ink hover:bg-[#F9FAFB] disabled:opacity-60"
+            >
+              {c.text}
+            </button>
+          ))}
+        </div>
+      )}
+
       {blocks.length > 0 && (
         <div>
           <UiBlockRenderer

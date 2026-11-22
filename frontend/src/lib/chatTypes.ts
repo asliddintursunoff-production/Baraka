@@ -52,7 +52,18 @@ export interface ToolRunResult {
   detail?: string;
 }
 
+/** DEMO_GOLDEN_ONLY router result (no LLM): kind, question cards, pre-recorded clip key. */
+export interface DemoInfo {
+  kind: "golden" | "side" | "param" | "charts" | "explain" | "decline" | "ambiguous" | "greeting" | "other";
+  intent: string | null;
+  cards: { intent: string; text: string }[];
+  clip: string;
+  speech_key: string;
+  expand: boolean;
+}
+
 export interface Answer {
+  demo?: DemoInfo;
   verdict: AnswerVerdict;
   headline: string;
   reason: string;
@@ -110,6 +121,8 @@ export interface ChatBootstrap {
   messages: ChatMessage[];
   chips: Chip[];
   basis: Basis | null;
+  /** DEMO_GOLDEN_ONLY: the 4 golden question cards (empty chat). */
+  questions?: { intent: string; text: string }[];
 }
 
 /** Body of POST /api/chat/messages (conversation_id is added by the page). */
