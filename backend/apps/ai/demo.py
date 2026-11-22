@@ -40,7 +40,7 @@ OTHER_SAY = (
     "Ekranda tayyor chuqur tahlillar ham bor."
 )
 GREET_TEXT = "Assalomu alaykum!"
-GREET_SAY = "Assalomu alaykum! " + OTHER_SAY
+GREET_SAY = OTHER_SAY  # same pre-recorded clip (screen still greets)
 CHARTS_SAY = "Mana, grafik va jadvallar ekranda."
 EXPLAIN_SAY = "Hisoblash usuli ekranda."
 DECLINE_TEXT = "Mayli, rejani tasdiqlamadim. Boshqa savolingiz bo'lsa, bemalol so'rang."

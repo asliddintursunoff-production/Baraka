@@ -30,6 +30,7 @@ CIRCUIT_WINDOW_S = 60.0
 CIRCUIT_OPEN_S = 60.0
 CHAT_CONTEXT_MAX_TOKENS = 2_000
 TTS_MODEL = "gemini-3.8-flash-tts"
+TTS_MODEL_CHAIN = (TTS_MODEL, "gemini-3.1-flash-tts-preview", "gemini-2.5-pro-preview-tts")
 TTS_VOICE = "Kore"
 # Used only by the M0 voice spike to synthesize Uzbek test questions.
 SPIKE_TTS_MODEL = TTS_MODEL

@@ -390,9 +390,21 @@ def _pcm_to_wav(pcm: bytes, rate: int = 24000) -> bytes:
 
 
 def tts_wav(text: str) -> bytes:
+    """TTS with a fallback chain: each TTS model has its own (small) daily quota."""
+    err: Exception | None = None
+    for model in cfg.TTS_MODEL_CHAIN:
+        try:
+            return _tts_once(text, model)
+        except Exception as exc:
+            err = exc
+            log.info("tts %s failed: %s", model, scrub(str(exc))[:120])
+    raise RuntimeError("tts failed") from err
+
+
+def _tts_once(text: str, model: str) -> bytes:
     r = budget.generate_sync(
         "tts",
-        model=cfg.TTS_MODEL,
+        model=model,
         # the bare text only: any instruction in `contents` is read aloud by the TTS model
         contents=text,
         config=types.GenerateContentConfig(
