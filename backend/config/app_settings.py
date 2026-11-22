@@ -135,11 +135,11 @@ MIN_HISTORY_DAYS = 14  # under this: short_history (no forecasts or purchase dec
 # --- Advisor mode (plans, goals, debts, loans, investments) ------------------------------
 ADVISOR_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash")
 ADVISOR_THINKING_BY_MODEL: dict[str, str | None] = {
-    "gemini-3.8-flash": "MEDIUM",
+    "gemini-3.8-flash": "LOW",
     "gemini-3.6-flash": "LOW",
     "gemini-3.5-flash-lite": None,
 }
-ADVISOR_MAX_ROUNDS = 6
+ADVISOR_MAX_ROUNDS = 3  # owner 2026-11-22: latency
 ADVISOR_ATTEMPT_DEADLINE_S = 20.0
 ADVISOR_PLAN_MAX = 6
 
@@ -163,12 +163,12 @@ AI_PRICES_PER_M_TOKENS.update(
 # --- Full-context chat (owner request 2026-11-22): one strong model call with the digest -----
 CHAT_FULL_CHAIN = (
     "gemini-3.8-flash",
-    "gemini-3.6-flash",
-)  # argon timed out at 12 s on every test (2026-11-22)
-CHAT_FULL_DEADLINE_S = 25.0
+    "gemini-3-flash-preview",
+)  # owner 2026-11-22: MEDIUM thinking took ~1 min; LOW = 5-14 s with the same numbers
+CHAT_FULL_DEADLINE_S = 15.0
 CHAT_FULL_THINKING: dict[str, str | None] = {
-    "gemini-3.8-flash": "MEDIUM",
-    "gemini-3.6-flash": "MEDIUM",
+    "gemini-3.8-flash": "LOW",
+    "gemini-3-flash-preview": "LOW",
 }
 
 # --- DEMO mode (owner 2026-11-22, until the demo): only Q1–Q4 (+ side questions), zero LLM ----

@@ -199,7 +199,6 @@ class DemoAnswerView(BusinessAPIView):
             _DEMO_TTS[d["speech_key"]] = d["say"]
         return Response(d)
 
-
     def free(self, text: str) -> dict[str, Any] | None:
         """Outside Q1–Q4: the normal AI pipeline (tools + engine numbers), spoken via /demo/tts."""
         from asgiref.sync import async_to_sync
@@ -215,7 +214,7 @@ class DemoAnswerView(BusinessAPIView):
         )
         turn = Turn(
             business=b,
-            user_id=user.pk,
+            user_id=int(user.pk or 0),
             author=getattr(user, "first_name", "") or "Owner",
             conversation=conv,
             text=text,
@@ -379,7 +378,35 @@ async def chat_messages(request: HttpRequest) -> HttpResponseBase:
 _speech_cache: OrderedDict[int, bytes] = OrderedDict()
 
 
+def trim_tail(pcm: bytes, rate: int = 24000) -> bytes:
+    """Cut the TTS end-of-stream burst: speech -> silence -> a loud ~0.2 s click/hiss at the end."""
+    import numpy as np
+
+    x = np.frombuffer(pcm[: len(pcm) // 2 * 2], dtype=np.int16)
+    win = rate // 50  # 20 ms
+    n = len(x) // win
+    if n < 10:
+        return pcm
+    rms = np.sqrt(np.mean(x[: n * win].reshape(n, win).astype(np.float64) ** 2, axis=1))
+    quiet = rms < 300
+    cut = None
+    # the last run of >=3 quiet windows within the final 0.6 s, followed only by the burst
+    for i in range(n - 1, max(n - 30, 2), -1):
+        if quiet[i] and quiet[i - 1] and quiet[i - 2]:
+            cut = i + 1
+            break
+    if cut is None or cut >= n:
+        y = x.copy()
+    else:
+        y = x[: cut * win].copy()
+    fade = min(len(y), rate // 33)  # 30 ms fade-out
+    if fade:
+        y[-fade:] = (y[-fade:].astype(np.float64) * np.linspace(1, 0, fade)).astype(np.int16)
+    return y.tobytes()
+
+
 def _pcm_to_wav(pcm: bytes, rate: int = 24000) -> bytes:
+    pcm = trim_tail(pcm, rate)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
