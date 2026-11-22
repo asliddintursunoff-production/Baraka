@@ -520,8 +520,9 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
 
             prev = await db(b, lambda: last_intent(turn.conversation.pk))
             d = await db(b, lambda: demo.answer(ctx, turn.text, prev))
-            final = demo_final(turn, d)
-            if final["blocks"]:
+            if d["kind"] != "other":  # anything outside Q1–Q4: the normal AI pipeline below
+                final = demo_final(turn, d)
+            if final is not None and final["blocks"]:
                 turn.blocks_sent_ms = turn.ms()
                 yield sse("blocks", {"blocks": final["blocks"], "replace": True})
         if final is None:
@@ -1007,3 +1008,15 @@ def now_hhmm(business: Business) -> str:
 
 
 __all__ = ["CHIPS", "Turn", "asyncio", "stream_turn", "warm_brief"]
+
+
+async def collect_answer(turn: Turn) -> dict[str, Any] | None:
+    """Run the normal pipeline without streaming (Live demo: questions outside Q1–Q4)."""
+    final: dict[str, Any] | None = None
+    async for chunk in stream_turn(turn):
+        for ev in chunk.decode().split("\n\n"):
+            lines = ev.splitlines()
+            if any(ln == "event: answer" for ln in lines):
+                data = next((ln[6:] for ln in lines if ln.startswith("data: ")), "{}")
+                final = json.loads(data)
+    return final

@@ -19,7 +19,7 @@
   "id": "q3_equipment_investment",
   "intent": "equipment_investment",
   "period": "22.11.2026",
-  "verdict": "Hozir olsangiz — zarariga ishlaydi: ikkala lavash stansiyangiz hali to'lmagan.",
+  "verdict": "Hozir olsangiz — zarariga ishlaydi: hozirgi 2 ta lavash apparatingiz hali to'liq band emas.",
   "verdict_highlight": "Apparat 2027-yil may oyida investitsiyaga aylanadi: oyiga +4,3 mln so'm va ~6 oyda qoplaydi. Hozirdan oyiga 5 mln jamg'aring — mayda qarzsiz olasiz.",
   "kpis": [
    {
@@ -31,7 +31,7 @@
    {
     "label": "Olish vaqti",
     "value": "May 2027",
-    "sub": "shanba yuklamasi 95% ga yetganda"
+    "sub": "shanba kuni oshxona 95% band bo'lganda"
    },
    {
     "label": "O'shanda foyda",
@@ -48,7 +48,7 @@
   "sections": [
    {
     "id": "capacity_chart",
-    "title": "Quvvat qachon tugaydi — shanba cheklari",
+    "title": "Oshxona qachon to'ladi — shanba kungi cheklar soni",
     "chart": {
      "type": "line_multi",
      "x_labels": [
@@ -68,7 +68,7 @@
      ],
      "series": [
       {
-       "name": "Shanba cheklari (prognoz)",
+       "name": "Shanba kungi cheklar (prognoz)",
        "color": "#2DD4BF",
        "data": [
         77.2,
@@ -90,12 +90,12 @@
      "ref_lines": [
       {
        "y": 90,
-       "label": "Quvvat — 90",
+       "label": "Maksimum — 90 chek",
        "color": "#DC2626"
       },
       {
        "y": 85,
-       "label": "95% — olish vaqti",
+       "label": "Apparat olish vaqti",
        "color": "#F59E0B"
       }
      ],
@@ -104,7 +104,7 @@
       "label": "Apparat olish"
      }
     },
-    "note": "O'sish: oxirgi 9 oy o'rtachasi +2,2%/oy. Iyundan beri \"ulgurmadi\" kunlari: 0."
+    "note": "Savdo har oy o'rtacha +2,2% o'syapti. Iyundan beri navbat tufayli mijoz qaytib ketgan kun: 0."
    },
    {
     "id": "now_table",
@@ -117,10 +117,10 @@
      "rows": [
       [
        "Qo'shimcha savdo",
-       "~0 (quvvat yetarli)"
+       "~0 (hozirgi apparatlar yetarli)"
       ],
       [
-       "Elektr (10 kVt·soat/kun × 1 100)",
+       "Elektr (kuniga 10 kVt·soat)",
        "−330 000"
       ],
       [
@@ -128,40 +128,40 @@
        "−100 000"
       ],
       [
-       "**Naqd natija**",
+       "**Qo'ldan chiqadigan pul**",
        "**−430 000**"
       ],
       [
-       "Amortizatsiya (25 mln ÷ 84 oy)",
+       "Apparat eskirishi (25 mln ÷ 7 yil)",
        "−298 000"
       ],
       [
-       "**Foyda bo'yicha natija**",
+       "**Jami zarar (eskirish bilan)**",
        "**−728 000**"
       ],
       [
-       "5-dekabr (oylik kuni) kassa: 44,7 mln → **19,7 mln**",
-       "xavfsiz chegara ~17 mln — **juda yaqin**"
+       "5-dekabr (oylik kuni) kassada: 44,7 mln → **19,7 mln**",
+       "kamida ~17 mln turishi kerak — **juda yaqin**"
       ]
      ]
     }
    },
    {
     "id": "capacity_table",
-    "title": "Quvvat qachon tugaydi (shanba cheklari, oshxona quvvati 90)",
+    "title": "Oshxona qanchalik band (shanba kuni, ko'pi bilan 90 chek)",
     "table": {
      "columns": [
       "Oy",
       "Dek 26",
       "Fev 27",
       "Apr 27",
-      "**May 27**",
+      "May 27",
       "Iyul 27",
       "Avg 27"
      ],
      "rows": [
       [
-       "Shanba cheklari",
+       "Shanba kungi cheklar",
        "77,2",
        "80,7",
        "84,2",
@@ -170,20 +170,20 @@
        "91,8"
       ],
       [
-       "Yuklama",
+       "Bandlik",
        "86%",
        "90%",
        "94%",
        "**96%**",
        "100%",
-       "102% — buyurtma yo'qoladi"
+       "102% — mijoz qaytib ketadi"
       ]
      ]
     }
    },
    {
     "id": "may_table",
-    "title": "May 2027 da olsangiz (quvvat to'lganda)",
+    "title": "May 2027 da olsangiz (oshxona to'lganda)",
     "table": {
      "columns": [
       "",
@@ -191,7 +191,7 @@
      ],
      "rows": [
       [
-       "Qo'shimcha yalpi foyda (2-stansiya tajribasi)",
+       "Qo'shimcha foyda (2-apparatni olgandagi tajriba)",
        "+8 160 000"
       ],
       [
@@ -203,7 +203,7 @@
        "−3 412 000"
       ],
       [
-       "**Sof naqd natija**",
+       "**Qo'lingizda qoladi**",
        "**+4 320 000**"
       ],
       [
@@ -215,7 +215,7 @@
    },
    {
     "id": "jcurve",
-    "title": "Hozir vs may — yig'ma natija (mln so'm)",
+    "title": "Hozir olish yoki mayda olish — jami natija (mln so'm)",
     "chart": {
      "type": "line_multi",
      "zero_line": true,
@@ -279,7 +279,7 @@
     "table": {
      "columns": [
       "",
-      "Dek 2027 holatida"
+      "2027-yil dekabrgacha jami"
      ],
      "rows": [
       [
@@ -296,7 +296,7 @@
       ]
      ]
     },
-    "note": "Hozir olish 2,2 mln qimmatga tushadi; 5-dekabrda kassa 44,7 → 19,7 mln (chegara ~17 mln)."
+    "note": "Hozir olish 2,2 mln qimmatga tushadi; 5-dekabrda kassa 44,7 → 19,7 mln (kamida ~17 mln turishi kerak)."
    },
    {
     "id": "financing",
@@ -307,8 +307,8 @@
       "Hozir to'laysiz",
       "Oyiga",
       "Muddati",
-      "Ortiqcha to'lov",
-      "Apparat foydasidan keyin oyiga"
+      "Ustama",
+      "Qo'lingizda qoladi (oyiga)"
      ],
      "rows": [
       [
@@ -345,14 +345,14 @@
     "actions": [
      "**Hozir olmang** — oyiga 430 000 so'm bekorga ketadi.",
      "**Jamg'arma:** dekabrdan aprelgacha har oy **5 mln** alohida hisobga (oktyabrdagi sof foyda 17,7 mln — bemalol).",
-     "**Signal:** shanba cheklari 85 dan oshsa yoki \"ulgurmadi\" kunlari oyiga 2 tadan ko'paysa — AI xabar beradi, sotib olish vaqti.",
-     "**Apparat bilan birga lavash ustasi** oling (aks holda quvvat ishlamaydi).",
+     "**Signal:** shanba kuni cheklar 85 dan oshsa yoki navbat tufayli mijoz qaytgan kunlar oyiga 2 tadan ko'paysa — AI xabar beradi: apparat olish vaqti keldi.",
+     "**Apparat bilan birga lavash ustasi** oling (aks holda yangi apparat bo'sh turadi).",
      "Agar eski apparat **buzilsa** — kutmang, darhol oling (bo'lib to'lashga)."
     ]
    }
   ],
-  "assumptions": "Taxminlar: oshxona quvvati 90 chek/kun, o'sish 2,2%/oy, elektr 10 kVt·soat/kun, servis 100 000/oy, foyda — 2-stansiya tajribasi (+8,16 mln), xavfsiz chegara — 7 kunlik qat'iy chiqimlar (~17 mln), bo'lib to'lash ustamasi ~20%/yil, kredit 24%.",
-  "source": "Smena (shanba cheklari, \"ulgurmadi\" izohlari) · Investitsiyalar (2-lavash stansiyasi) · Ish haqi (lavash ustasi) · Energiya (tarif) · Prognoz (5-dekabr kassa)"
+  "assumptions": "Taxminlar: oshxona kuniga ko'pi bilan 90 chek, savdo har oy +2,2% o'sadi, elektr kuniga 10 kVt·soat, servis oyiga 100 000, foyda — 2-apparatni olgandagi tajriba (+8,16 mln), kassada kamida 7 kunlik majburiy xarajat (~17 mln) turishi kerak, bo'lib to'lash ustamasi ~20%/yil, kredit 24%.",
+  "source": "Smena (shanba cheklari, \"ulgurmadi\" izohlari) · Investitsiyalar (2-lavash apparati) · Ish haqi (lavash ustasi) · Energiya (tarif) · Prognoz (5-dekabr kassa)"
  },
  "speech_segments": [
   {

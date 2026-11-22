@@ -34,11 +34,10 @@ QUESTIONS = {
 }
 MD_FILE = {i.id: ROOT / i.spec for i in INTENTS}
 
-OTHER_TEXT = "Hozir men 4 ta asosiy tahlil bo'yicha javob beraman:"
+OTHER_TEXT = "Biznesingiz bo'yicha istalgan savolni bering. Mana tayyor chuqur tahlillar:"
 OTHER_SAY = (
-    "Hozir men to'rtta asosiy tahlil bo'yicha javob beraman: agregatorlar yoki o'z dostavka, "
-    "yangi ofitsiant olish, lavash apparati olish va daromadni o'n foizga oshirish. "
-    "Ekrandan birini tanlang yoki savolingizni ayting."
+    "Biznesingiz bo'yicha istalgan savolni bering: kassa, savdo, foyda yoki xarajatlar. "
+    "Ekranda tayyor chuqur tahlillar ham bor."
 )
 GREET_TEXT = "Assalomu alaykum!"
 GREET_SAY = "Assalomu alaykum! " + OTHER_SAY

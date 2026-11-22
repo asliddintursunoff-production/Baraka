@@ -189,3 +189,22 @@ async def test_demo_chat_other_question_fixed_reply_no_llm(aclient, monkeypatch)
     ans = dict(events)["answer"]
     assert ans["demo"]["kind"] == "greeting" and len(ans["demo"]["cards"]) == 4
     assert ans["markdown"].startswith("Assalomu alaykum!")
+
+
+async def test_demo_chat_non_golden_question_uses_normal_pipeline(aclient, monkeypatch):
+    """Owner 2026-11-22: outside Q1–Q4 the AI answers from the data (not the fixed reply)."""
+    from config import app_settings as cfg
+
+    monkeypatch.setattr(cfg, "DEMO_GOLDEN_ONLY", True)
+    called = []
+
+    async def fake(*a, **k):
+        from apps.ai.llm import AllModelsFailed
+
+        called.append(1)
+        raise AllModelsFailed("stop")
+
+    monkeypatch.setattr("apps.ai.chat.generate", fake)
+    events = await collect(aclient, {"text": "Ertaga ob-havo qanday bo'ladi?"})
+    ans = dict(events).get("answer") or {}
+    assert called and not ans.get("demo")

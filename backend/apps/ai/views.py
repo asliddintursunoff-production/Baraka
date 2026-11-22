@@ -193,9 +193,48 @@ class DemoAnswerView(BusinessAPIView):
         ctx = ToolContext(self.business, request.user.pk, "voice", last_user_text=text)
         d = answer(ctx, text, prev)
         d.pop("result", None)
+        if d["kind"] == "other":
+            d = self.free(text) or d
         if d["say"] and not d["clip"]:
             _DEMO_TTS[d["speech_key"]] = d["say"]
         return Response(d)
+
+
+    def free(self, text: str) -> dict[str, Any] | None:
+        """Outside Q1–Q4: the normal AI pipeline (tools + engine numbers), spoken via /demo/tts."""
+        from asgiref.sync import async_to_sync
+
+        from .chat import collect_answer
+        from .demo import _out
+
+        b, user = self.business, self.request.user
+        conv = Conversation.objects.filter(
+            user_id=user.pk, channel="voice", title="Live (demo)"
+        ).order_by("-created_at").first() or Conversation.objects.create(
+            business=b, user_id=user.pk, channel="voice", title="Live (demo)"
+        )
+        turn = Turn(
+            business=b,
+            user_id=user.pk,
+            author=getattr(user, "first_name", "") or "Owner",
+            conversation=conv,
+            text=text,
+            voice={"live": True},
+        )
+        try:
+            f = async_to_sync(collect_answer)(turn)
+        except Exception as exc:
+            log.warning("demo free answer failed: %s", scrub(str(exc))[:200])
+            return None
+        if not f:
+            return None
+        md = str(f.get("markdown") or f.get("headline") or "")
+        # spoken = the screen headline (the pipeline's speech template may describe another tool)
+        head = next((ln for ln in md.splitlines() if ln.strip()), "")
+        say = re.sub(r"[*#`_|>]", "", head).strip() or str(f.get("speech") or "").strip()
+        d = _out("free", markdown=md, blocks=list(f.get("blocks") or []), say=say)
+        d.pop("result", None)
+        return d
 
 
 class DemoTtsView(BusinessAPIView):
