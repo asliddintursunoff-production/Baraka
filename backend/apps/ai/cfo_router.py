@@ -116,12 +116,19 @@ def route(text: str, prev_intent: str | None = None) -> list[tuple[str, dict[str
 
     if is_bad_intent(t):  # "biznesni qulatmoqchiman" etc.: one-line refusal + a legal alternative
         return [("bad_intent", {})]
-    cat = route_catalog(t)
-    if cat is not None:  # Tier 2: catalogue (only when no golden intent matched)
-        return [("catalog", {"intent": cat[0].intent})]
     from .policy_tools import policy_route
 
+    cat = route_catalog(t)
     pr = policy_route(t)
+    if (
+        pr
+        and cat is not None
+        and cat[0].intent == "salary_raise"
+        and re.search(r"barobar|baravar|marta|\+\s*\d|ming|mln", t.lower())
+    ):
+        return pr  # concrete salary what-if (factor / sum) is served by the salary_change tool
+    if cat is not None:  # Tier 2: catalogue (only when no golden intent matched)
+        return [("catalog", {"intent": cat[0].intent})]
     if pr:  # salaries: look up / compute, never "jadvalda yo'q"
         return pr
     out: list[tuple[str, dict[str, Any]]] = []

@@ -59,6 +59,10 @@ REWORDED = {
         "Chegirma aksiyasi (masalan, −20% hafta oxiri) o'zini oqlaydimi?",
         "Chegirma aksiyasi (masalan, −20% hafta oxiri) foyda beradimi?",
     ),
+    "N45": (
+        "Bayramlar (Yangi yil, Navro'z) uchun qancha ko'proq zaxira va xodim kerak?",
+        "Bayramlar (Yangi yil, Navro'z) uchun qancha ko'proq zaxira va kunbay kerak?",
+    ),
 }
 
 
