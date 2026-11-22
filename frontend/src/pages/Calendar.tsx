@@ -138,6 +138,7 @@ export default function CalendarPageView() {
   const [month, setMonth] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [grid, setGrid] = useState(false); // mobile: agenda list by default, month grid on toggle
   const q = useQuery({
     queryKey: ["calendar", month],
     queryFn: () => apiGet<CalendarPage>(`/api/calendar${month ? `?month=${month}` : ""}`),
@@ -206,7 +207,63 @@ export default function CalendarPageView() {
       {adding && <AddPayment onDone={() => setAdding(false)} />}
 
       <div className="flex flex-wrap items-start gap-5">
-        <section aria-label={c.title} className="min-w-0 flex-[999_1_600px] overflow-x-auto rounded-card border border-border bg-surface p-[18px]">
+        <div className="flex w-full items-center justify-between md:hidden">
+          <span className="text-15 font-bold">{grid ? "Oy ko'rinishi" : "To'lovlar ro'yxati"}</span>
+          <button
+            type="button"
+            onClick={() => setGrid((v) => !v)}
+            className="min-h-tap rounded-pill border border-border-input bg-surface px-4 text-14 font-semibold text-text-2"
+          >
+            {grid ? "Ro'yxat" : "Oy ko'rinishi"}
+          </button>
+        </div>
+        {!grid && (
+          <ul aria-label={`${c.title}: to'lovlar`} className="m-0 flex w-full list-none flex-col gap-2 p-0 md:hidden">
+            {c.days.filter((d) => d.items.length > 0 || d.kind === "hot").length === 0 && (
+              <li className="rounded-card border border-border bg-surface p-4 text-14 text-text-3">Bu oyda to'lov yo'q</li>
+            )}
+            {c.days
+              .filter((d) => d.items.length > 0 || d.kind === "hot")
+              .map((d) => (
+                <li key={d.date}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(d.date)}
+                    aria-pressed={d.date === sel.date}
+                    className={cn(
+                      "flex min-h-14 w-full items-start gap-3 rounded-card border bg-surface p-3 text-left",
+                      d.date === sel.date ? "border-primary-border" : "border-border",
+                    )}
+                  >
+                    <span className="flex w-11 shrink-0 flex-col items-center rounded-btn bg-[#F2F4F7] py-1">
+                      <span className="text-17 font-bold leading-tight">{d.n}</span>
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      {d.items.map((it, i) => (
+                        <span key={i} className="flex items-center justify-between gap-2 text-14">
+                          <span className="truncate font-semibold">{it.label}</span>
+                          {it.critical && <span className="shrink-0 rounded-pill bg-danger-bg px-2 text-12 font-bold text-danger">majburiy</span>}
+                        </span>
+                      ))}
+                      {d.bal && (
+                        <span className={cn("text-13", d.kind === "hot" ? "font-bold text-warning" : "text-text-3")}>
+                          Kun oxirida: {d.bal}
+                          {d.kind === "hot" && " · qiyin kun"}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+        <section
+          aria-label={c.title}
+          className={cn(
+            "min-w-0 flex-[999_1_600px] overflow-x-auto rounded-card border border-border bg-surface p-[18px]",
+            !grid && "hidden md:block",
+          )}
+        >
           <div className="grid min-w-[640px] grid-cols-7 gap-[6px]">
             {c.weekdays.map((w) => (
               <span key={w} className="py-[6px] text-center text-12 font-bold text-text-4">

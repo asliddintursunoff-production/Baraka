@@ -273,7 +273,7 @@ export default function MainPage() {
       <Link
         to="/live"
         aria-label="AI CFO bilan jonli gaplashish"
-        className="fixed bottom-7 right-7 inline-flex min-h-14 items-center gap-[10px] rounded-pill bg-primary pl-[18px] pr-[22px] text-15 font-semibold text-white no-underline shadow-[0_8px_24px_rgba(29,78,216,.35)] hover:bg-primary-hover hover:text-white"
+        className="fixed bottom-[calc(theme(spacing.tabbar)+env(safe-area-inset-bottom)+12px)] right-4 z-20 inline-flex md:bottom-7 md:right-7 min-h-14 items-center gap-[10px] rounded-pill bg-primary pl-[18px] pr-[22px] text-15 font-semibold text-white no-underline shadow-[0_8px_24px_rgba(29,78,216,.35)] hover:bg-primary-hover hover:text-white"
       >
         <Mic size={22} color="#FFFFFF" aria-hidden="true" />
         AI bilan gaplashish
