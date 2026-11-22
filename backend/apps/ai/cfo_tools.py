@@ -73,7 +73,7 @@ def break_even_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = summary_of(ctx)
     if not s:
         return no_reports()
-    b = cfo.break_even(s, args.get("month"))
+    b = cfo.break_even(s, cfo.norm_month(s, args.get("month")))
     mn = month_name(b.month)
     md = (
         f"{mn.capitalize()}da har 100 so'm savdodan **{P(b.cm_ratio)}** qoladi (o'zgaruvchan xarajatlar: mahsulot, agregator komissiyasi, "
@@ -134,7 +134,7 @@ def stress_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     if not s:
         return no_reports()
     drops = tuple(int(x) for x in (args.get("drops") or (10, 20, 30, 40)))
-    st = cfo.stress_test(s, drops, args.get("month"))
+    st = cfo.stress_test(s, drops, cfo.norm_month(s, args.get("month")))
     lines = "\n".join(f"| −{d}% | {('+' if r >= 0 else '')}{M(r)} |" for d, r in st.drops)
     md = (
         f"Hozirgi oyda biznes oyiga **{M(st.base_result)}** sof pul ishlab chiqaradi (kredit asosiy qarzi to'langandan keyin). "
@@ -226,7 +226,7 @@ def net_position_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = summary_of(ctx)
     if not s:
         return no_reports()
-    n = cfo.net_position(s, args.get("month"))
+    n = cfo.net_position(s, cfo.norm_month(s, args.get("month")))
     recv = ", ".join(f"{k} {M(v)}" for k, v in n.receivables) or "yo'q"
     pay = ", ".join(f"{k} {M(v)}" for k, v in n.payables) or "yo'q"
     md = (
@@ -277,7 +277,7 @@ def kpi_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = summary_of(ctx)
     if not s:
         return no_reports()
-    sc = cfo.kpi_scorecard(s, args.get("month"))
+    sc = cfo.kpi_scorecard(s, cfo.norm_month(s, args.get("month")))
     rows = []
     for k in sc.kpis:
         v = P(k.value) if k.key not in ("cash",) else M(k.value)
@@ -325,7 +325,7 @@ def plan_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = summary_of(ctx)
     if not s:
         return no_reports()
-    pv = cfo.plan_vs_actual(s, args.get("month"))
+    pv = cfo.plan_vs_actual(s, cfo.norm_month(s, args.get("month")))
 
     def fmt(x: Decimal, unit: str) -> str:
         return (
@@ -390,7 +390,7 @@ def drivers_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     s = summary_of(ctx)
     if not s:
         return no_reports()
-    d = cfo.driver_decomposition(s, args.get("month"))
+    d = cfo.driver_decomposition(s, cfo.norm_month(s, args.get("month")))
     wd = ", ".join(f"{WD[w]} {n.quantize(Decimal(1))}" for w, n in d.weekday_checks)
     ch = ", ".join(
         f"{name} {M(r)} (komissiyadan keyin {M(net)})" for name, r, net in d.channels if r

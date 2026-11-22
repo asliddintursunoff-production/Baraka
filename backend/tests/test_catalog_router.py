@@ -45,7 +45,7 @@ def golden_paraphrases() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for f in sorted(GOLDEN.glob("Q[1-4]_*.md")):
         text = f.read_text()
-        intent = re.search(r"intent:\s*`([^`]+)`", text).group(1)
+        intent = re.search(r"intent:\s*`([^`]+)`", text).group(1)  # type: ignore[union-attr]
         sec = text.split("## 1.", 1)[1].split("**Parametr", 1)[0].split("\n---", 1)[0]
         out[intent] = [ln.lstrip("- ").strip() for ln in sec.splitlines() if ln.startswith("- ")]
     return out

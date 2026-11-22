@@ -111,7 +111,8 @@ def llm_rule(text: str) -> dict[str, Any] | None:
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_json_schema=RULE_SCHEMA,
-                max_output_tokens=300,
+                max_output_tokens=600,
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel("LOW")),
             ),
         )
         data = json.loads(r.text or "{}")

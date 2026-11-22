@@ -395,8 +395,30 @@ class Drivers:
     )  # (channel, revenue, after commission)
 
 
-def driver_decomposition(s: dict[str, Any], month: str | None = None) -> Drivers:
-    m = month or last_month(s)
+_UZ_MONTHS = ("yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek")
+
+
+def norm_month(s: dict[str, Any], month: Any) -> str:
+    """Model-given month ("2026-10", "2026-10-01", "oktyabr", 10, None) -> "YYYY-MM-01"."""
+    lm = last_month(s)
+    if month is None or month == "":
+        return lm
+    txt = str(month).strip().lower()
+    if len(txt) >= 7 and txt[:4].isdigit() and txt[5:7].isdigit():
+        return f"{txt[:4]}-{txt[5:7]}-01"
+    n = (
+        int(txt)
+        if txt.isdigit()
+        else next((i + 1 for i, w in enumerate(_UZ_MONTHS) if txt.startswith(w)), 0)
+    )
+    if not 1 <= n <= 12:
+        return lm
+    y = int(lm[:4]) if n <= int(lm[5:7]) else int(lm[:4]) - 1
+    return f"{y}-{n:02d}-01"
+
+
+def driver_decomposition(s: dict[str, Any], month: Any = None) -> Drivers:
+    m = norm_month(s, month)
     d = date.fromisoformat(m)
     pm = date(d.year - (d.month == 1), (d.month - 2) % 12 + 1, 1).isoformat()
     rev, prev = pl_value(s, "sof tushum", m), pl_value(s, "sof tushum", pm)

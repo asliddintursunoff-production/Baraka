@@ -20,7 +20,7 @@ from . import uz_format as uz
 from .tools import TOOLS, Tool, ToolContext, envelope, speech_of
 
 log = logging.getLogger(__name__)
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "gemini-3.8-flash"  # web price lookup (owner 2026-11-22: no flash-lite)
 
 PROMPT = """Internetdan qidir: "{item}" narxi Toshkent (O'zbekiston) bozorida, so'mda.
 olx.uz, uzum.uz, texnomart.uz, mediapark.uz, prom.uz, telegram do'konlari kabi manbalardan foydalan.

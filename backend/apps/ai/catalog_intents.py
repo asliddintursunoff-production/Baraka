@@ -3345,15 +3345,21 @@ def mom_change(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[s
             ("Eng yomon KPI", min(rows[:-1], key=rel)[0], "", "bad"),
         ],
         chart={
-            "type": "waterfall",
-            "title": "Foyda o'zgarishi omillari",
-            "unit": "mln so'm",
-            "items": [
-                {"label": _mname(pm), "value": float(rows[-1][1] / 1_000_000)},
-                {"label": "Mijozlar soni", "value": float(vol / 1_000_000)},
-                {"label": "O'rtacha chek", "value": float(price / 1_000_000)},
-                {"label": "Xarajatlar", "value": float(other / 1_000_000)},
-                {"label": _mname(m), "value": float(rows[-1][2] / 1_000_000), "total": True},
+            "type": "bar",
+            "title": "Foyda o'zgarishi omillari (mln so'm)",
+            "x": "omil",
+            "y": "qiymat",
+            "data": [
+                {
+                    "omil": lbl,
+                    "qiymat": float((v / 1_000_000).quantize(Decimal("0.1"))),
+                    "color": "#14B8A6" if v >= 0 else "#F87171",
+                }
+                for lbl, v in (
+                    ("Mijozlar soni", vol),
+                    ("O'rtacha chek", price),
+                    ("Xarajatlar", other),
+                )
             ],
         },
         table=(

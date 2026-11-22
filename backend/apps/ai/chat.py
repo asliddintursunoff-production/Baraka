@@ -38,6 +38,7 @@ from config import app_settings as cfg
 
 from . import uz_format as uz
 from .cfo_router import route
+from .gemini import scrub
 from .guard import concrete_step, pairing_violations, payment_keys, violations
 from .llm import AllModelsFailed, generate
 from .models import Conversation, Message
@@ -319,7 +320,17 @@ async def run_tool_async(
 
     def _run() -> dict[str, Any]:
         with tenant_context(turn.business):
-            result = run_tool(ctx, name, args)
+            try:
+                result = run_tool(ctx, name, args)
+            except ToolArgError:
+                raise
+            except Exception as exc:  # a tool bug must never hang the chat stream
+                log.warning("tool %s failed: %s", name, scrub(str(exc))[:200])
+                result = {
+                    "error": "tool_failed",
+                    "md": f"'{name}' hisobini hozir bajarib bo'lmadi — boshqa ma'lumot bilan javob ber.",
+                    "ui_blocks": [],
+                }
             audit(
                 "ai",
                 "tool_call",
@@ -412,9 +423,15 @@ def parse_answer(text: str) -> dict[str, Any] | None:
         return _extract_json(raw)
     chips: list[str] = []
     lines = raw.rstrip().split("\n")
-    if lines and re.match(r"^\W*chips\W*:", lines[-1], re.IGNORECASE):
-        chips = [c.strip(" *`") for c in lines[-1].split(":", 1)[1].split("|") if c.strip(" *`")]
-        raw = "\n".join(lines[:-1]).rstrip()
+    keep = []
+    for ln in lines:  # a CHIPS line anywhere (not only last) is never shown as text
+        if re.match(r"^\W*chips\W*:", ln, re.IGNORECASE):
+            chips = chips or [
+                c.strip(" *`") for c in ln.split(":", 1)[1].split("|") if c.strip(" *`")
+            ]
+        else:
+            keep.append(ln)
+    raw = "\n".join(keep).rstrip()
     first = next((ln for ln in raw.split("\n") if ln.strip()), "")
     headline = re.sub(r"[*#`_]", "", first).strip()
     return {"markdown": raw, "headline": headline, "reason": "", "steps": [], "chips": chips[:3]}
@@ -422,7 +439,8 @@ def parse_answer(text: str) -> dict[str, Any] | None:
 
 def template_markdown(turn: Turn) -> str:
     """The engine-made fallback: each module's own markdown, in the order they ran."""
-    return "\n\n".join(str(r["md"]) for r in turn.results.values() if r.get("md"))
+    md = "\n\n".join(str(r["md"]) for r in turn.results.values() if r.get("md"))
+    return re.sub(r"(?im)^\W*chips\W*:.*$\n?", "", md).strip()
 
 
 def md_chunks(md: str, size: int = 400) -> list[str]:
@@ -580,10 +598,26 @@ async def stream_turn(turn: Turn) -> AsyncIterator[bytes]:
             except (genai_errors.APIError, ValueError) as exc:  # never break the stream
                 log.warning("llm loop failed, using template: %s", str(exc)[:200])
             if final is None:
-                primary = next(reversed(turn.results.values()), None)
+                # the model's text was rejected (or failed): a deterministic report the model
+                # itself called (catalog / golden) is the cleanest answer — card only, no glued text
+                card = next(
+                    (
+                        turn.results[k]
+                        for k in reversed(list(turn.results))
+                        if any(k.startswith(g) for g in golden)
+                        and any(
+                            b.get("type") == "report" for b in turn.results[k].get("ui_blocks", [])
+                        )
+                    ),
+                    None,
+                )
+                primary = card or next(reversed(turn.results.values()), None)
                 if primary is None:
                     raise AllModelsFailed("no answer and no tool result")
-                final = finalize(turn, template_answer(primary), "template")
+                final = finalize(turn, template_answer(primary), "golden" if card else "template")
+                if card is not None:
+                    final["markdown"] = ""
+                    final["blocks"] = list(card.get("ui_blocks", []))
     except AllModelsFailed:
         yield sse(
             "error",

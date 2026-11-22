@@ -453,7 +453,11 @@ def cash_change_tool(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     if s is None:
         return _no_data()
     months = sorted(m for m, v in s.get("months", {}).items() if v.get("cash_end"))
-    m = args.get("month") or (months[-1] if months else None)
+    m = (
+        str(args.get("month"))[:7] + "-01"
+        if args.get("month") and str(args.get("month"))[:4].isdigit()
+        else None
+    ) or (months[-1] if months else None)
     if not m or m not in months:
         return _no_data()
     i = months.index(m)

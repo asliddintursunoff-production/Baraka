@@ -12,20 +12,19 @@ from decimal import Decimal
 # --- AI models (verified by `manage.py check_ai`) ---------------------------------
 AI_MODELS: dict[str, str] = {
     "chat": "gemini-3.8-flash",  # chat orchestrator, tool calling, structured output
-    "light": "gemini-3.5-flash-lite",  # alert text, conversation summary, rule extraction
+    "light": "gemini-3.8-flash",  # STT, summary, rules (no flash-lite)
     "mapping": "gemini-3.8-flash",  # sheet column recognition (one-off)
     "live": "gemini-3.8-live",  # live voice (native audio)
     "embedding": "gemini-embedding-001",  # pgvector
 }
 # Chat fallback chain (approved 2026-11-21): on 429/503/504 or a passed deadline the next
 # model is tried immediately; a model with 3 errors within 60 s is skipped for 60 s.
-CHAT_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+CHAT_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash")  # owner 2026-11-22: no flash-lite
 CHAT_THINKING_BY_MODEL: dict[str, str | None] = {
     "gemini-3.8-flash": "LOW",
     "gemini-3.6-flash": "LOW",
-    "gemini-3.5-flash-lite": None,
 }
-CHAT_ATTEMPT_DEADLINE_S = 5.0
+CHAT_ATTEMPT_DEADLINE_S = 12.0  # 3.8-flash takes 8-10 s; owner 2026-11-22: quality first
 CIRCUIT_ERRORS = 3
 CIRCUIT_WINDOW_S = 60.0
 CIRCUIT_OPEN_S = 60.0
@@ -35,7 +34,7 @@ TTS_VOICE = "Kore"
 # Used only by the M0 voice spike to synthesize Uzbek test questions.
 SPIKE_TTS_MODEL = TTS_MODEL
 EMBEDDING_DIM = 768  # output_dimensionality=768; vectors are L2-normalized before storing
-CHAT_THINKING_LEVEL = "LOW"  # lowest level 3.8-flash accepts (MINIMAL is rejected), see AI_NOTES
+CHAT_THINKING_LEVEL = "MEDIUM"  # quality first (MINIMAL rejected)
 CHAT_MAX_TOOL_ROUNDS = 3
 
 # --- Live voice ---------------------------------------------------------------------
@@ -90,12 +89,12 @@ TOOL_RESPONSE_MAX_BYTES = 2048
 # --- AI budget (final mode, PLAN §0) ----------------------------------------------------
 # dev = DEBUG=true: chat on the cheapest model only; demo = DEBUG=false: full fallback chain.
 AI_PROFILES: dict[str, tuple[str, ...]] = {
-    "dev": ("gemini-3.5-flash-lite",),
+    "dev": CHAT_MODEL_CHAIN,  # owner 2026-11-22: dev uses the demo models too
     "demo": CHAT_MODEL_CHAIN,
 }
 AI_DAILY_BUDGET_USD = Decimal("0.50")
 AI_TOTAL_BUDGET_USD = Decimal("4.00")
-# Owner request 2026-11-22: "limit qo'yma, umuman" -> no blocking; every call is still logged in AiUsage.
+# Owner 2026-11-22: "limit qo'yma, umuman" -> no blocking; every call is still logged.
 AI_BUDGET_ENFORCED = False
 # Estimated USD per 1M tokens (input, output); Live per minute of session. Estimates only.
 AI_PRICES_PER_M_TOKENS: dict[str, tuple[Decimal, Decimal]] = {
@@ -133,7 +132,7 @@ PRICING: dict[str, dict[str, int | None]] = {
 MIN_HISTORY_DAYS = 14  # under this: short_history (no forecasts or purchase decisions)
 
 # --- Advisor mode (plans, goals, debts, loans, investments) ------------------------------
-ADVISOR_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+ADVISOR_MODEL_CHAIN = ("gemini-3.8-flash", "gemini-3.6-flash")
 ADVISOR_THINKING_BY_MODEL: dict[str, str | None] = {
     "gemini-3.8-flash": "MEDIUM",
     "gemini-3.6-flash": "LOW",
@@ -144,7 +143,7 @@ ADVISOR_ATTEMPT_DEADLINE_S = 20.0
 ADVISOR_PLAN_MAX = 6
 
 # --- Fayl tahlili (analyst) -----------------------------------------------------------------
-# Chosen from models.list on 2026-11-22: gemini-4-argon exists -> first; then 3.1-pro; then 3.8-flash.
+# From models.list 2026-11-22: gemini-4-argon exists -> first; then 3.1-pro; then 3.8-flash.
 AI_MODELS["analyst"] = "gemini-4-argon"
 AI_ANALYST_CHAIN = ("gemini-3.8-flash", "gemini-3.1-pro-preview")  # simple questions: fast and good
 # hard questions + "Fayl xulosasi": strongest that answered in tests (argon gave 504 on 2026-11-22)
@@ -161,6 +160,12 @@ AI_PRICES_PER_M_TOKENS.update(
 )
 
 # --- Full-context chat (owner request 2026-11-22): one strong model call with the digest -----
-CHAT_FULL_CHAIN = ("gemini-3.8-flash", "gemini-3.5-flash-lite")  # argon timed out at 12 s on every test (2026-11-22)
+CHAT_FULL_CHAIN = (
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+)  # argon timed out at 12 s on every test (2026-11-22)
 CHAT_FULL_DEADLINE_S = 25.0
-CHAT_FULL_THINKING: dict[str, str | None] = {"gemini-3.8-flash": "LOW"}
+CHAT_FULL_THINKING: dict[str, str | None] = {
+    "gemini-3.8-flash": "MEDIUM",
+    "gemini-3.6-flash": "MEDIUM",
+}

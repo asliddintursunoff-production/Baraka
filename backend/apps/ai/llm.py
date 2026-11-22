@@ -64,7 +64,7 @@ def chain_client() -> genai.Client:
             api_version="v1beta",
             # The HTTP timeout is also sent as the server deadline (minimum 10 s); our own
             # per-attempt deadline is enforced with asyncio.wait_for below.
-            timeout=10_000,
+            timeout=15_000,
             retry_options=types.HttpRetryOptions(attempts=1),
         ),
     )

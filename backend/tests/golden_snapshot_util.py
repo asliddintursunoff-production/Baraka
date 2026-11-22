@@ -35,7 +35,7 @@ CASES = {
 def payload(business: Any, q: str) -> dict[str, Any]:
     tool, args, text = CASES[q]
     with tenant_context(business):
-        r = run_tool(ToolContext(business, 0, "chat", last_user_text=text), tool, dict(args))
+        r = run_tool(ToolContext(business, 0, "chat", last_user_text=text), tool, dict(args))  # type: ignore[call-overload]
     keep = {
         k: r.get(k) for k in ("md", "say", "speech_segments", "speech_short", "ui_blocks", "facts")
     }

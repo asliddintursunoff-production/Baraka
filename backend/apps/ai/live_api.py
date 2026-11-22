@@ -170,12 +170,17 @@ class LiveSessionView(BusinessAPIView):
 
 def _summarize(business_id: int, conversation_id: int, text: str) -> None:
     """Background: short summary by the light model -> MemoryItem (embedding comes in M7)."""
+    from google.genai import types
+
     try:
         r = budget.generate_sync(
             "light",
             model=cfg.AI_MODELS["light"],
             contents="Ushbu suhbatni 1-2 jumlada o'zbekcha xulosa qil (faqat nima so'raldi va nima kelishildi, "
             "raqamlarni qo'shma):\n" + text[:6000],
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel("LOW"))
+            ),
         )
         summary = (r.text or "").strip()[:500]
         if summary:

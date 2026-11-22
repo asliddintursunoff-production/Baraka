@@ -364,7 +364,10 @@ def transcribe(request: HttpRequest) -> JsonResponse:
                 types.Part.from_bytes(data=audio, mime_type=mime),
                 "Bu audioni o'zbek tilida (lotin yozuvida) so'zma-so'z yozib ber. Faqat matnni qaytar.",
             ],
-            config=types.GenerateContentConfig(max_output_tokens=300),
+            config=types.GenerateContentConfig(
+                max_output_tokens=600,
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel("LOW")),
+            ),
         )
         text = (r.text or "").strip()
     except Exception as exc:

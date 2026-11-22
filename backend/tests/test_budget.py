@@ -31,7 +31,8 @@ def clean_usage():
 def test_cost_and_profile(settings):
     assert budget.token_cost("gemini-3.5-flash-lite", 1_000_000, 1_000_000) == Decimal("0.50")
     settings.DEBUG = True
-    assert budget.chat_chain() == ("gemini-3.5-flash-lite",)
+    assert budget.chat_chain()[0] == "gemini-3.8-flash"  # owner 2026-11-22: dev = demo models
+    assert "gemini-3.5-flash-lite" not in budget.chat_chain()
     settings.DEBUG = False
     assert budget.chat_chain()[0] == "gemini-3.8-flash"
 
