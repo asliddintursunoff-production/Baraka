@@ -2833,3 +2833,816 @@ def late_hours_profit(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) ->
         ctx=ctx,
         facts_out={"profit": M(prof)},
     )
+
+
+# ===================== batch 6: control, owner ===================================================
+def _smena(s: dict[str, Any]) -> list[list[Any]]:
+    return [r for r in ((s.get("details") or {}).get("smena_days") or []) if len(r) >= 3]
+
+
+def _bar(
+    title: str, labels: list[str], vals: list[Decimal], unit: str = "mln so'm", div: int = 1_000_000
+) -> dict[str, Any]:
+    return {
+        "type": "bar",
+        "title": title,
+        "unit": unit,
+        "x_labels": labels,
+        "series": [
+            {
+                "name": title,
+                "color": "#14B8A6",
+                "data": [float((v / div).quantize(Decimal("0.01"))) for v in vals],
+            }
+        ],
+    }
+
+
+def _cash_rows(s: dict[str, Any]) -> list[list[Any]]:
+    return [r for r in ((s.get("details") or {}).get("smena_cash") or []) if len(r) >= 6]
+
+
+def _prev_month(m: str) -> str:
+    return (date.fromisoformat(m) - timedelta(days=1)).replace(day=1).isoformat()
+
+
+def _mname(m: str) -> str:
+    return uz.MONTHS[int(m[5:7]) - 1].capitalize()
+
+
+@register("cash_discrepancy")
+def cash_discrepancy(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    rows = _cash_rows(s)[-30:]
+    filled = [(r[0], _d(r[2]), _d(r[3])) for r in rows if r[3] != ""]
+    pos_total = sum((_d(r[2]) for r in rows), D0)
+    per = (
+        f"{Dt(date.fromisoformat(rows[0][0]))} – {Dt(date.fromisoformat(rows[-1][0]))}"
+        if rows
+        else "oxirgi 30 kun"
+    )
+    if not filled:
+        verdict = f"{per}: 'Naqd kassaga (haqiqiy)' ustuni bo'sh — farqni tekshirib bo'lmaydi; POS bo'yicha naqd {M(pos_total)}."
+        return card(
+            item,
+            verdict,
+            [
+                ("Jami farq", "—", "haqiqiy naqd yozilmagan", ""),
+                ("Farqli kunlar", "—", f"{len(rows)} smena", ""),
+                ("POS naqd", M(pos_total), "30 kun", ""),
+            ],
+            actions=[
+                "Har kuni haqiqiy naqdni yozing",
+                "Kassir almashinuvida sanang",
+                "Farq > 50 000 so'm bo'lsa — tekshiruv",
+            ],
+            source="Smena (Naqd POS, Naqd kassaga)",
+            live="Haqiqiy naqd ustuni to'ldirilmagan — har kuni yozib boring, shunda farqni ko'raman.",
+            ctx=ctx,
+            facts_out={"filled": 0},
+        )
+    diffs = [(d, pos, till, till - pos) for d, pos, till in filled]
+    tot = sum((x[3] for x in diffs), D0)
+    bad = [x for x in diffs if abs(x[3]) >= 1000]
+    big = min(diffs, key=lambda x: x[3])
+    state = "jiddiy farq yo'q" if abs(tot) < 50_000 and abs(big[3]) < 50_000 else "tekshiruv kerak"
+    verdict = f"{per}: naqd farq {N(tot)} so'm ({len(bad)} kun). {state.capitalize()}."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Jami farq",
+                f"{N(tot)} so'm",
+                f"{len(filled)} kun yozilgan",
+                "good" if abs(tot) < 50_000 else "bad",
+            ),
+            ("Farqli kunlar", str(len(bad)), "|farq| ≥ 1 000", ""),
+            (
+                "Eng katta",
+                f"{N(big[3])} so'm",
+                Dt(date.fromisoformat(big[0])),
+                "bad" if abs(big[3]) >= 50_000 else "",
+            ),
+        ],
+        chart=_bar("Kunlik naqd farq", [x[0][5:] for x in diffs], [x[3] for x in diffs], "so'm", 1),
+        table=(
+            ["Sana", "POS", "Haqiqiy", "Farq"],
+            [
+                [Dt(date.fromisoformat(x[0])), N(x[1]), N(x[2]), N(x[3])]
+                for x in sorted(diffs, key=lambda x: x[3])[:10]
+            ],
+        ),
+        actions=[
+            "Har kuni haqiqiy naqdni yozing",
+            "Kassir almashinuvida sanang",
+            "Farq > 50 000 so'm — tekshiruv",
+        ],
+        source="Smena (Naqd POS vs Naqd kassaga)",
+        live=f"Naqd farq jami {say_mln(tot) if abs(tot) >= 1_000_000 else N(tot) + ' so‘m'} — {state}.",
+        ctx=ctx,
+        facts_out={"total": N(tot), "days": len(bad)},
+    )
+
+
+@register("anomaly_days")
+def anomaly_days(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    rows = _smena(s)
+    recs = [(date.fromisoformat(r[0]), _d(r[1]), r[2]) for r in rows]
+    avg = _plv(s, "o'rtacha chek so'm") or Decimal(80_000)
+    out = []
+    last = recs[-60:]
+    for d, c, note in last:
+        same = [
+            x[1]
+            for x in recs
+            if x[0].weekday() == d.weekday() and timedelta(0) < d - x[0] <= timedelta(days=63)
+        ]
+        if len(same) < 4:
+            continue
+        mu = sum(same, D0) / len(same)
+        sd = (sum(((x - mu) ** 2 for x in same), D0) / len(same)).sqrt()
+        if sd and (c - mu) / sd < -2:
+            out.append(
+                (
+                    d,
+                    mu,
+                    c,
+                    note or ("bayram oldi" if d.month == 12 and d.day >= 30 else "sababi noma'lum"),
+                )
+            )
+    lost = sum(((mu - c) * avg for _, mu, c, _ in out), D0)
+    if not out:
+        verdict = "Oxirgi 60 kunda g'ayrioddiy past kun yo'q (z < −2 mezoni)."
+        return card(
+            item,
+            verdict,
+            [
+                ("G'ayrioddiy kunlar", "0", "60 kun", "good"),
+                ("Eng katta og'ish", "—", "", ""),
+                ("Yo'qotilgan tushum", "0", "", ""),
+            ],
+            source="Smena (kunlik cheklar, izoh)",
+            live="Oxirgi ikki oyda savdo g'ayrioddiy past bo'lgan kun yo'q.",
+            ctx=ctx,
+            facts_out={"n": 0},
+        )
+    w = min(out, key=lambda x: x[2] / x[1])
+    pct = w[2] / w[1] - 1
+    verdict = f"{len(out)} ta g'ayrioddiy kun: {Dt(w[0])} ({P(pct)}) — {w[3]}."
+    return card(
+        item,
+        verdict,
+        [
+            ("G'ayrioddiy kunlar", str(len(out)), "oxirgi 60 kun", "bad"),
+            ("Eng katta og'ish", P(pct), Dt(w[0]), "bad"),
+            ("Yo'qotilgan tushum", M(lost), "taxmin", ""),
+        ],
+        table=(
+            ["Sana", "Kutilgan", "Fakt", "Sabab"],
+            [[Dt(d), N(mu), N(c), note] for d, mu, c, note in out],
+        ),
+        actions=[
+            "Sababi noma'lum kunlarni tekshiring",
+            "Izoh ustuniga sababni yozib boring",
+            "Takrorlansa — chora (aksiya, xodim)",
+        ],
+        assumptions="Kutilgan = so'nggi 9 haftadagi shu hafta kunining o'rtachasi; g'ayrioddiy = z < −2.",
+        source="Smena (kunlik cheklar, izoh)",
+        live=f"Oxirgi ikki oyda {uz.uz_number_words(len(out))} kun savdo kutilganidan past bo'ldi.",
+        ctx=ctx,
+        facts_out={"n": len(out)},
+    )
+
+
+@register("supplier_price_spike")
+def supplier_price_spike(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    prev = [_prev_month(lm)]
+    prev += [_prev_month(prev[-1]), _prev_month(_prev_month(prev[-1]))]
+    rows = []
+    for name, d in ((s.get("details") or {}).get("purchases") or {}).items():
+        mo = d.get("months") or {}
+        if lm not in mo:
+            continue
+        old = [_d(mo[m].get("price")) for m in prev if m in mo and _d(mo[m].get("price"))]
+        if not old:
+            continue
+        o = sum(old, D0) / len(old)
+        n = _d(mo[lm].get("price"))
+        if o and n:
+            rows.append((name, o, n, n / o - 1, (n - o) * _d(mo[lm].get("qty"))))
+    up = sorted([r for r in rows if r[3] > Decimal("0.07")], key=lambda r: -r[4])
+    if not up:
+        top = max(rows, key=lambda r: r[3]) if rows else None
+        verdict = "Keskin (>7%) oshgan mahsulot yo'q" + (
+            f"; eng ko'p — {top[0]} {P(top[3])}." if top else "."
+        )
+        return card(
+            item,
+            verdict,
+            [
+                ("Oshgan mahsulotlar", "0", ">7%", "good"),
+                ("Eng katta o'sish", P(top[3]) if top else "—", top[0] if top else "", ""),
+                ("Oylik ta'sir", "0", "", ""),
+            ],
+            source=f"Kirim (birlik narxi, {lm})",
+            live="Masalliq narxlari barqaror — keskin oshgan mahsulot yo'q.",
+            ctx=ctx,
+            facts_out={"n": 0},
+        )
+    t = up[0]
+    imp = sum((r[4] for r in up), D0)
+    verdict = f"{len(up)} mahsulot keskin oshdi: {t[0]} +{P(t[3])} (oyiga −{M(t[4])})."
+    return card(
+        item,
+        verdict,
+        [
+            ("Oshgan mahsulotlar", str(len(up)), ">7% (3 oy o'rtachasiga)", "bad"),
+            (
+                "Eng katta o'sish",
+                "+" + P(max(r[3] for r in up)),
+                max(up, key=lambda r: r[3])[0],
+                "bad",
+            ),
+            ("Oylik ta'sir", "−" + M(imp), "hajm × farq", "bad"),
+        ],
+        table=(
+            ["Mahsulot", "Eski", "Yangi", "%", "Ta'sir"],
+            [[r[0], N(r[1]), N(r[2]), "+" + P(r[3]), N(r[4])] for r in up[:10]],
+        ),
+        actions=[
+            "Yetkazib beruvchi bilan gaplashing",
+            "Muqobil taklif so'rang (N38)",
+            "Kerak bo'lsa narxni moslang (N24)",
+        ],
+        source=f"Kirim (birlik narxi, {_mname(lm)} vs oldingi 3 oy)",
+        live=f"{t[0]} narxi {uz.uz_number_words(int(t[3] * 100))} foiz oshdi.",
+        ctx=ctx,
+        facts_out={"n": len(up), "top": t[0]},
+    )
+
+
+@register("terminal_reconciliation")
+def terminal_reconciliation(
+    ctx: ToolContext, item: CatalogItem, p: dict[str, Any]
+) -> dict[str, Any]:
+    from django.db.models import Sum
+
+    from apps.finance.models import Transaction
+
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    rows = [r for r in _cash_rows(s) if r[0][:7] == lm[:7]]
+    pos = sum((_d(r[4]) for r in rows), D0)
+    m0 = date.fromisoformat(lm)
+    m1 = (m0 + timedelta(days=32)).replace(day=1)
+    bank = _d(
+        Transaction.objects.filter(
+            is_actual=True, direction="in", txn_date__gte=m0 + timedelta(days=1), txn_date__lte=m1
+        )
+        .filter(note__icontains="terminal")
+        .aggregate(x=Sum("amount"))["x"]
+    )
+    fee = _out_item(s, "komissiya")
+    if not bank:
+        diff_txt = 'bank kirimi ("Terminal" izohli) Kassada topilmadi'
+        verdict = f"{_mname(lm)}: POS terminal {M(pos)}; {diff_txt} — bank ko'chirmasi bilan solishtiring."
+        return card(
+            item,
+            verdict,
+            [
+                ("POS terminal", M(pos), f"{len(rows)} smena", ""),
+                ("Bankka tushgan", "—", "Kassa: terminal kirimi yo'q", ""),
+                ("Komissiya", M(fee), "oyiga", ""),
+            ],
+            actions=[
+                "Haftalik yarashtiring (bank ko'chirmasi)",
+                "Farq bo'lsa bankka murojaat",
+                "Komissiya tarifini tekshiring (N37)",
+            ],
+            source=f"Smena (Terminal, {_mname(lm)}), Kassa (Bank komissiyasi)",
+            live="Terminal summasini bank ko'chirmasi bilan haftada bir solishtiring.",
+            ctx=ctx,
+            facts_out={"pos": M(pos)},
+        )
+    diff = pos - fee - bank
+    verdict = f"{_mname(lm)}: POS {M(pos)}, bank {M(bank)}, komissiya {M(fee)} — farq {M(diff)}."
+    return card(
+        item,
+        verdict,
+        [
+            ("POS terminal", M(pos), "", ""),
+            ("Bankka tushgan", M(bank), "T+1", ""),
+            ("Farq", M(diff), "komissiyadan keyin", "good" if abs(diff) < 100_000 else "bad"),
+        ],
+        source="Smena (Terminal), Kassa (bank kirimlari)",
+        live="Terminal tushumlari bankka to'liq tushgan — farq faqat komissiya."
+        if abs(diff) < 100_000
+        else f"Terminal va bank orasida {say_mln(diff)} farq bor.",
+        ctx=ctx,
+        facts_out={"diff": M(diff)},
+    )
+
+
+@register("tax_calendar")
+def tax_calendar(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    taxes = [
+        o for o in f["obligations"] if o.category in ("tax", "soliq") or "soliq" in o.title.lower()
+    ]
+    months = [lm]
+    for _ in range(5):
+        months.insert(0, _prev_month(months[0]))
+    rows = []
+    for m in months:
+        a = pl_value(s, "aylanma solig'i", m)
+        soc = pl_value(s, "ijtimoiy soliq", m)
+        tot_acc = _d(
+            (
+                ((s.get("reports") or {}).get("balans") or {}).get("hisoblangan soliqlar oy") or {}
+            ).get(m)
+        )
+        jsh = max(D0, tot_acc - a - soc) if tot_acc else D0
+        nm = (date.fromisoformat(m) + timedelta(days=32)).replace(day=20)
+        rows.append((m, a, jsh, soc, nm))
+    la = rows[-1]
+    nxt = taxes[0] if taxes else None
+    when = nxt.date if nxt else la[4]
+    amt = _d(nxt.amount) if nxt else la[1] + la[2] + la[3]
+    rev = _plv(s, "sof tushum")
+    pct = (amt / rev) if rev else D0
+    verdict = f"Keyingi to'lov {Dt(when)}: ~{M(amt)} (aylanma {M(la[1])} + ish haqi soliqlari {M(la[2] + la[3])})."
+    return card(
+        item,
+        verdict,
+        [
+            ("Keyingi to'lov", M(amt), "", "bad" if amt > f["cash"] else ""),
+            ("Sana", Dt(when), "har oy 20-sanagacha", ""),
+            ("Joriy oy ajratma", M(amt / 30), f"kuniga (~{P(pct)} tushum)", ""),
+        ],
+        chart=_bar(
+            "Oylik soliqlar", [_mname(r[0])[:3] for r in rows], [r[1] + r[2] + r[3] for r in rows]
+        ),
+        table=(
+            ["Oy", "Aylanma", "JShDS", "Ijtimoiy", "To'lov sanasi"],
+            [[_mname(r[0]), N(r[1]), N(r[2]), N(r[3]), Dt(r[4])] for r in rows],
+        ),
+        actions=[
+            f"Har kuni tushumning ~{P(pct)} ini ajrating",
+            "20-sanadan oldin katta xarid qilmang",
+            "Soliq rejimini tekshiring (S25)",
+        ],
+        source="Foyda-zarar (aylanma, ijtimoiy soliq), Balans (hisoblangan soliqlar), to'lov kalendari",
+        live=f"{when.day}-{uz.MONTHS[when.month - 1]}da {say_mln(amt)}ga yaqin soliq to'laysiz.",
+        ctx=ctx,
+        facts_out={"next": M(amt), "date": when.isoformat()},
+    )
+
+
+@register("seasonality_profile")
+def seasonality_profile(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    seas = {int(k): _d(v) for k, v in ((s.get("details") or {}).get("seasonality") or {}).items()}
+    fact = {
+        int(k[5:7]): _d(v.get("revenue"))
+        for k, v in (s.get("months") or {}).items()
+        if k < last_month(s) or k == last_month(s)
+    }
+    if not seas and fact:
+        mu = sum(fact.values(), D0) / len(fact)
+        seas = {m: (v / mu).quantize(Decimal("0.01")) for m, v in fact.items()}
+    if not seas:
+        return card(item, "Mavsumiylik uchun ma'lumot kam.", [("—", "—", "", "")] * 3, ctx=ctx)
+    hi = sorted(seas, key=lambda m: -seas[m])[:2]
+    lo = min(seas, key=lambda m: seas[m])
+    drop = seas[lo] / max(seas.values()) - 1
+    hol = [
+        r
+        for r in _smena(s)
+        if any(w in str(r[2]).lower() for w in ("bayram", "yil", "navro", "hayit"))
+    ]
+    avgc = sum((_d(r[1]) for r in _smena(s)), D0) / max(1, len(_smena(s)))
+    hol_k = (sum((_d(r[1]) for r in hol), D0) / len(hol) / avgc - 1) if hol and avgc else D0
+    names = " va ".join(uz.MONTHS[m - 1].capitalize() for m in hi)
+    verdict = f"Eng yuqori — {names}, eng past — {uz.MONTHS[lo - 1].capitalize()} ({P(drop)})."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Eng yuqori oy",
+                uz.MONTHS[hi[0] - 1].capitalize(),
+                f"indeks {str(seas[hi[0]]).replace('.', ',')}",
+                "good",
+            ),
+            (
+                "Eng past oy",
+                uz.MONTHS[lo - 1].capitalize(),
+                f"indeks {str(seas[lo]).replace('.', ',')}",
+                "bad",
+            ),
+            (
+                "Bayram ta'siri",
+                (("+" if hol_k >= 0 else "") + P(hol_k)) if hol else "—",
+                f"{len(hol)} bayram kuni (cheklar)",
+                "",
+            ),
+        ],
+        chart=_bar(
+            "Oylik indeks",
+            [uz.MONTHS[m - 1][:3].capitalize() for m in sorted(seas)],
+            [seas[m] for m in sorted(seas)],
+            "indeks",
+            1,
+        ),
+        table=(
+            ["Oy", "Indeks", "Fakt tushum"],
+            [
+                [
+                    uz.MONTHS[m - 1].capitalize(),
+                    str(seas[m]).replace(".", ","),
+                    N(fact[m]) if m in fact else "—",
+                ]
+                for m in sorted(seas)
+            ],
+        ),
+        actions=[
+            "Past oyga aksiya rejalang (N07)",
+            "Yuqori oyga zaxira va xodim",
+            "Katta xarajatni yuqori oy oldidan qilmang",
+        ],
+        source="Fin reja (mavsum koeffitsientlari), Smena (oylik tushum, bayram izohlari)",
+        live=f"{names} yuqori, {uz.MONTHS[lo - 1]} eng past.",
+        ctx=ctx,
+        facts_out={"high": hi, "low": lo},
+    )
+
+
+@register("mom_change")
+def mom_change(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    m = last_month(s)
+    pm = _prev_month(m)
+
+    def k(key: str, mm: str) -> Decimal:
+        return pl_value(s, key, mm)
+
+    kp = [
+        ("Tushum", "sof tushum", 1),
+        ("Cheklar", "cheklar soni smena", 1),
+        ("O'rtacha chek", "o'rtacha chek so'm", 1),
+        ("Food cost %", "food cost sof tushumga", -1),
+        ("Sof foyda", "sof foyda", 1),
+    ]
+    rows = [(lbl, k(key, pm), k(key, m), sign) for lbl, key, sign in kp]
+    lab = (
+        (k("ish haqi", pm) / k("sof tushum", pm), k("ish haqi", m) / k("sof tushum", m))
+        if k("sof tushum", pm) and k("sof tushum", m)
+        else (D0, D0)
+    )
+    rows.insert(4, ("Labor %", lab[0], lab[1], -1))
+
+    def rel(r: tuple[str, Decimal, Decimal, int]) -> Decimal:
+        if "%" in r[0]:
+            return (r[2] - r[1]) * r[3] * 10
+        return ((r[2] / r[1] - 1) * r[3]) if r[1] else D0
+
+    good = [r[0] for r in rows[:-1] if rel(r) > Decimal("0.005")]
+    bad = [r[0] for r in rows[:-1] if rel(r) < -Decimal("0.005")]
+    dprof = rows[-1][2] - rows[-1][1]
+    be = break_even(s, m)
+    vol = (rows[1][2] - rows[1][1]) * rows[2][1] * be.cm_ratio
+    price = (rows[2][2] - rows[2][1]) * rows[1][2] * be.cm_ratio
+    other = dprof - vol - price
+
+    def fmt(lbl: str, v: Decimal) -> str:
+        return P(v) if "%" in lbl else (N(v) if "Cheklar" in lbl else M(v))
+
+    sg = "+" if dprof >= 0 else ""
+    verdict = f"{_mname(m)}: foyda {sg}{M(dprof)}; yaxshi — {', '.join(good) or 'yo‘q'}, yomon — {', '.join(bad) or 'yo‘q'}."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Foyda o'zgarishi",
+                sg + M(dprof),
+                f"{_mname(pm)} → {_mname(m)}",
+                "good" if dprof >= 0 else "bad",
+            ),
+            ("Eng yaxshi KPI", max(rows[:-1], key=rel)[0], "", "good"),
+            ("Eng yomon KPI", min(rows[:-1], key=rel)[0], "", "bad"),
+        ],
+        chart={
+            "type": "waterfall",
+            "title": "Foyda o'zgarishi omillari",
+            "unit": "mln so'm",
+            "items": [
+                {"label": _mname(pm), "value": float(rows[-1][1] / 1_000_000)},
+                {"label": "Mijozlar soni", "value": float(vol / 1_000_000)},
+                {"label": "O'rtacha chek", "value": float(price / 1_000_000)},
+                {"label": "Xarajatlar", "value": float(other / 1_000_000)},
+                {"label": _mname(m), "value": float(rows[-1][2] / 1_000_000), "total": True},
+            ],
+        },
+        table=(
+            ["KPI", _mname(pm), _mname(m), "Δ"],
+            [
+                [
+                    r[0],
+                    fmt(r[0], r[1]),
+                    fmt(r[0], r[2]),
+                    (("+" if r[2] >= r[1] else "") + fmt(r[0], r[2] - r[1])),
+                ]
+                for r in rows
+            ],
+        ),
+        actions=[
+            f"Yomonlashgan KPI ({bad[0] if bad else '—'}) ga 1 chora",
+            "Yaxshisini mustahkamlang",
+            "Keyingi oy maqsadi (N42)",
+        ],
+        source=f"Foyda-zarar ({_mname(pm)}, {_mname(m)})",
+        live=f"{_mname(m)} {_mname(pm).lower()}dan {'yaxshi' if dprof >= 0 else 'yomon'}: foyda {say_mln(dprof)} {'oshdi' if dprof >= 0 else 'kamaydi'}.",
+        ctx=ctx,
+        facts_out={"dprofit": M(dprof)},
+    )
+
+
+@register("partner_profit_split")
+def partner_profit_split(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    pl = (s.get("reports") or {}).get("pl") or {}
+    lm = last_month(s)
+    yr = lm[:4]
+
+    def ytd(key: str) -> Decimal:
+        return sum(
+            (_d(v) for kk, v in (pl.get(key) or {}).items() if kk.startswith(yr) and kk <= lm), D0
+        )
+
+    p1, p2 = ytd("sherik 1 foyda ulushi"), ytd("sherik 2 foyda ulushi")
+    net = ytd("sof foyda")
+    if not p1 and not p2:
+        p1, p2 = net * Decimal("0.6"), net * Decimal("0.4")
+    sh1 = p1 / (p1 + p2) if p1 + p2 else Decimal("0.6")
+    div = ytd("olingan dividend")
+    kir = ytd("kiritma yil davomida")
+    d1, d2 = div * sh1, div * (1 - sh1)
+    k1, k2 = kir * sh1, kir * (1 - sh1)
+    r1, r2 = p1 + k1 - d1, p2 + k2 - d2
+    verdict = f"Sherik 1: {M(r1)}, Sherik 2: {M(r2)} (yil boshidan, kiritma va dividend bilan)."
+    return card(
+        item,
+        verdict,
+        [
+            ("Sherik 1 qoldig'i", M(r1), f"ulush {P(sh1)}", ""),
+            ("Sherik 2 qoldig'i", M(r2), f"ulush {P(1 - sh1)}", ""),
+            ("Olingan dividend", M(div), "yil boshidan", ""),
+        ],
+        chart=_bar("Sheriklar qoldig'i", ["Sherik 1", "Sherik 2"], [r1, r2]),
+        table=(
+            ["Sherik", "Ulush", "Foyda", "Kiritma", "Dividend", "Qoldiq"],
+            [
+                ["Sherik 1", P(sh1), N(p1), N(k1), N(d1), N(r1)],
+                ["Sherik 2", P(1 - sh1), N(p2), N(k2), N(d2), N(r2)],
+            ],
+        ),
+        actions=[
+            "Dividendni xavfsiz summada oling (N14)",
+            "Kiritmalarni hisobga oling",
+            "Yozma kelishuv tuzing",
+        ],
+        assumptions="Kiritma va dividend ulush nisbatida bo'lingan (faylda sherik bo'yicha ajratilmagan).",
+        source="Foyda-zarar (Sherik 1/2 foyda ulushi, Olingan dividend, Kiritma)",
+        live=f"Yil boshidan Sherik birga {say_mln(r1)}, Sherik ikkiga {say_mln(r2)} to'g'ri keladi.",
+        ctx=ctx,
+        facts_out={"p1": M(r1), "p2": M(r2)},
+    )
+
+
+@register("risk_map")
+def risk_map(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    be = break_even(s, lm)
+    rev = _plv(s, "sof tushum")
+    risks = []
+    risks.append(
+        (
+            "Mijozlar oqimi −20%",
+            "o'rta",
+            rev * Decimal("0.2") * be.cm_ratio * 3,
+            "1 oylik zaxira (N04)",
+        )
+    )
+    gap = f["buffer"] - f["min_balance"]
+    risks.append(
+        (
+            "Kassa tang kuni",
+            "yuqori" if gap > 0 else "past",
+            max(gap, D0) + f["buffer"] * (1 if gap > 0 else 0),
+            f"{Dt(f['min_date'])} oldidan katta xarid qilmang",
+        )
+    )
+    _m, rows = _staff(s, "oshpaz")
+    sal = max((r["total"] for r in rows), default=Decimal(5_000_000))
+    risks.append(
+        (
+            "Kalit kadr (bosh oshpaz)",
+            "o'rta",
+            sal * Decimal("1.5") + rev * Decimal("0.05") * be.cm_ratio * 2,
+            "o'rinbosar + texkarta",
+        )
+    )
+    pur = (s.get("details") or {}).get("purchases") or {}
+    tot = {n: _d(((d.get("months") or {}).get(lm) or {}).get("amount")) for n, d in pur.items()}
+    top = max(tot, key=lambda n: tot[n]) if tot else "—"
+    risks.append(
+        (
+            f"Xom ashyo narxi ({top})",
+            "o'rta",
+            tot.get(top, D0) * Decimal("0.15") * 3,
+            "muqobil ta'minotchi, narx moslash",
+        )
+    )
+    ch = (((s.get("details") or {}).get("channels") or {}).get("months") or {}).get(lm, {})
+    agg = sum((_d(v["revenue"]) for v in ch.values() if _d(v.get("commission"))), D0)
+    risks.append(
+        (
+            "Agregatorga bog'liqlik",
+            "past" if agg / rev < Decimal("0.25") else "o'rta",
+            agg * Decimal("0.3") * be.cm_ratio * 3 if rev else D0,
+            "o'z dostavkani kuchaytiring (Q1)",
+        )
+    )
+    if f["loan"]:
+        risks.append(
+            (
+                "Kredit to'lovi",
+                "past",
+                f["loan"]["principal"] * 3,
+                "kredit kalendarini kuzating (N03)",
+            )
+        )
+    w = {"yuqori": 3, "o'rta": 2, "past": 1}
+    risks.sort(key=lambda r: -(w[r[1]] * r[2]))
+    t = risks[:3]
+    verdict = (
+        f"Top-3 xavf: {t[0][0]}, {t[1][0]}, {t[2][0]}. Eng katta zarar — {t[0][0]} ({M(t[0][2])})."
+    )
+    return card(
+        item,
+        verdict,
+        [
+            ("Eng katta xavf", t[0][0], "", "bad"),
+            ("Ehtimol", t[0][1], "", ""),
+            ("Ta'sir", M(t[0][2]), "3 oy ichida", "bad"),
+        ],
+        table=(
+            ["Xavf", "Ehtimol", "Ta'sir (3 oy)", "Himoya"],
+            [[r[0], r[1], N(r[2]), r[3]] for r in risks],
+        ),
+        actions=[
+            "Har xavfga 1 himoya",
+            f"Zaxira: kamida {M(f['buffer'])} (N04)",
+            "Choraklik qayta ko'rib chiqish",
+        ],
+        assumptions="Ta'sir — 3 oylik zarar (yalpi marja bo'yicha), ehtimol — sifat bahosi.",
+        source="Foyda-zarar, Kunlik prognoz, Ish haqi, Kirim, Sotuv kanallari, Kontragentlar",
+        live=f"Eng katta xavf — {t[0][0].lower()}; zaxira sizni himoya qiladi.",
+        ctx=ctx,
+        facts_out={"top": t[0][0]},
+    )
+
+
+@register("insurance")
+def insurance(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    fixed_assets = _d(
+        (
+            ((s.get("reports") or {}).get("balans") or {}).get("asosiy vositalar qoldiq qiymati")
+            or {}
+        ).get(lm)
+    )
+    if not fixed_assets:
+        fixed_assets = sum(
+            (_d(a.get("value")) for a in (s.get("details") or {}).get("assets") or []), D0
+        )
+    stock = _d(
+        (((s.get("reports") or {}).get("balans") or {}).get("tovar moddiy zaxiralar") or {}).get(lm)
+    )
+    be = break_even(s, lm)
+    downtime = be.fixed
+    val = fixed_assets + stock + downtime
+    prem = _d(p.get("amount")) or (fixed_assets + stock) * Decimal("0.006")
+    pct = prem / val if val else D0
+    ok = pct <= Decimal("0.01")
+    verdict = f"Himoya qiymati ~{M(val)}; badal ~{M(prem)}/yil ({P(pct)}) — {'arziydi' if ok else 'qimmat, takliflarni solishtiring'}."
+    return card(
+        item,
+        verdict,
+        [
+            ("Himoya qiymati", M(val), "vositalar + zaxira + 1 oy to'xtash", ""),
+            ("Yillik badal", M(prem), "taxmin 0,6%" if not p.get("amount") else "siz bergan", ""),
+            ("Badal %", P(pct), "≤ 1% — arziydi", "good" if ok else "bad"),
+        ],
+        table=(
+            ["Xavf", "Zarar", "Qoplanadimi"],
+            [
+                ["Yong'in / suv bosishi", N(fixed_assets), "ha (mulk polisi)"],
+                ["Zaxira buzilishi", N(stock), "ha (kengaytirilgan)"],
+                ["To'xtash (1 oy)", N(downtime), "faqat qo'shimcha band bilan"],
+            ],
+        ),
+        actions=[
+            "Asosiy vositalarni sug'urtalang",
+            "To'xtash zararini qo'shing",
+            "2–3 kompaniya taklifini solishtiring",
+        ],
+        assumptions="Badal mulk qiymatining ~0,6% i (O'zbekiston bozori, taxmin; aniq narx — sug'urtachidan).",
+        source=f"Balans (asosiy vositalar, zaxira, {_mname(lm)}), Foyda-zarar (doimiy xarajat)",
+        live=f"Uskuna va zaxiralaringiz {say_mln(fixed_assets + stock)} turadi — yillik badal arzon bo'lsa, sug'urta arziydi.",
+        ctx=ctx,
+        facts_out={"value": M(val)},
+    )
+
+
+@register("urgent_actions")
+def urgent_actions(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    acts: list[tuple[date, str, Decimal, str]] = []
+    first = None
+    if f["min_date"] and f["min_date"] <= f["today"] + timedelta(days=45):
+        first = (
+            f["min_date"],
+            f"{Dt(f['min_date'])}gacha katta xarid qilmaslik",
+            f["cash"] - f["min_balance"],
+            f"eng tang kun: {M(f['min_balance'])}",
+        )
+    big = sorted(
+        [o for o in f["obligations"] if o.date <= f["today"] + timedelta(days=14)],
+        key=lambda o: -_d(o.amount),
+    )[:3]
+    for o in big:
+        acts.append((o.date, f"{o.title} uchun pul tayyorlash", _d(o.amount), "to'lov"))
+    lm = last_month(s)
+    for name, d in ((s.get("details") or {}).get("purchases") or {}).items():
+        mo = d.get("months") or {}
+        pm = _prev_month(lm)
+        if lm in mo and pm in mo and _d(mo[pm].get("price")):
+            g = _d(mo[lm].get("price")) / _d(mo[pm].get("price")) - 1
+            imp = (_d(mo[lm].get("price")) - _d(mo[pm].get("price"))) * _d(mo[lm].get("qty"))
+            if g > Decimal("0.1") and imp >= 1_000_000:
+                acts.append(
+                    (
+                        f["today"] + timedelta(days=3),
+                        f"{name} narxi +{P(g)} — ta'minotchi bilan gaplashish",
+                        (_d(mo[lm].get("price")) - _d(mo[pm].get("price"))) * _d(mo[lm].get("qty")),
+                        "narx",
+                    )
+                )
+    acts.sort(key=lambda a: (a[0], -a[2]))
+    top = ([first] if first else []) + acts[: 3 - (1 if first else 0)]
+    if not top:
+        return card(
+            item,
+            "Shoshilinch ish yo'q — kassa xavfsiz, 14 kunda katta to'lov yo'q.",
+            [("1-ish", "—", "", "good"), ("Muddat", "—", "", ""), ("Pul ta'siri", "0", "", "")],
+            ctx=ctx,
+        )
+    verdict = " ".join(f"{i + 1}) {a[1]} — {Dt(a[0])}, {M(a[2])}." for i, a in enumerate(top))
+    return card(
+        item,
+        verdict,
+        [
+            ("1-ish", top[0][1], top[0][3], "bad"),
+            ("Muddat", Dt(top[0][0]), "", ""),
+            ("Pul ta'siri", M(top[0][2]), "", ""),
+        ],
+        table=(
+            ["Ish", "Muddat", "Ta'sir", "Holat"],
+            [[a[1], Dt(a[0]), N(a[2]), "kutilmoqda"] for a in top],
+        ),
+        actions=["Birinchisini bugun", "Qolganlarini Vazifalarga", "Haftalik qayta ko'rib chiqish"],
+        source="Kunlik prognoz, to'lov kalendari, Kirim (narxlar)",
+        live=f"Birinchi navbatda — {top[0][1].lower()}.",
+        ctx=ctx,
+        facts_out={"first": top[0][1]},
+    )

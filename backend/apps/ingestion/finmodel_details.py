@@ -616,6 +616,33 @@ def smena_days(sheets: list[SheetData], today: date) -> list[list[Any]]:
     return out
 
 
+def smena_cash(sheets: list[SheetData], today: date) -> list[list[Any]]:
+    """Smena: [[date, Z total, cash by POS, cash counted in the till ("" = empty), terminal, click+payme]]."""
+    t = _table(_sheet(sheets, "smena"), "sana", "cheklar")
+    if t is None:
+        return []
+    header, rows = t
+    i_d, i_z = _col(header, "sana"), _col(header, "z hisobot")
+    i_p, i_k, i_t = _col(header, "naqd pos"), _col(header, "naqd kassaga"), _col(header, "terminal")
+    i_cl, i_py = _col(header, "click"), _col(header, "payme")
+    out = []
+    for r in rows:
+        d = _date(_cell(r, i_d), today)
+        if d is not None:
+            k = _cell(r, i_k)
+            out.append(
+                [
+                    d.isoformat(),
+                    str(_num(_cell(r, i_z))),
+                    str(_num(_cell(r, i_p))),
+                    "" if k in (None, "") else str(_num(k)),
+                    str(_num(_cell(r, i_t))),
+                    str(_num(_cell(r, i_cl)) + _num(_cell(r, i_py))),
+                ]
+            )
+    return out
+
+
 def hourly(sheets: list[SheetData], today: date) -> dict[str, Any]:
     """Soatlik savdo, last 92 days: {"weekday|hour": [checks sum, days]} (+ the period)."""
     t = _table(_sheet(sheets, "soatlik"), "sana", "soat", "cheklar")
@@ -669,6 +696,7 @@ def details(sheets: list[SheetData], today: date) -> dict[str, Any]:
         ("channels", channels),
         ("counterparties", counterparties),
         ("smena_days", smena_days),
+        ("smena_cash", smena_cash),
         ("hourly", hourly),
         ("seasonality", seasonality),
         ("menu_analysis", menu_analysis),
