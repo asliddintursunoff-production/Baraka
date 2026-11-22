@@ -49,12 +49,27 @@ def _field(block: str, name: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+# Catalogue wordings changed because they collided with a golden (Q1–Q4) pattern — Q1–Q4 never change.
+REWORDED = {
+    "N17": (
+        "Zal ta'miriga (remont) X mln sarflasam o'zini oqlaydimi?",
+        "Zal ta'miriga (remont) X mln sarflasam qoplaydimi?",
+    ),
+    "N25": (
+        "Chegirma aksiyasi (masalan, −20% hafta oxiri) o'zini oqlaydimi?",
+        "Chegirma aksiyasi (masalan, −20% hafta oxiri) foyda beradimi?",
+    ),
+}
+
+
 @lru_cache(maxsize=1)
 def registry() -> dict[str, CatalogItem]:
     text = CATALOG_MD.read_text()
     out: dict[str, CatalogItem] = {}
     for m in re.finditer(r"^#### ([SN]\d{2}) · (.+?)\n(.*?)(?=^#### |^### |\Z)", text, re.M | re.S):
         cid, title, block = m.group(1), m.group(2).strip(), m.group(3)
+        if cid in REWORDED and title == REWORDED[cid][0]:
+            title = REWORDED[cid][1]
         im = re.search(r"\*\*Intent:\*\*\s*`([^`]+)`(?:\s*·\s*\*\*Soha:\*\*\s*(.+))?", block)
         variants = re.findall(r"«([^»]+)»", _field(block, "Variantlar"))
         rep = block.split("**Hisobot:**", 1)[1] if "**Hisobot:**" in block else ""

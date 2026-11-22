@@ -1429,3 +1429,651 @@ def overdraft_value(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> d
         ctx=ctx,
         facts_out={"days": str(days), "yearly": M(yearly)},
     )
+
+
+# ===================== batch 4: capital decisions, price & menu what-ifs ========================
+def menu_rows(s: dict[str, Any]) -> list[dict[str, Any]]:
+    lm = last_month(s)
+    out = []
+    for n, d in ((s.get("details") or {}).get("menu") or {}).items():
+        price, cost = _d(d.get("price")), _d(d.get("cost"))
+        if price > 0:
+            out.append(
+                {
+                    "name": n,
+                    "price": price,
+                    "cost": cost,
+                    "margin": price - cost,
+                    "fc": cost / price,
+                    "sold": _d((d.get("sold") or {}).get(lm)),
+                    "cat": d.get("category", ""),
+                }
+            )
+    return out
+
+
+def find_dish(s: dict[str, Any], text: str, default_word: str = "lavash") -> dict[str, Any] | None:
+    rows = menu_rows(s)
+    t = (text or "").lower()
+    hit = next(
+        (r for r in sorted(rows, key=lambda r: -len(r["name"])) if r["name"].lower() in t), None
+    )
+    if hit is None:
+        word = next(
+            (
+                w
+                for w in (
+                    "lavash",
+                    "burger",
+                    "shaurma",
+                    "hot-dog",
+                    "fri",
+                    "choy",
+                    "ichimlik",
+                    "kombo",
+                    "naggets",
+                )
+                if w in t
+            ),
+            default_word,
+        )
+        cands = [r for r in rows if word in r["name"].lower()]
+        hit = (
+            max(cands, key=lambda r: r["sold"])
+            if cands
+            else (max(rows, key=lambda r: r["sold"]) if rows else None)
+        )
+    return hit
+
+
+ELASTICITY = Decimal(
+    "-0.8"
+)  # fast-food price elasticity (taxmin; Lazzat Sep price rise: checks −3% at +4% price)
+
+
+@register("capital_allocation")
+def capital_allocation(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    amt = _d(p.get("amount") or 50_000_000)
+    rec = fixed_month(s)
+    a = min(amt, max(D0, rec - f["cash"]))  # 1) reserve gap
+    rest = amt - a
+    b = min(rest, f["loan"]["balance"]) if f["loan"] else D0  # 2) debt at 24% — guaranteed return
+    b = min(b, rest * Decimal("0.5"))
+    c = rest - b  # 3) best project (upsell / lunch set — Q4 levers; equipment → Q3)
+    yearly = (b * RATE + c * Decimal("0.6")).quantize(Decimal(1))
+    verdict = f"{M(amt)}: {M(a)} zaxiraga, {M(b)} kreditga, {M(c)} eng foydali loyihaga (qo'shimcha sotuv / lanch-set) — yillik ~{M(yearly)} foyda."
+    live = f"{say_mln(amt).capitalize()}ni bunday bo'ling: zaxira, kredit va eng foydali loyiha."
+    return card(
+        item,
+        verdict,
+        [
+            ("Eng yuqori daromad", "Loyiha (~60%/yil)", "taxmin", "good"),
+            ("Taqsimot", f"{M(a)} / {M(b)} / {M(c)}", "zaxira / kredit / loyiha", ""),
+            ("Yillik natija", M(yearly), "", "good"),
+        ],
+        table=(
+            ["Yo'nalish", "Summa", "Yillik daromad", "Xavf"],
+            [
+                ["Zaxira (kassa)", N(a), "0 (xavfsizlik)", "yo'q"],
+                ["Kreditni yopish (24%)", N(b), N(b * RATE), "yo'q"],
+                ["Loyiha (qo'shimcha sotuv, lanch-set)", N(c), N(c * Decimal("0.6")), "o'rta"],
+            ],
+        ),
+        actions=[
+            "Avval zaxira (1 oylik doimiy xarajat) to'lsin",
+            "Keyin 24% li kreditni qisman yoping — kafolatli daromad",
+            "Qolganini tez qoplanadigan loyihaga; jihoz bo'lsa → «Apparat olsam-chi?» (Q3)",
+        ],
+        assumptions="Loyiha daromadi ~60%/yil (Q4 richaglari tajribasi, taxmin). Tartib: zaxira → qimmat qarz → loyiha.",
+        source="Kassa, Kontragentlar (kredit), Foyda-zarar",
+        live=live,
+        ctx=ctx,
+        facts_out={"reserve": M(a), "loan": M(b), "project": M(c)},
+    )
+
+
+@register("renovation_roi")
+def renovation_roi(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    cost = _d(p.get("amount") or 30_000_000)
+    hall = _d(
+        (((s.get("details") or {}).get("channels") or {}).get("months") or {})
+        .get(lm, {})
+        .get("Zal", {})
+        .get("revenue")
+    )
+    hall = hall or pl_value(s, "sof tushum", lm) * Decimal("0.4")
+    days_closed = int(p.get("days") or 5)
+    be = break_even(s, lm)
+    lost = (hall / 30 * days_closed * be.cm_ratio).quantize(Decimal(1))
+    uplift = Decimal("0.05")
+    gain = (hall * uplift * be.cm_ratio).quantize(Decimal(1))
+    total = cost + lost
+    pay = (total / gain).quantize(Decimal("0.1")) if gain else None
+    verdict = f"{M(cost)} + yopilish {days_closed} kun ({M(lost)} yo'qotish); zal +5% bo'lsa {str(pay).replace('.', ',')} oyda qoplaydi."
+    live = f"Remont zal savdosini besh foizga oshirsa, taxminan {uz.uz_number_words(int(pay or 0))} oyda o'zini oqlaydi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Jami xarajat", M(total), "remont + yopilish", ""),
+            ("Oylik qo'shimcha foyda", M(gain), "zal +5% × marja", "good"),
+            (
+                "Qoplash",
+                f"{str(pay).replace('.', ',')} oy",
+                "",
+                "good" if pay and pay < 24 else "bad",
+            ),
+        ],
+        table=(
+            ["Ko'rsatkich", "Qiymat"],
+            [
+                ["Zal savdosi (oy)", N(hall)],
+                ["Marjinal foyda ulushi", P(be.cm_ratio)],
+                ["Eng yaxshi oy", "fevral (eng past mavsum)"],
+            ],
+        ),
+        actions=[
+            "Remontni eng past oyga (fevral) rejalashtiring",
+            "Yopilishni 3–5 kunga qisqartiring (bosqichma-bosqich)",
+            "Remontdan keyin 2 oy zal savdosini solishtiring",
+        ],
+        assumptions="Zal savdosi +5% (taxmin, 5–8% oralig'i); yopilish kunlarida zal savdosi yo'qoladi.",
+        source=f"Sotuv (Zal kanali, {lm}), Foyda-zarar",
+        live=live,
+        ctx=ctx,
+        facts_out={"payback": str(pay)},
+    )
+
+
+@register("bulk_purchase")
+def bulk_purchase(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    pur = (s.get("details") or {}).get("purchases") or {}
+    name = next((n for n in pur if "go'sht" in n.lower()), next(iter(pur), ""))
+    mo = (pur.get(name) or {}).get("months", {}).get(lm, {})
+    month_amt = _d(mo.get("amount"))
+    disc = Decimal("0.07")
+    months = int(p.get("months") or 1)
+    save = (month_amt * disc).quantize(Decimal(1))
+    tied = (month_amt * months - month_amt / Decimal("4.35")).quantize(Decimal(1))
+    days = int((tied / (save / 30)).quantize(Decimal(1))) if save else 0
+    ok = f["min_balance"] - tied >= f["buffer"]
+    verdict = (
+        f"{name}ni {months} oylik olsangiz oyiga ~{M(save)} tejaysiz, {M(tied)} pul band bo'ladi."
+    )
+    live = f"{name.split()[0]}ni ulgurji olsangiz oyiga {say_mln(save)}ga yaqin tejaysiz."
+    return card(
+        item,
+        verdict,
+        [
+            ("Oylik tejov", M(save), "7% chegirma (taxmin)", "good"),
+            ("Band pul", M(tied), "qo'shimcha zaxira", ""),
+            ("Qoplash (kun)", str(days), "band pul tejov bilan", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Qiymat"],
+            [
+                [f"{name} oylik xaridi ({lm})", N(month_amt)],
+                [
+                    "Eng tang kun kassasi (keyin)",
+                    f"{N(f['min_balance'] - tied)} ({'xavfsiz' if ok else 'chegaradan past'})",
+                ],
+                ["Saqlash", "muzlatgich sig'imi + isrof xavfi"],
+            ],
+        ),
+        assumptions="Ulgurji chegirma 7% (taxmin, ta'minotchidan so'rang); muzlatgich sig'imi yetarli.",
+        source=f"Kirim ({name}, {lm}), prognoz",
+        live=live,
+        ctx=ctx,
+        facts_out={"save": M(save), "tied": M(tied)},
+    )
+
+
+@register("partner_buyout")
+def partner_buyout(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    pl = (s.get("reports") or {}).get("pl") or {}
+    a, b = (
+        _d(pl.get("sherik 1 foyda ulushi", {}).get(lm)),
+        _d(pl.get("sherik 2 foyda ulushi", {}).get(lm)),
+    )
+    share = Decimal(str(p.get("share") or ((b / (a + b) * 100) if (a + b) else 40))) / 100
+    net = pl_value(s, "sof foyda", lm)
+    ms = sorted(k for k in (pl.get("sof foyda") or {}) if k <= lm)[-6:]
+    avg = sum((_d(pl["sof foyda"][k]) for k in ms), D0) / len(ms) if ms else net
+    year = avg * 12
+    lo, hi = year * 2 * share, year * 4 * share
+    share_profit = year * share
+    yrs = ((lo + hi) / 2 / share_profit).quantize(Decimal("0.1")) if share_profit > 0 else None
+    verdict = f"{int(share * 100)}% ulush ~{M(lo)}–{M(hi)}; u ulushning foydasi yiliga ~{M(share_profit)} → {str(yrs).replace('.', ',')} yilda qoplaydi."
+    live = f"Sherigingiz ulushi taxminan {say_mln(lo)} dan {say_mln(hi)}gacha — {uz.uz_number_words(int(yrs or 0))} yilda qoplaydi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Ulush narxi", f"{M(lo)}–{M(hi)}", "yillik foyda × 2–4", ""),
+            ("Yillik ulush foydasi", M(share_profit), f"{int(share * 100)}%", "good"),
+            ("Qoplash", f"{str(yrs).replace('.', ',')} yil", "", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Qiymat"],
+            [
+                ["O'rtacha oylik sof foyda (6 oy)", N(avg)],
+                ["Yillik foyda", N(year)],
+                ["Baho (2–4× yillik foyda)", f"{N(year * 2)} – {N(year * 4)}"],
+            ],
+        ),
+        assumptions="Kichik biznes bahosi = yillik sof foyda × 2–4 (taxmin); sherik ulushi Foyda-zarar 'Sherik foyda ulushi' nisbatidan.",
+        source="Foyda-zarar (sof foyda, sheriklar ulushi)",
+        live=live,
+        ctx=ctx,
+        facts_out={"lo": M(lo), "hi": M(hi)},
+    )
+
+
+@register("corporate_catering")
+def corporate_catering(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    n = int(p.get("portions") or 50)
+    dish = find_dish(s, "lavash tovuqli")
+    price = dish["price"] * Decimal("0.9") if dish else Decimal(35_000)
+    cost = dish["cost"] if dish else Decimal(10_000)
+    unit = price - cost - Decimal(1500) - Decimal(2000)
+    month = (unit * n * 22).quantize(Decimal(1))
+    from apps.engine import hiring as HR
+
+    h = HR.compute(s, HR.Params())
+    cap_ok = h.weekday_checks + Decimal(n) / 3 <= 90 * Decimal("0.95")
+    recv = (price * n * 22 / 2).quantize(Decimal(1))
+    verdict = f"Kuniga {n} porsiya → oyiga +{M(month)} foyda; tushlik pikida quvvat {'yetadi' if cap_ok else 'yetmaydi'}."
+    live = f"Kuniga {uz.uz_number_words(n)} porsiya korporativ buyurtma oyiga {say_mln(month)} foyda beradi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Oylik foyda", M(month), f"{n} porsiya × 22 ish kuni", "good"),
+            (
+                "Quvvat",
+                "yetadi" if cap_ok else "yetmaydi",
+                f"ish kunlari {N(h.weekday_checks)}/90 chek",
+                "good" if cap_ok else "bad",
+            ),
+            ("Debitorlik", M(recv), "ofislar 2 haftada to'laydi", ""),
+        ],
+        table=(
+            ["Porsiya", "So'm"],
+            [
+                ["Narx (10% korporativ chegirma)", N(price)],
+                ["Tannarx", N(cost)],
+                ["Qadoq + yetkazish", "3 500"],
+                ["Porsiya foydasi", N(unit)],
+            ],
+        ),
+        assumptions="Korporativ narx −10%, qadoq 1 500, yetkazish 2 000 so'm/porsiya; ofislar 2 hafta kechikib to'laydi (taxmin).",
+        source="Menyu (tannarx), Smena (ish kunlari yuklamasi)",
+        live=live,
+        ctx=ctx,
+        facts_out={"month": M(month)},
+    )
+
+
+@register("branch_readiness")
+def branch_readiness(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    pl = (s.get("reports") or {}).get("pl") or {}
+    ms = sorted(k for k in (pl.get("sof foyda") or {}) if k <= lm)[-3:]
+    profits = [_d(pl["sof foyda"][k]) for k in ms]
+    rec = fixed_month(s)
+    stable = all(x > Decimal(10_000_000) for x in profits)
+    reserve_ok = f["cash"] >= rec
+    invest = Decimal(350_000_000)
+    month_profit = (sum(profits, D0) / len(profits)) if profits else D0
+    pay = (invest / month_profit).quantize(Decimal(1)) if month_profit > 0 else None
+    ready = stable and reserve_ok
+    cond = (
+        ", ".join(
+            x
+            for x, ok in (
+                ("3 oy foyda ≥ 10 mln", stable),
+                ("zaxira ≥ 1 oy doimiy xarajat", reserve_ok),
+            )
+            if not ok
+        )
+        or "hammasi bajarilgan"
+    )
+    verdict = f"Hozir {'tayyor' if ready else 'tayyor emas'}: shart — {cond}. Ochish ~{M(invest)}, qoplash ~{pay} oy (ramp-up bilan ko'proq)."
+    live = (
+        "Ikkinchi filialga hali erta — avval uch oy barqaror foyda va zaxira kerak."
+        if not ready
+        else "Ikkinchi filialga tayyorsiz — moliyalash rejasini tuzamiz."
+    )
+    return card(
+        item,
+        verdict,
+        [
+            ("Investitsiya", M(invest), "birinchi filial tajribasi (taxmin)", ""),
+            ("Qoplash", f"~{pay} oy", "joriy oylik foyda bilan", ""),
+            ("Tayyorlik", "tayyor" if ready else "tayyor emas", cond, "good" if ready else "bad"),
+        ],
+        table=(["Oy", "Sof foyda"], [[k, N(v)] for k, v in zip(ms, profits, strict=False)]),
+        assumptions="Investitsiya — Investitsiyalar varag'idagi boshlang'ich investitsiya darajasi (~345 mln); filial ramp-up 6 oy.",
+        source="Foyda-zarar (3 oy), Kassa, Investitsiyalar",
+        live=live,
+        ctx=ctx,
+        facts_out={"ready": str(ready)},
+    )
+
+
+@register("franchise_out")
+def franchise_out(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    lm = last_month(s)
+    rev = pl_value(s, "sof tushum", lm)
+    lump, roy = Decimal(30_000_000), Decimal("0.04")
+    year = (lump + rev * Decimal("0.8") * roy * 12 - Decimal(6_000_000)).quantize(Decimal(1))
+    verdict = f"Bitta franshiza yiliga ~{M(year)}; tayyorlik: retseptlar (Texkarta) bor, standartlar va brend hujjatlashtirilmagan."
+    live = f"Bitta franshiza yiliga taxminan {say_mln(year)} beradi, lekin avval standartlarni hujjatlashtiring."
+    return card(
+        item,
+        verdict,
+        [
+            ("Yillik daromad (1 ta)", M(year), "paushal + 4% royalti", "good"),
+            ("Tayyorlik", "qisman", "retsept bor, standart yo'q", ""),
+            ("Xavf", "brend sifati", "nazorat kerak", "bad"),
+        ],
+        table=(
+            ["Manba", "Yiliga"],
+            [
+                ["Paushal (bir marta)", N(lump)],
+                [
+                    "Royalti 4% (franchayzi tushumi ~80% sizniki)",
+                    N(rev * Decimal("0.8") * roy * 12),
+                ],
+                ["Qo'llab-quvvatlash xarajati", "−6 000 000"],
+            ],
+        ),
+        assumptions="Paushal 30 mln, royalti 4%, franchayzi tushumi sizning 80% ingiz (taxmin).",
+        source=f"Foyda-zarar ({lm}), Texkarta",
+        live=live,
+        ctx=ctx,
+        facts_out={"year": M(year)},
+    )
+
+
+@register("single_item_price")
+def single_item_price(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    d = find_dish(s, ctx.last_user_text or p.get("dish", ""))
+    if d is None:
+        return card(
+            item,
+            "Menyu topilmadi — taom nomi va narxini ayting.",
+            [("—", "—", "", "")] * 3,
+            ctx=ctx,
+        )
+    delta = _d(p.get("amount") or 2000)
+    pct = delta / d["price"]
+    vol = d["sold"] * (1 + ELASTICITY * pct)
+    new_p = d["price"] + delta
+    change = (vol * (new_p - d["cost"]) - d["sold"] * d["margin"]).quantize(Decimal(1))
+    verdict = f"{d['name']} {N(d['price'])} → {N(new_p)}: oyiga {'+' if change >= 0 else ''}{M(change)} foyda, sotuv ~{P(ELASTICITY * pct)}."
+    live = f"{d['name']} narxini {N(delta)} so'mga oshirsangiz, oyiga {say_mln(change)} ko'proq foyda qoladi."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Oylik foyda o'zgarishi",
+                ("+" if change >= 0 else "") + M(change),
+                "",
+                "good" if change >= 0 else "bad",
+            ),
+            ("Sotuv o'zgarishi", P(ELASTICITY * pct), f"{N(d['sold'])} → {N(vol)} porsiya", ""),
+            ("Yangi FC", P(d["cost"] / new_p), f"oldin {P(d['fc'])}", ""),
+        ],
+        table=(
+            ["Ko'rsatkich", "Hozir", "Yangi"],
+            [
+                ["Narx", N(d["price"]), N(new_p)],
+                ["Oylik porsiya", N(d["sold"]), N(vol)],
+                ["Porsiya foydasi", N(d["margin"]), N(new_p - d["cost"])],
+            ],
+        ),
+        assumptions="Narx elastikligi −0,8 (sentyabr narx oshirishida cheklar −3% / narx +4%); boshqa taomga o'tish hisobga olinmagan.",
+        source="Menyu (narx, tannarx, sotuv)",
+        live=live,
+        ctx=ctx,
+        facts_out={"change": M(change)},
+    )
+
+
+@register("cost_pass_through")
+def cost_pass_through(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    up = Decimal(str(p.get("pct") or 15)) / 100
+    word = "go'sht"
+    rec = (s.get("details") or {}).get("recipes") or {}
+    rows, loss = [], D0
+    for d in menu_rows(s):
+        meat = sum(
+            (
+                _d(x.get("cost"))
+                for x in rec.get(d["name"], [])
+                if any(w in str(x.get("ingredient", "")).lower() for w in (word, "kotlet"))
+            ),
+            D0,
+        )
+        if meat <= 0:
+            continue
+        new_cost = d["cost"] + meat * up
+        need = new_cost / d["fc"] if d["fc"] else d["price"]
+        rounded = ((need / 1000).to_integral_value(rounding="ROUND_CEILING")) * 1000
+        loss += meat * up * d["sold"]
+        rows.append([d["name"], N(d["price"]), N(meat), N(rounded), f"+{N(rounded - d['price'])}"])
+    avg = (
+        (
+            sum((_d(r[4].replace("+", "").replace(" ", "").replace("\xa0", "")) for r in rows), D0)
+            / len(rows)
+        )
+        if rows
+        else D0
+    )
+    verdict = (
+        f"Go'sht +{int(up * 100)}% → {len(rows)} taomga ta'sir; FC'ni ushlash uchun {rows[0][0] if rows else '—'} {rows[0][4] if rows else ''} so'm."
+        if rows
+        else "Retseptlarda go'sht topilmadi."
+    )
+    live = f"Go'sht o'n besh foiz qimmatlasa, lavashlarga {say_mln(avg) if avg >= 1_000_000 else N(avg) + ' so‘m'} atrofida qo'shish kerak bo'ladi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Ta'sir qilgan taomlar", str(len(rows)), "", ""),
+            ("Oylik zarar (narx o'zgarmasa)", M(loss), "", "bad"),
+            ("O'rtacha narx o'sishi", f"+{N(avg)} so'm", "500/1000 ga yaxlitlangan", ""),
+        ],
+        table=(["Taom", "Hozirgi narx", "Go'sht (porsiyada)", "Yangi narx", "Farq"], rows),
+        assumptions="Food cost joriy darajada ushlanadi; narx 1 000 so'mga yuqoriga yaxlitlanadi.",
+        source="Texkarta (go'sht ulushi), Menyu",
+        live=live,
+        ctx=ctx,
+        facts_out={"loss": M(loss)},
+    )
+
+
+@register("discount_promo_roi")
+def discount_promo_roi(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    disc = Decimal(str(p.get("pct") or 20)) / 100
+    be = break_even(s, last_month(s))
+    m = be.cm_ratio
+    need = disc / (m - disc) if m > disc else Decimal(9)
+    from apps.engine import hiring as HR
+
+    h = HR.compute(s, HR.Params())
+    sat_free = (90 - h.sat_checks) / h.sat_checks if h.sat_checks else D0
+    verdict = f"−{int(disc * 100)}% uchun hajm kamida +{P(need)} oshishi kerak; shanbada quvvat {'yo‘q' if sat_free < need else 'yetadi'} (bo'sh {P(sat_free)}) → faqat dushanba–payshanba qiling."
+    live = f"Yigirma foiz chegirma uchun savdo kamida {uz.uz_number_words(int((need * 100).quantize(Decimal(1))))} foiz oshishi kerak — buni faqat bo'sh kunlarga qo'ying."
+    return card(
+        item,
+        verdict,
+        [
+            ("Zararsizlik o'sishi", f"+{P(need)}", f"marja {P(m)}", ""),
+            (
+                "Kutilgan natija",
+                "zarar" if need > Decimal("0.5") else "mumkin",
+                "",
+                "bad" if need > Decimal("0.5") else "",
+            ),
+            ("Quvvat", f"shanba {N(h.sat_checks)}/90", "", ""),
+        ],
+        assumptions="Marjinal foyda ulushi — Foyda-zarar; kannibalizatsiya (chegirmasiz ham keladiganlar) hisobga olinsa natija yomonroq.",
+        source="Foyda-zarar, Smena (yuklama)",
+        live=live,
+        ctx=ctx,
+        facts_out={"need": P(need)},
+    )
+
+
+@register("new_item_whatif")
+def new_item_whatif(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    price = _d(p.get("amount") or 40_000)
+    sim = find_dish(s, "lavash mol")
+    cost = (sim["cost"] * Decimal("1.05")) if sim else price * Decimal("0.32")
+    unit = price - cost
+    n = ((sim["sold"] if sim else Decimal(300)) * Decimal("0.5")).quantize(Decimal(1))
+    month = (unit * n * Decimal("0.75")).quantize(Decimal(1))
+    verdict = f"Donar {N(price)}: porsiya foydasi {N(unit)}; oyiga ~{N(n)} porsiya → +{M(month)} (kannibalizatsiyadan keyin)."
+    live = f"Donar qo'shsangiz, oyiga taxminan {say_mln(month)} qo'shimcha foyda beradi."
+    return card(
+        item,
+        verdict,
+        [
+            ("Porsiya foydasi", N(unit), f"tannarx {N(cost)}", ""),
+            ("Oylik foyda", M(month), "25% kannibalizatsiya", "good"),
+            ("Food cost", P(cost / price), "", ""),
+        ],
+        assumptions=f"Tannarx — o'xshash taom ({sim['name'] if sim else '—'}) +5%; sotuv — o'xshash taomning 50%; 25% eski mijoz o'tadi (taxmin). Uskuna kerak bo'lsa → «Apparat olsam-chi?» (Q3).",
+        source="Menyu, Texkarta (o'xshash taom)",
+        live=live,
+        ctx=ctx,
+        facts_out={"month": M(month)},
+    )
+
+
+@register("portion_size_change")
+def portion_size_change(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    f = facts(ctx)
+    s = f["s"]
+    d = find_dish(s, "lavash mol go'shtli")
+    pur = (s.get("details") or {}).get("purchases") or {}
+    lm = last_month(s)
+    kg_price = _d(
+        (pur.get("Mol go'shti") or {}).get("months", {}).get(lm, {}).get("price")
+    ) or Decimal(110_000)
+    grams = Decimal(str(p.get("grams") or 10))
+    save = (grams / 1000 * kg_price * (d["sold"] if d else D0)).quantize(Decimal(1))
+    new_fc = ((d["cost"] - grams / 1000 * kg_price) / d["price"]) if d else D0
+    risk = (save / (d["margin"] * d["sold"])) if d and d["margin"] * d["sold"] else D0
+    verdict = f"−{int(grams)} g → oyiga +{M(save)}; agar sotuv {P(risk)} dan ko'p kamaysa — zarar."
+    live = f"O'n gramm kamaytirish oyiga {say_mln(save) if save >= 1_000_000 else N(save) + ' so‘m'} beradi, lekin mijoz sezsa — zarar."
+    return card(
+        item,
+        verdict,
+        [
+            (
+                "Oylik tejov",
+                M(save),
+                f"{d['name'] if d else ''}, {N(d['sold'] if d else 0)} porsiya",
+                "good",
+            ),
+            ("Yangi FC", P(new_fc), f"oldin {P(d['fc'] if d else 0)}", ""),
+            ("Xavf chegarasi", f"sotuv −{P(risk)}", "undan ko'p kamaysa — zarar", "bad"),
+        ],
+        assumptions=f"Mol go'shti {N(kg_price)} so'm/kg (Kirim, {lm}).",
+        source="Texkarta, Kirim (go'sht narxi), Menyu (sotuv)",
+        live=live,
+        ctx=ctx,
+        facts_out={"save": M(save)},
+    )
+
+
+@register("market_price_compare")
+def market_price_compare(ctx: ToolContext, item: CatalogItem, p: dict[str, Any]) -> dict[str, Any]:
+    from .growth_tools import market, market_for
+
+    f = facts(ctx)
+    s = f["s"]
+    rows, pos = [], []
+    for d in menu_rows(s):
+        items = market_for(d["name"])
+        if not items:
+            continue
+        ps = sorted(_d(i["price"]) for i in items)
+        med = ps[len(ps) // 2]
+        dev = (d["price"] / med - 1) if med else D0
+        pos.append((d["name"], dev))
+        rows.append(
+            [
+                d["name"],
+                N(d["price"]),
+                f"{N(ps[0])}–{N(ps[-1])}",
+                N(med),
+                ("+" if dev >= 0 else "") + P(dev),
+            ]
+        )
+    if not rows:
+        return card(
+            item,
+            "Bozor narxlari bo'yicha manba topilmadi — raqobatchi narxlarini ayting.",
+            [
+                ("Pozitsiya", "—", "", ""),
+                ("Eng qimmat taom", "—", "", ""),
+                ("Manbalar soni", "0", "", ""),
+            ],
+            ctx=ctx,
+        )
+    top = max(pos, key=lambda x: x[1])
+    lav = next((r for r in rows if "lavash" in r[0].lower()), rows[0])
+    verdict = (
+        f"{lav[0]}: siz {lav[1]}, bozor {lav[2]} (o'rtacha {lav[3]}) — {lav[4]} bozor o'rtachasiga."
+    )
+    live = "Lavashingiz bozor o'rtachasiga yaqin; arzon taomlarda narx oshirishga joy bor."
+    return card(
+        item,
+        verdict,
+        [
+            ("Pozitsiya", lav[4], lav[0], ""),
+            ("Eng qimmat taom", top[0], ("+" if top[1] >= 0 else "") + P(top[1]), ""),
+            (
+                "Manbalar soni",
+                str(len(market().get("items", []))),
+                f"internet, {market().get('fetched')}",
+                "",
+            ),
+        ],
+        table=(["Taom", "Siz", "Bozor (min–max)", "Bozor median", "Farq"], rows),
+        assumptions="Raqobatchilar narxlari internetdan yig'ilgan (taxminiy; filial va aksiyaga qarab farq qiladi).",
+        source="Menyu, bozor narxlari (Oqtepa Lavash, Evos, Max Way, Feed Up, KFC, Les Ailes)",
+        live=live,
+        ctx=ctx,
+        facts_out={"lavash": lav[4]},
+    )
